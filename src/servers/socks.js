@@ -19,19 +19,25 @@ const SocksConnectionStatus = {
 const SOCKS_VERSION = 0x05
 const SOCKS_COMMAND_CONNECT = 0x01
 
-const MRIM_UNSECURE_CONNECTION_PORT = 2042
+const MRIM_UNSECURE_CONNECTION_PORT = 2041
+const MRIMTRANSFER_CONNECTION_PORT = 2042
 
 const IPV4_ADDRESS_FORMAT = '%d.%d.%d.%d'
 
 class SocksServer extends TCPServer {
   constructor (options) {
-    super({ ...options, mrim: undefined })
+    super({ ...options, mrim: undefined, mrimtransfer: undefined})
 
     if (options.mrim === undefined) {
       throw new Error('MRIM сервер необходим для SOCKS5 проски-сервера')
     }
 
+    if (options.mrimtransfer === undefined) {
+      throw new Error('Перенаправляющий сервер необходим для SOCKS5 проски-сервера')
+    }
+
     this.mrim = options.mrim
+    this.mrimtransfer = options.mrimtransfer
   }
 
   onConnection (socket) {
@@ -111,7 +117,7 @@ class SocksServer extends TCPServer {
       const destinationAddress = this.parseAddress(message)
       const destinationPort = message.readUint16()
 
-      if (destinationPort !== MRIM_UNSECURE_CONNECTION_PORT) {
+      if (destinationPort !== MRIM_UNSECURE_CONNECTION_PORT && destinationPort !== MRIMTRANSFER_CONNECTION_PORT) {
         const reply = this.createConnectionReply(request, SocksConnectionStatus.CONNECTION_NOT_ALLOWED)
 
         this.logger.error(`Клиент ${address}:${port} хочет подключиться не к MRIM -> адрес: ${destinationAddress}, порт: ${destinationPort}`)
@@ -122,9 +128,13 @@ class SocksServer extends TCPServer {
       socket.write(reply)
 
       this.removeAllListeners(socket)
-      this.logger.info(`Клиент ${address}:${port} переподключен к MRIM`)
+      this.logger.info(`Клиент ${address}:${port} перенаправлен`)
 
-      this.mrim.onConnection(socket)
+      if (destinationPort == MRIM_UNSECURE_CONNECTION_PORT) {
+        this.mrim.onConnection(socket)
+      } else if (destinationPort == MRIMTRANSFER_CONNECTION_PORT) {
+        this.mrimtransfer.onConnection(socket)
+      }
     }
 
     return implementation
