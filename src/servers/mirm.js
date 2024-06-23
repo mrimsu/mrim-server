@@ -10,8 +10,18 @@ class MIRMServer extends TCPServer {
   onConnection (socket) {
     socket.setEncoding('ascii')
 
-    socket.on('data', (data) => socket.write(data))
-    socket.on('error', (error) => console.error(error))
+    const { address, port } = socket.address()
+    this.logger.info(`Клиент ${address}:${port} подключился к MIRM серверу`)
+
+    socket.on('data', (data) => {
+      this.logger.info(`Клиент ${address}:${port} отправил "${data}"`)
+      socket.write(data)
+    })
+
+    socket.on('error', (error) => {
+      this.logger.error(error.message)
+      socket.end(error.stack)
+    })
   }
 }
 

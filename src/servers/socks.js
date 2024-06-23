@@ -25,7 +25,7 @@ const MIRM_UNSECURE_CONNECTION_PORT = 2402
 
 class SocksServer extends TCPServer {
   constructor (options) {
-    super({ host: options.host, port: options.port })
+    super({ ...options, mirm: undefined })
 
     if (options.mirm === undefined) {
       throw new Error('MIRM сервер необходим для SOCKS5 проски-сервера')
@@ -38,15 +38,20 @@ class SocksServer extends TCPServer {
     const handleConnectionRequest = this.handleConnectionRequest(socket)
     const handleHandshakeRequest = this.handleHandshakeRequest(socket, handleConnectionRequest)
 
+    const { address, port } = socket.address()
+    this.logger.info(`Клиент ${address}:${port} подключился к SOCKS5 прокси-серверу.`)
+
     socket.on('data', handleHandshakeRequest)
   }
 
   handleHandshakeRequest (socket, handleConnectionRequest) {
     const implementation = (request) => {
+      const { address, port } = socket.address()
       const message = new BinaryReader(request, BinaryEndianness.NETWORK)
 
       const clientVersion = message.readUint8()
       if (clientVersion !== SOCKS_VERSION) {
+        this.logger.error(`Клиент ${address}:${port} использует не ту версию SOCKS -> версия клиента: ${clientVersion}`)
         return socket.end()
       }
 
@@ -73,6 +78,7 @@ class SocksServer extends TCPServer {
         [SOCKS_VERSION, SocksAuthenticationMethods.NOT_ACCEPTABLE]
       )
 
+      this.logger.error(`Клиент ${address}:${port} не поддерживает анонимное подключение`)
       return socket.end(reply)
     }
 
@@ -82,26 +88,32 @@ class SocksServer extends TCPServer {
   // FIXME mikhail убрать "временный" костыль для подключения к MIRM
   handleConnectionRequest (socket) {
     const implementation = (request) => {
+      const { address, port } = socket.address()
       const message = new BinaryReader(request, BinaryEndianness.NETWORK)
 
       const clientVersion = message.readUint8()
       if (clientVersion !== SOCKS_VERSION) {
+        this.logger.error(`Клиент ${address}:${port} использует не ту версию SOCKS -> версия клиента: ${clientVersion}`)
         return socket.end()
       }
 
       const command = message.readUint8()
       if (command !== SOCKS_COMMAND_CONNECT) {
         const reply = this.createConnectionReply(request, SocksConnectionStatus.COMMAND_NOT_SUPPORTED)
+
+        this.logger.error(`Клиент ${address}:${port} отправил не поддерживаемую команду -> код команды: ${command}`)
         return socket.end(Buffer.from(reply))
       }
 
-      message.offset++ // reversed byte
+      message.offset++ // зарезервированное место
 
-      const address = this.parseAddress(message) // eslint-disable-line no-unused-vars
-      const port = message.readUint16()
+      const destinationAddress = this.parseAddress(message)
+      const destinationPort = message.readUint16()
 
-      if (port !== MIRM_UNSECURE_CONNECTION_PORT) {
+      if (destinationPort !== MIRM_UNSECURE_CONNECTION_PORT) {
         const reply = this.createConnectionReply(request, SocksConnectionStatus.CONNECTION_NOT_ALLOWED)
+
+        this.logger.error(`Клиент ${address}:${port} хочет подключиться не к MIRM -> адрес: ${destinationAddress}, порт: ${destinationPort}`)
         return socket.end(reply)
       }
 
@@ -109,6 +121,8 @@ class SocksServer extends TCPServer {
       socket.write(reply)
 
       socket.removeAllListeners('data')
+      this.logger.info(`Клиент ${address}:${port} переподключен к MIRM`)
+
       this.mirm.onConnection(socket)
     }
 

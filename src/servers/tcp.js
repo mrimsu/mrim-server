@@ -5,13 +5,19 @@
 
 const net = require('node:net')
 
-const DEFAULT_HOST = '127.0.0.1'
-const DEFAULT_PORT = 5000
+const DEFAULT_TCP_HOST = 'localhost'
+const DEFAULT_TCP_PORT = 5000
 
 class TCPServer {
   constructor (options) {
-    this.host = options.host ?? DEFAULT_HOST
-    this.port = options.port ?? DEFAULT_PORT
+    this.host = options.host ?? DEFAULT_TCP_HOST
+    this.port = options.port ?? DEFAULT_TCP_PORT
+
+    if (options.logger === undefined) {
+      throw new Error('Логгер необходим для TCP сервера')
+    }
+
+    this.logger = options.logger
   }
 
   /**
