@@ -13,7 +13,7 @@ const DEFAULT_MRIM_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
 
 function main () {
-  const args = arg({ '--MRIM-port': Number, '--socks-port': Number, '--log-level': String })
+  const args = arg({ '--mrim-port': Number, '--socks-port': Number, '--log-level': String })
 
   const logger = winston.createLogger({
     level: args['--log-level'] ?? 'info',
@@ -23,7 +23,7 @@ function main () {
 
   const mrimServer = new MRIMServer({
     host: 'localhost',
-    port: args['--MRIM-port'] ?? DEFAULT_MRIM_PORT,
+    port: args['--mrim-port'] ?? DEFAULT_MRIM_PORT,
     logger
   })
 
