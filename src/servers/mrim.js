@@ -13,15 +13,26 @@ class MRIMServer extends TCPServer {
     const { address, port } = socket.address()
     this.logger.info(`Клиент ${address}:${port} подключился к MRIM серверу`)
 
-    socket.on('data', (data) => {
+    const onData = this.onData(socket)
+    const onError = this.onError.bind(this)
+
+    socket.on('data', onData)
+    socket.on('error', onError)
+  }
+
+  onData (socket) {
+    const { address, port } = socket.address()
+
+    const implementation = (data) => {
       this.logger.info(`Клиент ${address}:${port} отправил "${data}"`)
       socket.write(data)
-    })
+    }
 
-    socket.on('error', (error) => {
-      this.logger.error(error.stack)
-      socket.end(error.stack)
-    })
+    return implementation
+  }
+
+  onError (error) {
+    this.logger.error(error.stack)
   }
 }
 
