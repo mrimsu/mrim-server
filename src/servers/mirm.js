@@ -19,7 +19,7 @@ class MIRMServer extends TCPServer {
     })
 
     socket.on('error', (error) => {
-      this.logger.error(error.message)
+      this.logger.error(error.stack)
       socket.end(error.stack)
     })
   }

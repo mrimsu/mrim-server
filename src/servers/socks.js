@@ -42,6 +42,7 @@ class SocksServer extends TCPServer {
     this.logger.info(`Клиент ${address}:${port} подключился к SOCKS5 прокси-серверу.`)
 
     socket.on('data', handleHandshakeRequest)
+    socket.on('error', (error) => this.logger.error(error.stack))
   }
 
   handleHandshakeRequest (socket, handleConnectionRequest) {
@@ -120,7 +121,7 @@ class SocksServer extends TCPServer {
       const reply = this.createConnectionReply(request, SocksConnectionStatus.SUCCESS)
       socket.write(reply)
 
-      socket.removeAllListeners('data')
+      this.removeAllListeners(socket)
       this.logger.info(`Клиент ${address}:${port} переподключен к MIRM`)
 
       this.mirm.onConnection(socket)
@@ -164,6 +165,11 @@ class SocksServer extends TCPServer {
     reply[1] = status
 
     return Buffer.from(reply)
+  }
+
+  removeAllListeners (socket) {
+    socket.removeAllListeners('data')
+    socket.removeAllListeners('error')
   }
 }
 
