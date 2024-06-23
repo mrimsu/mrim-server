@@ -1,0 +1,20 @@
+{
+  "name": "mirm-server",
+  "private": true,
+  "description": "Эмулятор сервера Агент Mail.ru, реализующий протокол MIRM.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "start:dev": "nodemon src/index.js",
+    "lint": "standard --fix"
+  },
+  "keywords": [],
+  "author": {
+    "name": "mikhail \"synzr\"",
+    "url": "https://github.com/synzr"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "standard": "^17.1.0"
+  }
+}
