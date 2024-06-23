@@ -6,14 +6,14 @@
 const arg = require('arg')
 const winston = require('winston')
 
-const MIRMServer = require('./servers/mirm')
+const MRIMServer = require('./servers/mrim')
 const SocksServer = require('./servers/socks')
 
-const DEFAULT_MIRM_PORT = 2402
+const DEFAULT_MRIM_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
 
 function main () {
-  const args = arg({ '--mirm-port': Number, '--socks-port': Number, '--log-level': String })
+  const args = arg({ '--MRIM-port': Number, '--socks-port': Number, '--log-level': String })
 
   const logger = winston.createLogger({
     level: args['--log-level'] ?? 'info',
@@ -21,22 +21,22 @@ function main () {
     transports: [new winston.transports.Console()]
   })
 
-  const mirmServer = new MIRMServer({
+  const mrimServer = new MRIMServer({
     host: 'localhost',
-    port: args['--mirm-port'] ?? DEFAULT_MIRM_PORT,
+    port: args['--MRIM-port'] ?? DEFAULT_MRIM_PORT,
     logger
   })
 
   const socksServer = new SocksServer({
     host: 'localhost',
     port: args['--socks-port'] ?? DEFAULT_SOCKS5_PORT,
-    mirm: mirmServer,
+    MRIM: MRIMServer,
     logger
   })
 
-  const mirmListener = mirmServer.listen(() => {
-    const { address, port } = mirmListener.address()
-    return logger.info(`MIRM сервер запущен -> адрес: ${address}, порт: ${port}`)
+  const mrimListener = mrimServer.listen(() => {
+    const { address, port } = mrimListener.address()
+    return logger.info(`MRIM сервер запущен -> адрес: ${address}, порт: ${port}`)
   })
 
   const socksListener = socksServer.listen(() => {

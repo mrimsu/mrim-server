@@ -1,7 +1,7 @@
 {
-  "name": "mirm-server",
+  "name": "mrim-server",
   "private": true,
-  "description": "Эмулятор сервера Агент Mail.ru, реализующий протокол MIRM.",
+  "description": "Эмулятор сервера Агент Mail.ru, реализующий протокол MRIM.",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

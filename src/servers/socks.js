@@ -1,5 +1,5 @@
 /**
- * @file Реализация SOCKS5 прокси-сервера для подключения к MIRM.
+ * @file Реализация SOCKS5 прокси-сервера для подключения к MRIM.
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
@@ -19,19 +19,19 @@ const SocksConnectionStatus = {
 const SOCKS_VERSION = 0x05
 const SOCKS_COMMAND_CONNECT = 0x01
 
-const IPV4_ADDRESS_FORMAT = '%d.%d.%d.%d'
+const MRIM_UNSECURE_CONNECTION_PORT = 2402
 
-const MIRM_UNSECURE_CONNECTION_PORT = 2402
+const IPV4_ADDRESS_FORMAT = '%d.%d.%d.%d'
 
 class SocksServer extends TCPServer {
   constructor (options) {
-    super({ ...options, mirm: undefined })
+    super({ ...options, MRIM: undefined })
 
-    if (options.mirm === undefined) {
-      throw new Error('MIRM сервер необходим для SOCKS5 проски-сервера')
+    if (options.MRIM === undefined) {
+      throw new Error('MRIM сервер необходим для SOCKS5 проски-сервера')
     }
 
-    this.mirm = options.mirm
+    this.MRIM = options.MRIM
   }
 
   onConnection (socket) {
@@ -86,7 +86,7 @@ class SocksServer extends TCPServer {
     return implementation
   }
 
-  // FIXME mikhail убрать "временный" костыль для подключения к MIRM
+  // FIXME mikhail убрать "временный" костыль для подключения к MRIM
   handleConnectionRequest (socket) {
     const implementation = (request) => {
       const { address, port } = socket.address()
@@ -111,10 +111,10 @@ class SocksServer extends TCPServer {
       const destinationAddress = this.parseAddress(message)
       const destinationPort = message.readUint16()
 
-      if (destinationPort !== MIRM_UNSECURE_CONNECTION_PORT) {
+      if (destinationPort !== MRIM_UNSECURE_CONNECTION_PORT) {
         const reply = this.createConnectionReply(request, SocksConnectionStatus.CONNECTION_NOT_ALLOWED)
 
-        this.logger.error(`Клиент ${address}:${port} хочет подключиться не к MIRM -> адрес: ${destinationAddress}, порт: ${destinationPort}`)
+        this.logger.error(`Клиент ${address}:${port} хочет подключиться не к MRIM -> адрес: ${destinationAddress}, порт: ${destinationPort}`)
         return socket.end(reply)
       }
 
@@ -122,9 +122,9 @@ class SocksServer extends TCPServer {
       socket.write(reply)
 
       this.removeAllListeners(socket)
-      this.logger.info(`Клиент ${address}:${port} переподключен к MIRM`)
+      this.logger.info(`Клиент ${address}:${port} переподключен к MRIM`)
 
-      this.mirm.onConnection(socket)
+      this.MRIM.onConnection(socket)
     }
 
     return implementation
