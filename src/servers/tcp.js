@@ -9,9 +9,9 @@ const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 5000
 
 class TCPServer {
-  constructor (host, port) {
-    this.host = host ?? DEFAULT_HOST
-    this.port = port ?? DEFAULT_PORT
+  constructor (options) {
+    this.host = options.host ?? DEFAULT_HOST
+    this.port = options.port ?? DEFAULT_PORT
   }
 
   /**
