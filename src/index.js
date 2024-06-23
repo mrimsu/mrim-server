@@ -30,7 +30,7 @@ function main () {
   const socksServer = new SocksServer({
     host: 'localhost',
     port: args['--socks-port'] ?? DEFAULT_SOCKS5_PORT,
-    MRIM: MRIMServer,
+    mrim: mrimServer,
     logger
   })
 

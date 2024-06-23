@@ -19,19 +19,19 @@ const SocksConnectionStatus = {
 const SOCKS_VERSION = 0x05
 const SOCKS_COMMAND_CONNECT = 0x01
 
-const MRIM_UNSECURE_CONNECTION_PORT = 2402
+const MRIM_UNSECURE_CONNECTION_PORT = 2042
 
 const IPV4_ADDRESS_FORMAT = '%d.%d.%d.%d'
 
 class SocksServer extends TCPServer {
   constructor (options) {
-    super({ ...options, MRIM: undefined })
+    super({ ...options, mrim: undefined })
 
-    if (options.MRIM === undefined) {
+    if (options.mrim === undefined) {
       throw new Error('MRIM сервер необходим для SOCKS5 проски-сервера')
     }
 
-    this.MRIM = options.MRIM
+    this.mrim = options.mrim
   }
 
   onConnection (socket) {
@@ -124,7 +124,7 @@ class SocksServer extends TCPServer {
       this.removeAllListeners(socket)
       this.logger.info(`Клиент ${address}:${port} переподключен к MRIM`)
 
-      this.MRIM.onConnection(socket)
+      this.mrim.onConnection(socket)
     }
 
     return implementation
