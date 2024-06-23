@@ -19,33 +19,39 @@ const SocksConnectionStatus = {
 const SOCKS_VERSION = 0x05
 const SOCKS_COMMAND_CONNECT = 0x01
 
-const MRIM_UNSECURE_CONNECTION_PORT = 2041
-const MRIMTRANSFER_CONNECTION_PORT = 2042
+const MRIM_UNSECURE_SERVER_PORT = 2041
+const TRANSFER_SERVER_PORT = 2042
 
 const IPV4_ADDRESS_FORMAT = '%d.%d.%d.%d'
 
 class SocksServer extends TCPServer {
   constructor (options) {
-    super({ ...options, mrim: undefined, mrimtransfer: undefined})
+    super({ ...options, mrim: undefined, mrimtransfer: undefined })
 
-    if (options.mrim === undefined) {
+    if (options.servers.mrim === undefined) {
       throw new Error('MRIM сервер необходим для SOCKS5 проски-сервера')
     }
 
-    if (options.mrimtransfer === undefined) {
-      throw new Error('Перенаправляющий сервер необходим для SOCKS5 проски-сервера')
+    if (options.servers.transfer === undefined) {
+      throw new Error(
+        'Перенаправляющий сервер необходим для SOCKS5 проски-сервера'
+      )
     }
 
-    this.mrim = options.mrim
-    this.mrimtransfer = options.mrimtransfer
+    this.servers = options.servers
   }
 
   onConnection (socket) {
     const handleConnectionRequest = this.handleConnectionRequest(socket)
-    const handleHandshakeRequest = this.handleHandshakeRequest(socket, handleConnectionRequest)
+    const handleHandshakeRequest = this.handleHandshakeRequest(
+      socket,
+      handleConnectionRequest
+    )
 
     const { address, port } = socket.address()
-    this.logger.info(`Клиент ${address}:${port} подключился к SOCKS5 прокси-серверу.`)
+    this.logger.info(
+      `Клиент ${address}:${port} подключился к SOCKS5 прокси-серверу.`
+    )
 
     socket.on('data', handleHandshakeRequest)
     socket.on('error', (error) => this.logger.error(error.stack))
@@ -58,7 +64,9 @@ class SocksServer extends TCPServer {
 
       const clientVersion = message.readUint8()
       if (clientVersion !== SOCKS_VERSION) {
-        this.logger.error(`Клиент ${address}:${port} использует не ту версию SOCKS -> версия клиента: ${clientVersion}`)
+        this.logger.error(
+          `Клиент ${address}:${port} использует не ту версию SOCKS -> версия клиента: ${clientVersion}`
+        )
         return socket.end()
       }
 
@@ -67,13 +75,15 @@ class SocksServer extends TCPServer {
         authenticationMethodCount
       )
 
-      const clientSupportsAnonymousAccess =
-        authenticationMethods.includes(SocksAuthenticationMethods.ANONYMOUS)
+      const clientSupportsAnonymousAccess = authenticationMethods.includes(
+        SocksAuthenticationMethods.ANONYMOUS
+      )
 
       if (clientSupportsAnonymousAccess) {
-        const reply = Buffer.from(
-          [SOCKS_VERSION, SocksAuthenticationMethods.ANONYMOUS]
-        )
+        const reply = Buffer.from([
+          SOCKS_VERSION,
+          SocksAuthenticationMethods.ANONYMOUS
+        ])
 
         socket.removeListener('data', implementation)
         socket.on('data', handleConnectionRequest)
@@ -81,11 +91,14 @@ class SocksServer extends TCPServer {
         return socket.write(reply)
       }
 
-      const reply = Buffer.from(
-        [SOCKS_VERSION, SocksAuthenticationMethods.NOT_ACCEPTABLE]
-      )
+      const reply = Buffer.from([
+        SOCKS_VERSION,
+        SocksAuthenticationMethods.NOT_ACCEPTABLE
+      ])
 
-      this.logger.error(`Клиент ${address}:${port} не поддерживает анонимное подключение`)
+      this.logger.error(
+        `Клиент ${address}:${port} не поддерживает анонимное подключение`
+      )
       return socket.end(reply)
     }
 
@@ -100,15 +113,22 @@ class SocksServer extends TCPServer {
 
       const clientVersion = message.readUint8()
       if (clientVersion !== SOCKS_VERSION) {
-        this.logger.error(`Клиент ${address}:${port} использует не ту версию SOCKS -> версия клиента: ${clientVersion}`)
+        this.logger.error(
+          `Клиент ${address}:${port} использует не ту версию SOCKS -> версия клиента: ${clientVersion}`
+        )
         return socket.end()
       }
 
       const command = message.readUint8()
       if (command !== SOCKS_COMMAND_CONNECT) {
-        const reply = this.createConnectionReply(request, SocksConnectionStatus.COMMAND_NOT_SUPPORTED)
+        const reply = this.createConnectionReply(
+          request,
+          SocksConnectionStatus.COMMAND_NOT_SUPPORTED
+        )
 
-        this.logger.error(`Клиент ${address}:${port} отправил не поддерживаемую команду -> код команды: ${command}`)
+        this.logger.error(
+          `Клиент ${address}:${port} отправил не поддерживаемую команду -> код команды: ${command}`
+        )
         return socket.end(Buffer.from(reply))
       }
 
@@ -117,23 +137,35 @@ class SocksServer extends TCPServer {
       const destinationAddress = this.parseAddress(message)
       const destinationPort = message.readUint16()
 
-      if (destinationPort !== MRIM_UNSECURE_CONNECTION_PORT && destinationPort !== MRIMTRANSFER_CONNECTION_PORT) {
-        const reply = this.createConnectionReply(request, SocksConnectionStatus.CONNECTION_NOT_ALLOWED)
+      if (
+        destinationPort !== MRIM_UNSECURE_SERVER_PORT &&
+        destinationPort !== TRANSFER_SERVER_PORT
+      ) {
+        const reply = this.createConnectionReply(
+          request,
+          SocksConnectionStatus.CONNECTION_NOT_ALLOWED
+        )
 
-        this.logger.error(`Клиент ${address}:${port} хочет подключиться не к MRIM -> адрес: ${destinationAddress}, порт: ${destinationPort}`)
+        this.logger.error(
+          `Клиент ${address}:${port} хочет подключиться не к MRIM/перенаправлятору -> адрес: ${destinationAddress}, порт: ${destinationPort}`
+        )
         return socket.end(reply)
       }
 
-      const reply = this.createConnectionReply(request, SocksConnectionStatus.SUCCESS)
+      const reply = this.createConnectionReply(
+        request,
+        SocksConnectionStatus.SUCCESS
+      )
       socket.write(reply)
 
       this.removeAllListeners(socket)
       this.logger.info(`Клиент ${address}:${port} перенаправлен`)
 
-      if (destinationPort == MRIM_UNSECURE_CONNECTION_PORT) {
-        this.mrim.onConnection(socket)
-      } else if (destinationPort == MRIMTRANSFER_CONNECTION_PORT) {
-        this.mrimtransfer.onConnection(socket)
+      switch (destinationPort) {
+        case MRIM_UNSECURE_SERVER_PORT:
+          return this.servers.mirm.onConnection(socket)
+        case TRANSFER_SERVER_PORT:
+          return this.servers.transfer.onConnection(socket)
       }
     }
 

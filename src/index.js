@@ -7,18 +7,23 @@ const arg = require('arg')
 const winston = require('winston')
 
 const MRIMServer = require('./servers/mrim')
-const MRIMTransferServer = require('./servers/mrimtrans')
+const TransferServer = require('./servers/transfer')
 const SocksServer = require('./servers/socks')
 
-const DEFAULT_MRIMTRANSFER_PORT = 2042
+const DEFAULT_TRANSFER_PORT = 2042
 const DEFAULT_MRIM_PORT = 2041
 const DEFAULT_SOCKS5_PORT = 8080
 
 function main () {
-  const args = arg({ '--mrim-port': Number, '--socks-port': Number, '--log-level': String })
+  const args = arg({
+    '--mrim-port': Number,
+    '--mrim-transfer-port': Number,
+    '--socks-port': Number,
+    '--log-level': String
+  })
 
   const logger = winston.createLogger({
-    level: args['--log-level'] ?? 'info',
+    level: args['--log-level'] ?? 'debug',
     format: winston.format.cli(),
     transports: [new winston.transports.Console()]
   })
@@ -28,34 +33,42 @@ function main () {
     port: args['--mrim-port'] ?? DEFAULT_MRIM_PORT,
     logger
   })
-  
-  const mrimTransferServer = new MRIMTransferServer({
+
+  const transferServer = new TransferServer({
     host: 'localhost',
-    port: args['--mrimtransfer-port'] ?? DEFAULT_MRIMTRANSFER_PORT,
+    port: args['--mrim-transfer-port'] ?? DEFAULT_TRANSFER_PORT,
     logger
   })
 
   const socksServer = new SocksServer({
     host: 'localhost',
     port: args['--socks-port'] ?? DEFAULT_SOCKS5_PORT,
-    mrim: mrimServer,
-    mrimtransfer: mrimTransferServer,
+    servers: {
+      mrim: mrimServer,
+      transfer: transferServer
+    },
     logger
   })
 
-  const mrimTransferListener = mrimTransferServer.listen(() => {
-    const { address, port } = mrimTransferListener.address()
-    return logger.info(`Перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`)
+  const transferListener = transferServer.listen(() => {
+    const { address, port } = transferListener.address()
+    return logger.info(
+      `перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`
+    )
   })
 
   const mrimListener = mrimServer.listen(() => {
     const { address, port } = mrimListener.address()
-    return logger.info(`MRIM сервер запущен -> адрес: ${address}, порт: ${port}`)
+    return logger.info(
+      `MRIM сервер запущен -> адрес: ${address}, порт: ${port}`
+    )
   })
 
   const socksListener = socksServer.listen(() => {
     const { address, port } = socksListener.address()
-    return logger.info(`SOCKS5 прокси-сервер запущен -> адрес: ${address}, порт: ${port}`)
+    return logger.info(
+      `SOCKS5 прокси-сервер запущен -> адрес: ${address}, порт: ${port}`
+    )
   })
 }
 
