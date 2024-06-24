@@ -139,7 +139,8 @@ class SocksServer extends TCPServer {
 
       if (
         destinationPort !== MRIM_UNSECURE_SERVER_PORT &&
-        destinationPort !== TRANSFER_SERVER_PORT
+        destinationPort !== TRANSFER_SERVER_PORT &&
+        destinationPort !== 443
       ) {
         const reply = this.createConnectionReply(
           request,
