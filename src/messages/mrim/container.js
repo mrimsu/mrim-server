@@ -3,7 +3,6 @@
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
-const { BinaryEndianness } = require("@glagan/binary-reader");
 const {
   MessageConstructor,
   FieldDataType,

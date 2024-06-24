@@ -2,14 +2,14 @@
 Дефолтный порт для незащищённого подключения **2042**, в ином случае **443**. Здесь описываестя имплементация только незащищённого соединения.
 
 Из чего состоит пакет:
-```c++
+```c
 typedef struct mrim_packet_header_t
 {
-    unsigned int      magic;		// Magic
-    unsigned int      proto;		// Версия протокола
-    unsigned int      seq;		// Sequence
-    unsigned int      msg;		// Тип пакета
-    unsigned int      dlen; 		// Длина данных
+    unsigned int  magic;		// Magic
+    unsigned int  proto;		// Версия протокола
+    unsigned int  seq;		// Sequence
+    unsigned int  msg;		// Тип пакета
+    unsigned int  dlen; 		// Длина данных
     unsigned int	from;		// Адрес отправителя
     unsigned int	fromport;	// Порт отправителя
     unsigned char	reserved[16];	// Зарезервировано
@@ -22,13 +22,13 @@ typedef struct mrim_packet_header_t
 
 Происходит подключение к серверу по порту **2041**, после него сразу отправляется пакет `MRIM_CS_HELLO`. Сервер отправляет в ответ `MRIM_CS_HELLO_ACK` вместе с периодом пинга[^3]. Юзер отправляет "логин, пароль, информацию о клиенте, локаль"[^4], тип пакета `MRIM_CS_LOGIN3`.
 
-После установки TCP-соединения клиент обязан сразу послать `MRIM_CS_HELLO`, дождаться `MRIM_CS_HELLO_ACK`, после чего отправить `MRIM_CS_PING` с установленным в `MRIM_CS_HELLO_ACK` интервалом. 
+После установки TCP-соединения клиент обязан сразу послать `MRIM_CS_HELLO`, дождаться `MRIM_CS_HELLO_ACK`, после чего отправить `MRIM_CS_PING` с установленным в `MRIM_CS_HELLO_ACK` интервалом.
 
 В случае неудачи сервер отправляет `MRIM_CS_LOGIN_REJ` и причину string'ом.
 
 В случае удачи `MRIM_CS_LOGIN_ACK` без данных.
 
-## Подробное HEX-описание данных пакета 
+## Подробное HEX-описание данных пакета
 `MRIM_CS_CONTACT_LIST2 S -> C:`
 ```hex
 00 00 00 00 						// GET_CONTACTS_OK
