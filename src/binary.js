@@ -29,9 +29,9 @@ class BinaryConstructor {
       rawInteger.writeUIntLE(value, 0, size)
     }
 
-    if (this.endianness !== BinaryConstructor.LITTLE) {
-      rawInteger = rawInteger.reverse()
-    }
+    // if (this.endianness !== BinaryConstructor.LITTLE) {
+    //   rawInteger = rawInteger.reverse()
+    // }
 
     return this.subbuffer(rawInteger)
   }

@@ -163,7 +163,7 @@ class SocksServer extends TCPServer {
 
       switch (destinationPort) {
         case MRIM_UNSECURE_SERVER_PORT:
-          return this.servers.mirm.onConnection(socket)
+          return this.servers.mrim.onConnection(socket)
         case TRANSFER_SERVER_PORT:
           return this.servers.transfer.onConnection(socket)
       }
