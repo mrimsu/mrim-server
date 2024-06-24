@@ -1,183 +1,123 @@
 /**
- * @file Реализация сервера с протоколом MRIM.
- * @author mikhail "synzr" <mikhail@tskau.team>
+ * @file Реализация MRIM-сервера.
  * @author Vladimir Barinov <veselcraft@icloud.com>
+ * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
-const TCPServer = require('./tcp')
+const BinaryConstructor = require("../constructors/binary");
+const { ServerConstructor } = require("../constructors/server");
+const { MrimLoginData } = require("../messages/mrim/authorization");
+const { MrimContainerHeader } = require("../messages/mrim/container");
 
-const { BinaryReader, BinaryEndianness } = require('@glagan/binary-reader')
-const { BinaryConstructor } = require('../binary')
+const MrimMessageCommands = {
+  HELLO: 0x1001,
+  HELLO_ACK: 0x1002,
+  LOGIN_ACK: 0x1004,
+  LOGIN_REJ: 0x1005,
+  PING: 0x1006,
+  LOGIN2: 0x1038,
+};
 
-const MrimMessageCommands = { 
-  // Authorization
-  HELLO: 0x1001, HELLO_ACK: 0x1002, LOGIN_ACK: 0x1004, LOGIN_REJ: 0x1005, PING: 0x1006, LOGIN2: 0x1038 
+const MRIM_HEADER_CONTAINER_SIZE = 0x2c;
+
+function onConnection(socket, connectionId, logger, _variables) {
+  socket.on("data", onData(socket, connectionId, logger));
 }
 
-const MRIM_MAGIC_HEADER = 0xdeadbeef
+function onData(socket, connectionId, logger) {
+  return (data) => {
+    const header = MrimContainerHeader.reader(data);
 
-// TODO mikhail начать реализовывать протокол MRIM
-class MRIMServer extends TCPServer {
-  onConnection (socket) {
-    const { address, port } = socket.address()
-    this.logger.info(`Клиент ${address}:${port} подключился к MRIM серверу`)
+    logger.debug("===============================================");
+    logger.debug(
+      `Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`,
+    );
+    logger.debug(`Последовательность пакета: ${header.packetOrder}`);
+    logger.debug(`Команда данных: ${header.packetCommand}`);
+    logger.debug(`Размер данных: ${header.dataSize}`);
+    logger.debug("===============================================");
 
-    const onData = this.onData(socket)
-    const onError = this.onError.bind(this)
+    const packetData = data.subarray(
+      MRIM_HEADER_CONTAINER_SIZE,
+      MRIM_HEADER_CONTAINER_SIZE + header.dataSize,
+    );
 
-    socket.on('data', onData)
-    socket.on('error', onError)
-  }
+    const result = processPacket(header, packetData, connectionId, logger);
 
-  onData (socket) {
-    const { address, port } = socket.address()
-
-    const implementation = (data) => {
-      this.logger.info(
-        `Клиент ${address}:${port} отправил ${data.toString('hex')}`
-      )
-
-      const header = this.parseHeader(data, socket)
-
-      if (header === null) {
-        return socket.end()
-      }
-
-      this.logger.debug('===============================================')
-      this.logger.debug(
-        `Версия протокола: ${header.protocolVersion.minor}.${header.protocolVersion.major}`
-      )
-      this.logger.debug(`Последовательность пакета: ${header.packet.order}`)
-      this.logger.debug(`Команда пакета: ${header.packet.command}`)
-      this.logger.debug(`Размер пакета: ${header.packet.size}`)
-      this.logger.debug('===============================================')
-
-      const packetData = new BinaryReader(data);
-      packetData.offset = 44; // Header default size
-
-      this.processMessage(header, packetData.readUint8Array(header.packet.size), socket)
+    if (result === undefined) {
+      return;
     }
 
-    return implementation
-  }
-
-  onError (error) {
-    this.logger.error(error.stack)
-  }
-
-  parseHeader (data, socket) {
-    const binaryMessage = new BinaryReader(data)
-
-    const magicNumber = binaryMessage.readUint32()
-    if (magicNumber !== MRIM_MAGIC_HEADER) {
-      this.logger.error(
-        `Клиент отправил неверный "magic header" -> магия = ${magicNumber} | нужна ${MRIM_MAGIC_HEADER}`
-      )
-      return null
+    if (result.end === true) {
+      socket.end(result.reply);
+    } else {
+      socket.write(result.reply);
     }
+  };
+}
 
-    const parsedMessage = {
-      protocolVersion: {
-        major: binaryMessage.readUint16(),
-        minor: binaryMessage.readUint16()
-      },
-      packet: {
-        order: binaryMessage.readUint32(),
-        command: binaryMessage.readUint32(),
-        size: binaryMessage.readUint32(),
-        senderAddress: binaryMessage.readUint32(),
-        senderPort: binaryMessage.readInt32()
-      },
-      reversed: binaryMessage.readUint8Array(16)
+function processPacket(containerHeader, packetData, connectionId, logger) {
+  switch (containerHeader.packetCommand) {
+    case MrimMessageCommands.HELLO: {
+      logger.debug(
+        `[${connectionId}] От клиента пакет определён как MRIM_CS_HELLO`,
+      );
+      logger.debug(`[${connectionId}] Отправляем MRIM_CS_HELLO_ACK...`);
+
+      const containerHeaderBinary = MrimContainerHeader.writer({
+        ...containerHeader,
+        packetOrder: 0,
+        packetCommand: MrimMessageCommands.HELLO_ACK,
+        dataSize: 0x4,
+        senderAddress: 0,
+        senderPort: 0,
+      });
+
+      return {
+        reply: new BinaryConstructor()
+          .subbuffer(containerHeaderBinary)
+          .integer(10, 4)
+          .finish(),
+      };
     }
+    case MrimMessageCommands.LOGIN2: {
+      logger.debug(
+        `[${connectionId}] От клиента пакет определён как MRIM_CS_LOGIN2`,
+      );
+      logger.debug(`[${connectionId}] Временно отправляем MRIM_CS_LOGIN_ACK`);
 
-    return parsedMessage
-  }
+      const loginData = MrimLoginData.reader(packetData);
 
-  processMessage (header, data, socket) {
-    switch (header.packet.command) {
-      case MrimMessageCommands.HELLO: {
-        this.logger.debug('От клиента пакет определён как MRIM_CS_HELLO')
-        this.logger.debug('Отправляем MRIM_CS_HELLO_ACK...')
-        
-        const dataToSend = new BinaryConstructor().integer(10, 4).finish()
-        
-        this.sendPacket(
-          header,
-          MrimMessageCommands.HELLO_ACK,
-          dataToSend,
-          0,
-          socket
-        )
-        break;
-      }
-      
-      case MrimMessageCommands.LOGIN2: {
-        this.logger.debug('От клиента пакет определён как MRIM_CS_LOGIN2')
-        this.logger.debug('Временно отправляем MRIM_CS_LOGIN_ACK')
-        
-        this.parseLoginInfo(data);
-        
-        const dataToSend = new BinaryConstructor().finish()
-        
-        this.sendPacket(
-          header,
-          MrimMessageCommands.LOGIN_ACK,
-          dataToSend,
-          header.packet.order,
-          socket
-        )
-        break;
-      }
+      logger.debug("!! Вход в аккаунт !!");
+      logger.debug(`ID подключения: ${connectionId}`);
+      logger.debug(`Логин: ${loginData.login}`);
+      logger.debug(`Пароль: ${loginData.password}`);
+      logger.debug(`Статус: ${loginData.status}`);
+      logger.debug(`Юзерагент: ${loginData.userAgent}`);
 
-      case MrimMessageCommands.PING: {
-        this.logger.debug('От клиента прилетел пинг. Игнорируем')
-        break;
-      }
+      return {
+        reply: MrimContainerHeader.writer({
+          ...containerHeader,
+          dataType: MrimMessageCommands.LOGIN_ACK,
+          dataSize: 0,
+          senderAddress: 0,
+          senderPort: 0,
+        }),
+      };
     }
-  }
-  
-  // TODO mikhail сделать версию константным значением (MRIM_SERVER_VERSION_MINOR, MRIM_SERVER_VERSION_MAJOR)
-  createHeader (requestHeader, command, data, order) {
-    return new BinaryConstructor()
-    .integer(MRIM_MAGIC_HEADER, 4)
-    .integer(requestHeader.protocolVersion.minor, 2)
-    .integer(requestHeader.protocolVersion.major, 2)
-      .integer(order, 4)
-      .integer(command, 4)
-      .integer(data.length, 4)
-      .integer(0, 4) // адрес отправителя
-      .integer(0, 4) // порт отправителя
-      .subbuffer(Buffer.alloc(16).fill(0)) // зарезервировано
-      .finish()
-    }
-    
-    sendPacket (requestHeader, command, data, order, socket) {
-      const header = this.createHeader(requestHeader, command, data, order)
-      socket.write(Buffer.concat([header, data]))
-    }
-    
-    // For processing packets
-  parseLoginInfo(data) {
-    if (data.length !== 0) {
-      const packetData = new BinaryReader(data, BinaryEndianness.LITTLE);
-      let loginsize = packetData.readUint32();
-      let login = packetData.readUint8Array(loginsize).toString('utf-8');;
-      let passwordsize = packetData.readUint32();
-      let password = packetData.readUint8Array(passwordsize).toString('utf-8');;
-      let status = packetData.readUint32();
-      let useragentsize = packetData.readUint32();
-      let useragent = packetData.readUint8Array(useragentsize).toString('utf-8');;
-      
-      this.logger.debug('!! Вход в аккаунт !!')
-      this.logger.debug(`Логин: ${login}`);
-      this.logger.debug(`Пароль: ${password}`);
-      this.logger.debug(`Статус: ${status}`);
-      this.logger.debug(`Юзерагент: ${useragent}`);
-
-
+    case MrimMessageCommands.PING: {
+      logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`);
+      break;
     }
   }
 }
 
-module.exports = MRIMServer
+// TODO mikhail переписать на STEP_BY_STEP
+function createMrimServer(options) {
+  return new ServerConstructor({
+    logger: options.logger,
+    onConnection,
+  }).finish();
+}
+
+module.exports = createMrimServer;
