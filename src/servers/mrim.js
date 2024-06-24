@@ -134,7 +134,7 @@ function processPacket (containerHeader, packetData, connectionId, logger) {
                 senderPort: 0
               })
             )
-            .integer(3, 4)
+            .integer(0, 4)
             .finish(),
           new BinaryConstructor()
             .subbuffer(
