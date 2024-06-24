@@ -16,7 +16,7 @@ const MrimMessageCommands = {
   CONTACT_LIST2: 0x1037, 
 
   // Messages
-  MAILBOX_STATUS: 0x1033,
+  MAILBOX_STATUS: 0x1033, MESSAGE: 0x1008, MESSAGE_ACK: 0x1009, MESSAGE_STATUS: 0x1012,
 }
 
 const MRIM_MAGIC_HEADER = 0xdeadbeef
@@ -158,9 +158,36 @@ class MRIMServer extends TCPServer {
         )
         break;
       }
-
+      
       case MrimMessageCommands.PING: {
-        this.logger.debug('От клиента прилетел пинг. Игнорируем')
+        this.logger.debug('От клиента прилетел пинг. Пока-что отправляем рандомный пакет')
+        
+        const dataToSend = Buffer.from("10000000000000000F000000737570706F7274406D61696C2E72750500000074657374200100000020", 'hex');
+                
+        this.sendPacket(
+          header,
+          MrimMessageCommands.MESSAGE_ACK,
+          dataToSend,
+          header.packet.order,
+          socket
+        )
+
+        break;
+      }
+
+      case MrimMessageCommands.MESSAGE: {
+        this.logger.debug('MRIM_CS_MESSAGE')
+        this.parseMessages(data);
+
+        const dataToSend = new BinaryConstructor().integer(0, 4).finish()
+        
+        this.sendPacket(
+          header,
+          MrimMessageCommands.MESSAGE_STATUS,
+          dataToSend,
+          header.packet.order,
+          socket
+        )
         break;
       }
     }
@@ -203,6 +230,23 @@ class MRIMServer extends TCPServer {
       this.logger.debug(`Пароль: ${password}`);
       this.logger.debug(`Статус: ${status}`);
       this.logger.debug(`Юзерагент: ${useragent}`);
+
+
+    }
+  }
+
+  parseMessages(data) {
+    if (data.length !== 0) {
+      const packetData = new BinaryReader(data, BinaryEndianness.LITTLE);
+      let messageFlags = packetData.readUint32();
+      let toSize = packetData.readUint32();
+      let to = packetData.readUint8Array(toSize).toString('utf-8');
+      let messageSize = packetData.readUint32();
+      let message = packetData.readUint8Array(messageSize).toString('utf-8');
+      
+      this.logger.debug('!! Новое сообщение !!')
+      this.logger.debug(`Кому: ${to}`);
+      this.logger.debug(`Текст: ${message}`);
 
 
     }
