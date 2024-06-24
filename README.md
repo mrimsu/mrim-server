@@ -1,5 +1,5 @@
-# mrim-server
+# MRIM-Server
+> [!WARNING]
+> На данный момент WIP, неполная реплика.
 
 Эмулятор сервера Агент Mail.ru, реализующий протокол MRIM.
-
-> *Work in progress, не полная реплика*
