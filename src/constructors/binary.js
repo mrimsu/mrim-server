@@ -3,12 +3,12 @@
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
-const { BinaryEndianness } = require("@glagan/binary-reader");
+const { BinaryEndianness } = require('@glagan/binary-reader')
 
 class BinaryConstructor {
-  constructor(endianness) {
-    this.buffer = Buffer.alloc(0);
-    this.endianness = endianness ?? BinaryEndianness.LITTLE;
+  constructor (endianness) {
+    this.buffer = Buffer.alloc(0)
+    this.endianness = endianness ?? BinaryEndianness.LITTLE
   }
 
   /**
@@ -20,20 +20,20 @@ class BinaryConstructor {
    *
    * @returns {BinaryConstructor} Возвращает себя
    */
-  integer(value, size, signed = false) {
-    let rawInteger = Buffer.alloc(size);
+  integer (value, size, signed = false) {
+    let rawInteger = Buffer.alloc(size)
 
     if (signed) {
-      rawInteger.writeIntLE(value, 0, size);
+      rawInteger.writeIntLE(value, 0, size)
     } else {
-      rawInteger.writeUIntLE(value, 0, size);
+      rawInteger.writeUIntLE(value, 0, size)
     }
 
     if (this.endianness !== BinaryEndianness.LITTLE) {
-      rawInteger = rawInteger.reverse();
+      rawInteger = rawInteger.reverse()
     }
 
-    return this.subbuffer(rawInteger);
+    return this.subbuffer(rawInteger)
   }
 
   /**
@@ -42,18 +42,18 @@ class BinaryConstructor {
    * @param {Buffer} subbuffer Суббуфер
    * @returns {BinaryConstructor} Возвращает себя
    */
-  subbuffer(subbuffer) {
-    this.buffer = Buffer.concat([this.buffer, subbuffer]);
-    return this;
+  subbuffer (subbuffer) {
+    this.buffer = Buffer.concat([this.buffer, subbuffer])
+    return this
   }
 
   /**
    * Закрыть буфер
    * @returns {Buffer} Финальный буфер
    */
-  finish() {
-    return this.buffer;
+  finish () {
+    return this.buffer
   }
 }
 
-module.exports = BinaryConstructor;
+module.exports = BinaryConstructor

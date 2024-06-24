@@ -5,22 +5,22 @@
 
 const {
   MessageConstructor,
-  FieldDataType,
-} = require("../../constructors/message");
+  FieldDataType
+} = require('../../constructors/message')
 
 const MrimClientMessageData = new MessageConstructor()
-  .field("flags", FieldDataType.UINT32)
-  .field("addresser", FieldDataType.UBIART_LIKE_STRING)
-  .field("message", FieldDataType.UBIART_LIKE_STRING)
-  .field("messageRTF", FieldDataType.UBIART_LIKE_STRING) // NOTE что за нахуй RTF??
-  .finish();
+  .field('flags', FieldDataType.UINT32)
+  .field('addresser', FieldDataType.UBIART_LIKE_STRING)
+  .field('message', FieldDataType.UBIART_LIKE_STRING)
+  .field('messageRTF', FieldDataType.UBIART_LIKE_STRING) // NOTE что за нахуй RTF??
+  .finish()
 
 const MrimServerMessageData = new MessageConstructor()
-  .field("id", FieldDataType.UINT32)
-  .field("flags", FieldDataType.UINT32)
-  .field("addresser", FieldDataType.UBIART_LIKE_STRING)
-  .field("message", FieldDataType.UBIART_LIKE_STRING)
-  .field("messageRTF", FieldDataType.UBIART_LIKE_STRING)
-  .finish();
+  .field('id', FieldDataType.UINT32)
+  .field('flags', FieldDataType.UINT32)
+  .field('addresser', FieldDataType.UBIART_LIKE_STRING)
+  .field('message', FieldDataType.UBIART_LIKE_STRING)
+  .field('messageRTF', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
 
-module.exports = { MrimClientMessageData, MrimServerMessageData };
+module.exports = { MrimClientMessageData, MrimServerMessageData }
