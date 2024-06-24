@@ -11,7 +11,12 @@ const { BinaryConstructor } = require('../binary')
 
 const MrimMessageCommands = { 
   // Authorization
-  HELLO: 0x1001, HELLO_ACK: 0x1002, LOGIN_ACK: 0x1004, LOGIN_REJ: 0x1005, PING: 0x1006, LOGIN2: 0x1038 
+  HELLO: 0x1001, HELLO_ACK: 0x1002, LOGIN_ACK: 0x1004, LOGIN_REJ: 0x1005, PING: 0x1006, LOGIN2: 0x1038,
+  // Contacts
+  CONTACT_LIST2: 0x1037, 
+
+  // Messages
+  MAILBOX_STATUS: 0x1033,
 }
 
 const MRIM_MAGIC_HEADER = 0xdeadbeef
@@ -124,6 +129,30 @@ class MRIMServer extends TCPServer {
           header,
           MrimMessageCommands.LOGIN_ACK,
           dataToSend,
+          header.packet.order,
+          socket
+        )
+        
+        this.logger.debug('Через MRIM_CS_MAILBOX_STATUS наврём, что у нас 3 новых сообщения')
+        
+        const dataToSend2 = new BinaryConstructor().integer(3, 4).finish()
+        
+        this.sendPacket(
+          header,
+          MrimMessageCommands.MAILBOX_STATUS,
+          dataToSend2,
+          header.packet.order,
+          socket
+        )
+        
+        this.logger.debug('Через MRIM_CS_CONTACT_LIST2 наврём, что у нас 2 группы и 1 контакт')
+        
+        const dataToSend3 = Buffer.from("00000000020000000200000075730C000000757573737575737373737573080000000700000047656E6572616C08000000040000005465737408000000010000000F000000737570706F7274406D61696C2E727507000000536C757A686261000000000100000000000000000000000000000000000000FF03000027000000636C69656E743D4A324D454167656E742076657273696F6E3D312E33206275696C643D31393337", 'hex');
+        
+        this.sendPacket(
+          header,
+          MrimMessageCommands.CONTACT_LIST2,
+          dataToSend3,
           header.packet.order,
           socket
         )
