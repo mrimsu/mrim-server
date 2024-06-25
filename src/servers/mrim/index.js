@@ -1,5 +1,5 @@
 /**
- * @file MRIM-сервер.
+ * @file Главный скрипт MRIM-сервера
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
