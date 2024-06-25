@@ -1,3 +1,8 @@
+/**
+ * @file Реализация SOCKS5 проски-сервера
+ * @author mikhail "synzr" <mikhail@tskau.team>
+ */
+
 const {
   ServerConstructor,
   ServerMessageHandler
