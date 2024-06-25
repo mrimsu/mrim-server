@@ -35,6 +35,7 @@ async function getUserIdViaCredentials (login, password) {
 async function getContactGroups (userId) {
   const connection = await pool.getConnection()
 
+  // TODO mikhail добавить хоть какую-нибудь защиту для паролей
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
     'SELECT `contact_group`.`id`, `contact_group`.`name` ' +
