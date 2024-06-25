@@ -69,8 +69,19 @@ async function processLogin (
       loginData.password
     )
   } catch {
-    // TODO mikhail отправить пакет с ошибкой
-    return { end: true }
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.LOGIN_REJ,
+            dataSize: 0,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .finish()
+    }
   }
 
   const contactGroups = await getContactGroups(state.userId)
