@@ -15,7 +15,7 @@ function createRedirectorServer (options) {
   return new ServerConstructor({
     logger: options.logger,
     onConnection,
-    variables: { ipAddress: '127.0.0.1:2041' }
+    variables: { ipAddress: '192.168.0.105:2041' }
   }).finish()
 }
 

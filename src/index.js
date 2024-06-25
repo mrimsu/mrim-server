@@ -44,6 +44,7 @@ function main () {
 
   const redirectorListener = redirectorServer.listen(
     args['--mrim-transfer-port'] ?? DEFAULT_TRANSFER_PORT,
+    '0.0.0.0',
     () => {
       const { address, port } = redirectorListener.address()
       return logger.info(
@@ -54,6 +55,7 @@ function main () {
 
   const mrimListener = mrimServer.listen(
     args['--mrim-port'] ?? DEFAULT_MRIM_PORT,
+    '0.0.0.0',
     () => {
       const { address, port } = mrimListener.address()
       return logger.info(
