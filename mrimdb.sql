@@ -79,8 +79,8 @@ CREATE TABLE `user` (
 --
 
 INSERT INTO `user` (`id`, `login`, `passwd`) VALUES
-(1, 'biba', 'biba'),
-(2, 'boba', 'boba');
+(1, 'biba', '$2b$10$sROyimBWn7PnX7Ug258VFuDj1R5g76ta7SwPAWPZ931Eot7pbqpji'),
+(2, 'boba', '$2b$10$YCbbuQLe49EeIfEfEa9Dv.ByMPudxU9DiEJJqnfXnFgIQCqkQEl7.');
 
 --
 -- Indexes for dumped tables

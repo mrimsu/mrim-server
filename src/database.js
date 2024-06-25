@@ -1,6 +1,8 @@
 const config = require('../config')
 
 const mysql2 = require('mysql2/promise')
+const bcrypt = require('bcrypt')
+
 const pool = mysql2.createPool(config.database.connectionUri)
 
 /**
@@ -16,14 +18,21 @@ async function getUserIdViaCredentials (login, password) {
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
-    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`passwd` = ?',
-    [login, password]
+    'SELECT `user`.`id`, `user`.`passwd` FROM `user` WHERE `user`.`login` = ?',
+    [login]
   )
+
   if (results.length === 0) {
     throw new Error(`пользователь ${login} не найден`)
   }
 
-  return results[0].id
+  const [user] = results
+
+  if (!bcrypt.compareSync(password, user.passwd)) {
+    throw new Error('пароль неверный')
+  }
+
+  return user.id
 }
 
 /**
@@ -35,7 +44,6 @@ async function getUserIdViaCredentials (login, password) {
 async function getContactGroups (userId) {
   const connection = await pool.getConnection()
 
-  // TODO mikhail добавить хоть какую-нибудь защиту для паролей
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
     'SELECT `contact_group`.`id`, `contact_group`.`name` ' +
