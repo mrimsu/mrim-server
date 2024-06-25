@@ -15,7 +15,9 @@ const MrimMessageCommands = {
   MAILBOX_STATUS: 0x1033,
   MESSAGE: 0x1008,
   MESSAGE_ACK: 0x1009,
-  MESSAGE_STATUS: 0x1012
+  MESSAGE_STATUS: 0x1012,
+  ANKETA_INFO: 0x1028,
+  WP_REQUEST: 0x1029
 }
 
 module.exports = { MrimMessageCommands }
