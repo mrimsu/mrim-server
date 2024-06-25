@@ -5,19 +5,19 @@
 
 const {
   MessageConstructor,
-  FieldDataType,
-} = require("../../constructors/message");
+  FieldDataType
+} = require('../../constructors/message')
 
 const MrimSearchField = new MessageConstructor()
-  .field("key", FieldDataType.UINT32)
-  .field("value", FieldDataType.UBIART_LIKE_STRING)
-  .finish();
+  .field('key', FieldDataType.UINT32)
+  .field('value', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
 
 const MrimAnketaHeader = new MessageConstructor()
-  .field("status", FieldDataType.UINT32)
-  .field("fieldCount", FieldDataType.UINT32)
-  .field("maxRows", FieldDataType.UINT32)
-  .field("serverTime", FieldDataType.UINT32)
-  .finish();
+  .field('status', FieldDataType.UINT32)
+  .field('fieldCount', FieldDataType.UINT32)
+  .field('maxRows', FieldDataType.UINT32)
+  .field('serverTime', FieldDataType.UINT32)
+  .finish()
 
-module.exports = { MrimSearchField, MrimAnketaHeader };
+module.exports = { MrimSearchField, MrimAnketaHeader }

@@ -49,7 +49,7 @@ async function getContactGroups (userId) {
     'SELECT `contact_group`.`id`, `contact_group`.`name` ' +
       'FROM `contact_group` ' +
       'WHERE `contact_group`.`user_id` = ? ' +
-      'ORDER BY `contact_group`.`name`',
+      'ORDER BY `contact_group`.`idx`',
     [userId]
   )
 
@@ -60,21 +60,18 @@ async function getContactGroups (userId) {
  * Получение контакты из группы контактов
  *
  * @param {number} ownerUserId ID владелец контакта
- * @param {number} contactGroupId ID группы контактов
- *
  * @returns {Promise<Array>} Массив контактов
  **/
-async function getContactsFromGroup (ownerUserId, contactGroupId) {
+async function getContactsFromGroups (ownerUserId) {
   const connection = await pool.getConnection()
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
     'SELECT `contact`.`contact_group_id`, `user`.`id`, `user`.`login` ' +
       'FROM `contact` ' +
-      'INNER JOIN `user` ' +
-      'ON `contact`.`user_id` = `user`.`id`' +
-      'WHERE `contact`.`owner_user_id` = ? AND `contact`.`contact_group_id` = ? ',
-    [ownerUserId, contactGroupId]
+      'INNER JOIN `user` ON `contact`.`user_id` = `user`.`id` ' +
+      'WHERE `contact`.`owner_user_id` = ?',
+    [ownerUserId]
   )
 
   return results
@@ -96,7 +93,7 @@ async function searchUsers (searchParameters) {
   const variables = []
 
   if (Object.hasOwn(searchParameters, 'login')) {
-    query += '`user`.`login` LIKE %?% AND '
+    query += '`user`.`login` LIKE ? AND '
     variables.push(`%${searchParameters.login}%`)
   }
 
@@ -163,9 +160,47 @@ async function searchUsers (searchParameters) {
   return results
 }
 
+/**
+ * Добавление контакта
+ *
+ * @param {number} ownerUserId ID владелец пользователя
+ * @param {number} groupIndex Индекс группы
+ * @param {String} contactLogin Логин контакта
+ */
+async function addContactToGroup (ownerUserId, groupIndex, contactLogin) {
+  const connection = await pool.getConnection()
+
+  const [contactUserResults, groupResults] = await Promise.all([
+    connection.query(
+      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
+      [contactLogin]
+    ),
+    connection.query(
+      'SELECT `contact_group`.`id` FROM `contact_group` ' +
+        'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?',
+      [ownerUserId, groupIndex]
+    )
+  ])
+
+  if (contactUserResults[0].length === 0 || groupResults[0].length === 0) {
+    throw new Error('либо пользователь, либо группа не найдена')
+  }
+
+  const [{ id: contactUserId }] = contactUserResults[0]
+  const [{ id: contactGroupId }] = groupResults[0]
+
+  await connection.execute(
+    'INSERT INTO `contact` ' +
+      '(contact_group_id, owner_user_id, user_id) ' +
+      'VALUES (?, ?, ?)',
+    [contactGroupId, ownerUserId, contactUserId]
+  )
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
-  getContactsFromGroup,
+  getContactsFromGroups,
+  addContactToGroup,
   searchUsers
 }

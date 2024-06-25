@@ -10,7 +10,8 @@ const {
   processHello,
   processLogin,
   processMessage,
-  processSearch
+  processSearch,
+  processAddContact
 } = require('./processors')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
@@ -94,6 +95,14 @@ async function processPacket (
       return processMessage(containerHeader, packetData, connectionId, logger)
     case MrimMessageCommands.WP_REQUEST:
       return processSearch(containerHeader, packetData, connectionId, logger)
+    case MrimMessageCommands.ADD_CONTACT:
+      return processAddContact(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state
+      )
     case MrimMessageCommands.PING: {
       logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)
       break
