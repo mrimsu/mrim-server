@@ -73,7 +73,7 @@ function onClose (socket, connectionId, logger, state) {
   return () => {
     if (global.clients.length > 0) {
       let clientIndex = global.clients.findIndex(({userId}) => userId === state.userId);
-      global.clients.splice(clientIndex, 0);
+      global.clients.splice(clientIndex, 1);
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
       )
