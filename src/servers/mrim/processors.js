@@ -5,6 +5,7 @@
  */
 
 const BinaryConstructor = require('../../constructors/binary')
+const { MrimMessageCommands } = require('./globals')
 const { MrimLoginData } = require('../../messages/mrim/authorization')
 const {
   MrimContactList,
@@ -21,20 +22,6 @@ const {
   getContactGroups,
   getContactsFromGroup
 } = require('../../database')
-
-const MrimMessageCommands = {
-  HELLO: 0x1001,
-  HELLO_ACK: 0x1002,
-  LOGIN_ACK: 0x1004,
-  LOGIN_REJ: 0x1005,
-  PING: 0x1006,
-  LOGIN2: 0x1038,
-  CONTACT_LIST2: 0x1037,
-  MAILBOX_STATUS: 0x1033,
-  MESSAGE: 0x1008,
-  MESSAGE_ACK: 0x1009,
-  MESSAGE_STATUS: 0x1012
-}
 
 const MRIM_GROUP_FLAG = 'us'
 const MRIM_CONTACT_FLAG = 'uussuussssus'
