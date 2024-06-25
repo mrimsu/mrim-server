@@ -3,27 +3,21 @@
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
-const arg = require('arg')
+const config = require('../config')
 const winston = require('winston')
 
 const createRedirectorServer = require('./servers/redirector')
 const createSocksServer = require('./servers/socks')
 const createMrimServer = require('./servers/mrim')
 
-const DEFAULT_TRANSFER_PORT = 2042
 const DEFAULT_MRIM_PORT = 2041
+const DEFAULT_REDIRECTOR_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
+const LOCALHOST = 'localhost' // пиздец
 
 function main () {
-  const args = arg({
-    '--mrim-port': Number,
-    '--mrim-transfer-port': Number,
-    '--socks-port': Number,
-    '--log-level': String
-  })
-
   const logger = winston.createLogger({
-    level: args['--log-level'] ?? 'debug',
+    level: config.logger?.level ?? 'debug',
     format: winston.format.cli(),
     transports: [new winston.transports.Console()]
   })
@@ -42,18 +36,9 @@ function main () {
     logger
   })
 
-  const redirectorListener = redirectorServer.listen(
-    args['--mrim-transfer-port'] ?? DEFAULT_TRANSFER_PORT,
-    () => {
-      const { address, port } = redirectorListener.address()
-      return logger.info(
-        `перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`
-      )
-    }
-  )
-
   const mrimListener = mrimServer.listen(
-    args['--mrim-port'] ?? DEFAULT_MRIM_PORT,
+    config.mrim?.serverPort ?? DEFAULT_MRIM_PORT,
+    config.mrim?.serverHostname ?? LOCALHOST,
     () => {
       const { address, port } = mrimListener.address()
       return logger.info(
@@ -62,9 +47,20 @@ function main () {
     }
   )
 
+  const redirectorListener = redirectorServer.listen(
+    config.redirector?.serverPort ?? DEFAULT_REDIRECTOR_PORT,
+    config.redirector?.serverHostname ?? LOCALHOST,
+    () => {
+      const { address, port } = redirectorListener.address()
+      return logger.info(
+        `перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`
+      )
+    }
+  )
+
   const socksListener = socksServer.listen(
-    args['--socks-port'] ?? DEFAULT_SOCKS5_PORT,
-    '0.0.0.0',
+    config.socks?.serverPort ?? DEFAULT_SOCKS5_PORT,
+    config.socks?.serverHostname ?? LOCALHOST,
     () => {
       const { address, port } = socksListener.address()
       return logger.info(
