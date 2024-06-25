@@ -80,8 +80,92 @@ async function getContactsFromGroup (ownerUserId, contactGroupId) {
   return results
 }
 
+/**
+ * Поиск пользователей
+ *
+ * @param {Object} searchParameters Параметры поиска
+ * @returns {Promise<Array>} Массив поиска
+ */
+async function searchUsers (searchParameters) {
+  const connection = await pool.getConnection()
+  let query =
+    'SELECT `user`.`login`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
+    '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex` ' +
+    'FROM `user` ' +
+    'WHERE '
+  const variables = []
+
+  if (Object.hasOwn(searchParameters, 'login')) {
+    query += '`user`.`login` LIKE %?% AND '
+    variables.push(`%${searchParameters.login}%`)
+  }
+
+  if (Object.hasOwn(searchParameters, 'nickname')) {
+    query += '`user`.`nick` LIKE ? AND '
+    variables.push(`%${searchParameters.nickname}%`)
+  }
+
+  if (Object.hasOwn(searchParameters, 'firstName')) {
+    query += '`user`.`f_name` LIKE ? AND '
+    variables.push(`%${searchParameters.firstName}%`)
+  }
+
+  if (Object.hasOwn(searchParameters, 'lastName')) {
+    query += '`user`.`l_name` LIKE ? AND '
+    variables.push(`%${searchParameters.lastName}%`)
+  }
+
+  if (
+    Object.hasOwn(searchParameters, 'minimumAge') &&
+    Object.hasOwn(searchParameters, 'maximumAge')
+  ) {
+    query += 'YEAR(CURDATE()) - YEAR(`user`.`birthday`) BETWEEN ? AND ? AND '
+    variables.push(searchParameters.minimumAge, searchParameters.maximumAge)
+  }
+
+  if (
+    Object.hasOwn(searchParameters, 'minimumAge') &&
+    !Object.hasOwn(searchParameters, 'maximumAge')
+  ) {
+    query += 'YEAR(CURDATE()) - YEAR(`user`.`birthday`) >= ? AND '
+    variables.push(searchParameters.minimumAge)
+  }
+
+  if (
+    Object.hasOwn(searchParameters, 'maximumAge') &&
+    !Object.hasOwn(searchParameters, 'minimumAge')
+  ) {
+    query += 'YEAR(CURDATE()) - YEAR(`user`.`birthday`) <= ? AND '
+    variables.push(searchParameters.maximumAge)
+  }
+
+  if (Object.hasOwn(searchParameters, 'zodiac')) {
+    query += '`user`.`zodiac` = ? AND '
+    variables.push(searchParameters.zodiac)
+  }
+
+  if (Object.hasOwn(searchParameters, 'birthmonth')) {
+    query += 'MONTH(`user`.`birthday`) = ? AND '
+    variables.push(searchParameters.birthmonth)
+  }
+
+  if (Object.hasOwn(searchParameters, 'birthday')) {
+    query += 'DAY(`user`.`birthday`) = ? AND '
+    variables.push(searchParameters.birthday)
+  }
+
+  // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+  query = query.substring(0, query.length - 4) + 'LIMIT 50'
+  console.log(query)
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.query(query, variables)
+  return results
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
-  getContactsFromGroup
+  getContactsFromGroup,
+  searchUsers
 }

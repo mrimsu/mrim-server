@@ -25,6 +25,7 @@ const {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroup,
+  searchUsers,
 } = require("../../database");
 const { Iconv } = require("iconv");
 
@@ -35,14 +36,21 @@ const MrimSearchRequestFields = {
   FIRSTNAME: 3,
   LASTNAME: 4,
   SEX: 5,
-  DATE_MIN: 6,
-  DATE_MAX: 7,
-  CITY_ID: 8,
-  ZODIAC: 9,
-  BIRTHDAY_MONTH: 10,
-  BIRTHDAY_DAY: 11,
-  COUNTRY_ID: 12,
-  ONLINE: 13,
+  DATE_MIN: 7,
+  DATE_MAX: 8,
+  CITY_ID: 11,
+  ZODIAC: 12,
+  BIRTHDAY_MONTH: 13,
+  BIRTHDAY_DAY: 14,
+  COUNTRY_ID: 15,
+  ONLINE: 9,
+};
+
+const AnketaInfoStatus = {
+  NOUSER: 0,
+  OK: 1,
+  DBERR: 2,
+  RATELIMITER: 3,
 };
 
 const MRIM_GROUP_FLAG = "us";
@@ -244,22 +252,63 @@ async function processSearch(
     packetData = packetData.subarray(offset);
   }
 
+  const searchParameters = {};
+
+  for (let [key, value] of Object.entries(packetFields)) {
+    key = parseInt(key, 10);
+
+    switch (key) {
+      case MrimSearchRequestFields.USER:
+        searchParameters.login = value;
+        break;
+      case MrimSearchRequestFields.NICKNAME:
+        searchParameters.nickname = value;
+        break;
+      case MrimSearchRequestFields.FIRSTNAME:
+        searchParameters.firstName = value;
+        break;
+      case MrimSearchRequestFields.LASTNAME:
+        searchParameters.lastName = value;
+        break;
+      case MrimSearchRequestFields.DATE_MIN:
+        searchParameters.minimumAge = parseInt(value, 10);
+        break;
+      case MrimSearchRequestFields.DATE_MAX:
+        searchParameters.maximumAge = parseInt(value, 10);
+        break;
+      case MrimSearchRequestFields.ZODIAC:
+        searchParameters.zodiac = parseInt(value, 10);
+        break;
+      case MrimSearchRequestFields.BIRTHDAY_MONTH:
+        searchParameters.birthmonth = parseInt(value, 10);
+        break;
+      case MrimSearchRequestFields.BIRTHDAY_DAY:
+        searchParameters.birthday = parseInt(value, 10);
+        break;
+    }
+  }
+
+  console.log(searchParameters);
+  const searchResults = await searchUsers(searchParameters);
+
   const responseFields = {
-    Username: packetFields[MrimSearchRequestFields.USER] ?? "kz",
-    Nickname: "xXx_Президент_Казахстана_xXx",
-    FirstName: "Президент",
-    LastName: "Казахстан",
-    Location: "1",
-    Domain: packetFields[MrimSearchRequestFields.DOMAIN] ?? "mail.ru",
-    Birthday: "2007-08-25",
-    Zodiac: "6",
-    Phone: "+88005553355",
-    Sex: "1",
+    Username: "login",
+    Nickname: "nick",
+    Domain: "domain",
+    FirstName: "f_name",
+    LastName: "l_name",
+    Location: "location",
+    Birthday: "birthday",
+    Zodiac: "zodiac",
+    Phone: "phone",
+    Sex: "sex",
   };
 
   const anketaHeader = MrimAnketaHeader.writer({
+    status:
+      searchResults.length > 0 ? AnketaInfoStatus.OK : AnketaInfoStatus.NOUSER,
     fieldCount: Object.keys(responseFields).length,
-    maxRows: 1,
+    maxRows: searchResults.length,
     serverTime: Math.floor(Date.now() / 1000),
   });
 
@@ -270,9 +319,16 @@ async function processSearch(
     anketaInfo = anketaInfo.integer(key.length, 4).subbuffer(key);
   }
 
-  for (let value of Object.values(responseFields)) {
-    value = new Iconv("UTF-8", "CP1251").convert(value ?? "unknown");
-    anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value);
+  for (const user of searchResults) {
+    user.birthday = `${user.birthday.getFullYear()}-${user.birthday.getMonth().toString().padStart(2, "0")}-${user.birthday.getDate().toString().padStart(2, "0")}`;
+    user.domain = "mail.ru";
+
+    for (const key of Object.values(responseFields)) {
+      const value = new Iconv("UTF-8", "CP1251").convert(
+        Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : "",
+      );
+      anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value);
+    }
   }
 
   anketaInfo = anketaInfo.finish();
