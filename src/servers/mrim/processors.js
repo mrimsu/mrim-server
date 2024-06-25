@@ -170,7 +170,7 @@ function processMessage (containerHeader, packetData, connectionId, logger) {
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
-            packetOrder: 0,
+            packetOrder: containerHeader.packetOrder,
             packetCommand: MrimMessageCommands.MESSAGE_STATUS,
             dataSize: 0x4,
             senderAddress: 0,
@@ -178,12 +178,11 @@ function processMessage (containerHeader, packetData, connectionId, logger) {
           })
         )
         .integer(0, 4)
-        .finish(),
+        .finish() /*,
       new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
-            packetOrder: 0,
             packetCommand: MrimMessageCommands.MESSAGE_ACK,
             dataSize: packetData.length + 0x4,
             senderAddress: 0,
@@ -199,7 +198,7 @@ function processMessage (containerHeader, packetData, connectionId, logger) {
             messageRTF: messageData.messageRTF + ' '
           })
         )
-        .finish()
+        .finish() */
     ]
   }
 }

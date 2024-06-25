@@ -30,6 +30,7 @@ function onData (socket, connectionId, logger, state) {
     )
     logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
     logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
+    logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
     logger.debug(
       `[${connectionId}] ===============================================`
     )
