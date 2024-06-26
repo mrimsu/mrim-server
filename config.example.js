@@ -5,12 +5,14 @@ const database = {
 
 // Настройки MRIM-сервера
 const mrim = {
+  enabled: true,
   serverHostname: '127.0.0.1',
   serverPort: 2041
 }
 
 // Настройки сервера-перенаправлятора
 const redirector = {
+  enabled: true,
   serverHostname: '127.0.0.1',
   serverPort: 2042,
   redirectTo: '127.0.0.1:2041'
@@ -18,6 +20,7 @@ const redirector = {
 
 // Настройки SOCKS5 проски-сервера
 const socks = {
+  enabled: true,
   serverHostname: '127.0.0.1',
   serverPort: 8080
 }

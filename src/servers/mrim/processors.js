@@ -68,9 +68,9 @@ async function processLogin (
       loginData.login.split('@')[0],
       loginData.password
     )
-    state.username = loginData.login.split('@')[0];
-    state.status = loginData.status;
-    global.clients.push(state);
+    state.username = loginData.login.split('@')[0]
+    state.status = loginData.status
+    global.clients.push(state)
   } catch {
     return {
       reply: new BinaryConstructor()
@@ -106,47 +106,46 @@ async function processLogin (
       )
     ),
     contacts: Buffer.concat(
-      contacts.flat().map((contact) =>
-      {
-        let isClientOnline = global.clients.find(({userId}) => userId === contact.id);
+      contacts.flat().map((contact) => {
+        let isClientOnline = global.clients.find(({ userId }) => userId === contact.id)
         if (isClientOnline !== undefined) {
           // Отправляем пользователю сообщение о том что юзер онлайн
-          let dataToSend = new BinaryConstructor()
-          .integer(state.status, 4)
-          /*.integer(1, 4)
+          const dataToSend = new BinaryConstructor()
+            .integer(state.status, 4)
+          /* .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // xstatus title i guess
           .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // xstatus desc
           .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) */
-          .integer((state.username + '@mail.ru').length, 4)
-          .subbuffer(Buffer.from(`${state.username}@mail.ru`, 'utf-8'))
+            .integer((state.username + '@mail.ru').length, 4)
+            .subbuffer(Buffer.from(`${state.username}@mail.ru`, 'utf-8'))
           /* .integer(0xFFFFFFFF, 4)
           .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // client text
           .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // unknown */
-          .finish()
+            .finish()
 
-          let dataToSendWithHeader = new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetOrder: containerHeader.packetOrder,
-              packetCommand: MrimMessageCommands.USER_STATUS,
-              dataSize: dataToSend.length,
-              senderAddress: 0,
-              senderPort: 0
-            })
-          )
-          .subbuffer(dataToSend)
-          .finish();
+          const dataToSendWithHeader = new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.USER_STATUS,
+                dataSize: dataToSend.length,
+                senderAddress: 0,
+                senderPort: 0
+              })
+            )
+            .subbuffer(dataToSend)
+            .finish()
 
-          isClientOnline.socket.write(dataToSendWithHeader);
+          isClientOnline.socket.write(dataToSendWithHeader)
           logger.debug(`[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.login + '@mail.ru'}. Данные в HEX: ${dataToSend.toString('hex')}`)
-          isClientOnline = isClientOnline.status;
+          isClientOnline = isClientOnline.status
         } else {
-          isClientOnline = 0;
+          isClientOnline = 0
         }
 
         return MrimContact.writer({
@@ -209,15 +208,15 @@ function processMessage (containerHeader, packetData, connectionId, logger, stat
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
   )
 
-  let addresserClient = global.clients.find(({username}) => username === messageData.addresser.split('@')[0]);
+  const addresserClient = global.clients.find(({ username }) => username === messageData.addresser.split('@')[0])
   if (addresserClient !== undefined) {
-    let dataToSend = MrimServerMessageData.writer({
+    const dataToSend = MrimServerMessageData.writer({
       id: 0x1337,
       flags: messageData.flags,
       addresser: state.username + '@mail.ru',
       message: messageData.message + ' ',
       messageRTF: messageData.messageRTF + ' '
-    });
+    })
 
     addresserClient.socket.write(
       new BinaryConstructor()
@@ -232,7 +231,7 @@ function processMessage (containerHeader, packetData, connectionId, logger, stat
           })
         )
         .subbuffer(dataToSend)
-        .finish());
+        .finish())
 
     return {
       reply: [
