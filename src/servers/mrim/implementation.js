@@ -17,8 +17,9 @@ const {
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
 function onConnection (socket, connectionId, logger, _variables) {
-  const state = { userId: null }
+  const state = { userId: null, username: null, status: null, socket }
   socket.on('data', onData(socket, connectionId, logger, state))
+  socket.on('close', onClose(socket, connectionId, logger, state))
 }
 
 function onData (socket, connectionId, logger, state) {
@@ -36,6 +37,7 @@ function onData (socket, connectionId, logger, state) {
     )
     logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
     logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
+    logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
     logger.debug(
       `[${connectionId}] ===============================================`
     )
@@ -70,6 +72,18 @@ function onData (socket, connectionId, logger, state) {
         }
       }
     )
+  }
+}
+
+function onClose (socket, connectionId, logger, state) {
+  return () => {
+    if (global.clients.length > 0) {
+      const clientIndex = global.clients.findIndex(({ userId }) => userId === state.userId)
+      global.clients.splice(clientIndex, 1)
+      logger.debug(
+        `[${connectionId}] !!! Закрыто соединение для ${state.username}`
+      )
+    }
   }
 }
 

@@ -102,6 +102,9 @@ async function processLogin (
       loginData.login.split('@')[0],
       loginData.password
     )
+    state.username = loginData.login.split('@')[0]
+    state.status = loginData.status
+    global.clients.push(state)
   } catch {
     return {
       reply: new BinaryConstructor()
@@ -135,20 +138,61 @@ async function processLogin (
       )
     ),
     contacts: Buffer.concat(
-      contacts.flat().map((contact) =>
-        MrimContact.writer({
+      contacts.flat().map((contact) => {
+        let isClientOnline = global.clients.find(({ userId }) => userId === contact.id)
+        if (isClientOnline !== undefined) {
+          // Отправляем пользователю сообщение о том что юзер онлайн
+          const dataToSend = new BinaryConstructor()
+            .integer(state.status, 4)
+          /* .integer(1, 4)
+          .subbuffer(Buffer.from(` `, 'utf-8')) // xstatus title i guess
+          .integer(1, 4)
+          .subbuffer(Buffer.from(` `, 'utf-8')) // xstatus desc
+          .integer(1, 4)
+          .subbuffer(Buffer.from(` `, 'utf-8')) */
+            .integer((state.username + '@mail.ru').length, 4)
+            .subbuffer(Buffer.from(`${state.username}@mail.ru`, 'utf-8'))
+          /* .integer(0xFFFFFFFF, 4)
+          .integer(1, 4)
+          .subbuffer(Buffer.from(` `, 'utf-8')) // client text
+          .integer(1, 4)
+          .subbuffer(Buffer.from(` `, 'utf-8')) // unknown */
+            .finish()
+
+          const dataToSendWithHeader = new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.USER_STATUS,
+                dataSize: dataToSend.length,
+                senderAddress: 0,
+                senderPort: 0
+              })
+            )
+            .subbuffer(dataToSend)
+            .finish()
+
+          isClientOnline.socket.write(dataToSendWithHeader)
+          logger.debug(`[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.login + '@mail.ru'}. Данные в HEX: ${dataToSend.toString('hex')}`)
+          isClientOnline = isClientOnline.status
+        } else {
+          isClientOnline = 0
+        }
+
+        return MrimContact.writer({
           groupIndex: contactGroups.findIndex(
             (contactGroup) => contactGroup.id === contact.contact_group_id
           ),
           email: `${contact.login}@mail.ru`,
           login: contact.login,
-          status: 1,
+          status: isClientOnline, // ONLINE я думаю
           extendedStatusName: '',
           extendedStatusTitle: '',
           extendedStatusText: '',
           clientInfo: MRIM_J2ME_AGENT_CLIENT_INFO
         })
-      )
+      })
     )
   })
 
@@ -189,50 +233,73 @@ async function processLogin (
   }
 }
 
-function processMessage (containerHeader, packetData, connectionId, logger) {
+function processMessage (containerHeader, packetData, connectionId, logger, state) {
   const messageData = MrimClientMessageData.reader(packetData)
 
   logger.debug(
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
   )
 
-  return {
-    reply: [
+  const addresserClient = global.clients.find(({ username }) => username === messageData.addresser.split('@')[0])
+  if (addresserClient !== undefined) {
+    const dataToSend = MrimServerMessageData.writer({
+      id: 0x1337,
+      flags: messageData.flags,
+      addresser: state.username + '@mail.ru',
+      message: messageData.message + ' ',
+      messageRTF: messageData.messageRTF + ' '
+    })
+
+    addresserClient.socket.write(
       new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
-            packetOrder: 0,
-            packetCommand: MrimMessageCommands.MESSAGE_STATUS,
-            dataSize: 0x4,
-            senderAddress: 0,
-            senderPort: 0
-          })
-        )
-        .integer(0, 4)
-        .finish(),
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetOrder: 0,
+            packetOrder: 0x1337,
             packetCommand: MrimMessageCommands.MESSAGE_ACK,
-            dataSize: packetData.length + 0x4,
+            dataSize: dataToSend.length,
             senderAddress: 0,
             senderPort: 0
           })
         )
-        .subbuffer(
-          MrimServerMessageData.writer({
-            id: 0x10,
-            flags: messageData.flags,
-            addresser: messageData.addresser,
-            message: messageData.message + ' ',
-            messageRTF: messageData.messageRTF + ' '
-          })
-        )
-        .finish()
-    ]
+        .subbuffer(dataToSend)
+        .finish())
+
+    return {
+      reply: [
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetOrder: containerHeader.packetOrder,
+              packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+              dataSize: 4,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .integer(0, 4)
+          .finish()
+      ]
+    }
+  } else {
+    return {
+      reply: [
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetOrder: containerHeader.packetOrder,
+              packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+              dataSize: 4,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .integer(0x8006, 4)
+          .finish()
+      ]
+    }
   }
 }
 
