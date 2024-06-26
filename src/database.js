@@ -248,6 +248,29 @@ async function modifyGroupName (userId, groupIndex, groupName) {
   )
 }
 
+/**
+ * Удалить группу контактов
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} groupIndex Индекс группы
+ */
+async function deleteGroup (userId, groupIndex) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'DELETE FROM `contact_group` ' +
+      'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?',
+    [userId, groupIndex]
+  )
+
+  await connection.execute(
+    'UPDATE `contact_group` ' +
+      'SET `contact_group`.`idx` = `contact_group`.`idx` - 1 ' +
+      'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` > ?',
+    [userId, groupIndex]
+  )
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
@@ -255,5 +278,6 @@ module.exports = {
   addContactToGroup,
   createNewGroup,
   searchUsers,
-  modifyGroupName
+  modifyGroupName,
+  deleteGroup
 }
