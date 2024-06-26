@@ -33,7 +33,7 @@ CREATE TABLE `contact` (
   `user_id` int NOT NULL,
   `contact_group_id` int NOT NULL,
   `nickname` varchar(255) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -46,7 +46,7 @@ CREATE TABLE `contact_group` (
   `user_id` int NOT NULL,
   `name` varchar(255) NOT NULL,
   `idx` int NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `contact_group`
@@ -84,7 +84,7 @@ CREATE TABLE `user` (
   `zodiac` int DEFAULT NULL,
   `phone` varchar(255) DEFAULT NULL,
   `sex` enum('1','2') DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `user`
