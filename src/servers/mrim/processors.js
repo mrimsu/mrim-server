@@ -10,7 +10,10 @@ const { MrimLoginData } = require('../../messages/mrim/authorization')
 const {
   MrimContactList,
   MrimContactGroup,
-  MrimContact
+  MrimContact,
+  MrimAddContactRequest,
+  MrimAddContactResponse,
+  MrimContactAuthorize
 } = require('../../messages/mrim/contact')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
@@ -18,10 +21,41 @@ const {
   MrimServerMessageData
 } = require('../../messages/mrim/messaging')
 const {
+  MrimSearchField,
+  MrimAnketaHeader
+} = require('../../messages/mrim/search')
+const {
   getUserIdViaCredentials,
   getContactGroups,
-  getContactsFromGroup
+  getContactsFromGroups,
+  addContactToGroup,
+  searchUsers
 } = require('../../database')
+const { Iconv } = require('iconv')
+
+const MrimSearchRequestFields = {
+  USER: 0,
+  DOMAIN: 1,
+  NICKNAME: 2,
+  FIRSTNAME: 3,
+  LASTNAME: 4,
+  SEX: 5,
+  DATE_MIN: 7,
+  DATE_MAX: 8,
+  CITY_ID: 11,
+  ZODIAC: 12,
+  BIRTHDAY_MONTH: 13,
+  BIRTHDAY_DAY: 14,
+  COUNTRY_ID: 15,
+  ONLINE: 9
+}
+
+const AnketaInfoStatus = {
+  NOUSER: 0,
+  OK: 1,
+  DBERR: 2,
+  RATELIMITER: 3
+}
 
 const MRIM_GROUP_FLAG = 'us'
 const MRIM_CONTACT_FLAG = 'uussuussssus'
@@ -87,12 +121,10 @@ async function processLogin (
     }
   }
 
-  const contactGroups = await getContactGroups(state.userId)
-  const contacts = await Promise.all(
-    contactGroups.map((contactGroup) =>
-      getContactsFromGroup(state.userId, contactGroup.id)
-    )
-  )
+  const [contactGroups, contacts] = await Promise.all([
+    getContactGroups(state.userId),
+    getContactsFromGroups(state.userId)
+  ])
 
   const contactList = MrimContactList.writer({
     groupCount: contactGroups.length,
@@ -271,8 +303,184 @@ function processMessage (containerHeader, packetData, connectionId, logger, stat
   }
 }
 
+async function processSearch (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger
+) {
+  const packetFields = {}
+
+  while (packetData.length !== 0) {
+    const field = MrimSearchField.reader(packetData)
+    packetFields[field.key] = field.value
+
+    // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+    const offset = MrimSearchField.writer(field).length
+    packetData = packetData.subarray(offset)
+  }
+
+  logger.debug(`[${connectionId}] Клиент отправил запрос на поиск.`)
+  logger.debug(
+    `[${connectionId}] packetFields -> ${JSON.stringify(packetFields)}`
+  )
+
+  const searchParameters = {}
+
+  for (let [key, value] of Object.entries(packetFields)) {
+    key = parseInt(key, 10)
+
+    switch (key) {
+      case MrimSearchRequestFields.USER:
+        searchParameters.login = value
+        break
+      case MrimSearchRequestFields.NICKNAME:
+        searchParameters.nickname = value
+        break
+      case MrimSearchRequestFields.FIRSTNAME:
+        searchParameters.firstName = value
+        break
+      case MrimSearchRequestFields.LASTNAME:
+        searchParameters.lastName = value
+        break
+      case MrimSearchRequestFields.DATE_MIN:
+        searchParameters.minimumAge = parseInt(value, 10)
+        break
+      case MrimSearchRequestFields.DATE_MAX:
+        searchParameters.maximumAge = parseInt(value, 10)
+        break
+      case MrimSearchRequestFields.ZODIAC:
+        searchParameters.zodiac = parseInt(value, 10)
+        break
+      case MrimSearchRequestFields.BIRTHDAY_MONTH:
+        searchParameters.birthmonth = parseInt(value, 10)
+        break
+      case MrimSearchRequestFields.BIRTHDAY_DAY:
+        searchParameters.birthday = parseInt(value, 10)
+        break
+    }
+  }
+
+  logger.debug(
+    `[${connectionId}] searchParameters -> ${JSON.stringify(searchParameters)}`
+  )
+  const searchResults = await searchUsers(searchParameters)
+
+  const responseFields = {
+    Username: 'login',
+    Nickname: 'nick',
+    Domain: 'domain',
+    FirstName: 'f_name',
+    LastName: 'l_name',
+    Location: 'location',
+    Birthday: 'birthday',
+    Zodiac: 'zodiac',
+    Phone: 'phone',
+    Sex: 'sex'
+  }
+
+  const anketaHeader = MrimAnketaHeader.writer({
+    status:
+      searchResults.length > 0 ? AnketaInfoStatus.OK : AnketaInfoStatus.NOUSER,
+    fieldCount: Object.keys(responseFields).length,
+    maxRows: searchResults.length,
+    serverTime: Math.floor(Date.now() / 1000)
+  })
+
+  let anketaInfo = new BinaryConstructor().subbuffer(anketaHeader)
+
+  for (let key in responseFields) {
+    key = new Iconv('UTF-8', 'CP1251').convert(key ?? 'unknown')
+    anketaInfo = anketaInfo.integer(key.length, 4).subbuffer(key)
+  }
+
+  for (const user of searchResults) {
+    user.birthday = `${user.birthday.getFullYear()}-${user.birthday.getMonth().toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+    user.domain = 'mail.ru'
+
+    for (const key of Object.values(responseFields)) {
+      const value = new Iconv('UTF-8', 'CP1251').convert(
+        Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
+      )
+      anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
+    }
+  }
+
+  anketaInfo = anketaInfo.finish()
+
+  return {
+    reply: new BinaryConstructor()
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          packetCommand: MrimMessageCommands.ANKETA_INFO,
+          dataSize: anketaInfo.length,
+          senderAddress: 0,
+          senderPort: 0
+        })
+      )
+      .subbuffer(anketaInfo)
+      .finish()
+  }
+}
+
+async function processAddContact (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state
+) {
+  const request = MrimAddContactRequest.reader(packetData)
+
+  const contactId = await addContactToGroup(
+    state.userId,
+    request.groupIndex,
+    request.contact.split('@')[0]
+  )
+
+  const contactResponse = MrimAddContactResponse.writer({
+    status: 0,
+    contactId
+  })
+  const authorizeResponse = MrimContactAuthorize.writer({
+    contact: request.contact
+  })
+
+  return {
+    reply: [
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
+            dataSize: contactResponse.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(contactResponse)
+        .finish(),
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+            dataSize: authorizeResponse.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(authorizeResponse)
+        .finish()
+    ]
+  }
+}
+
 module.exports = {
   processHello,
   processLogin,
-  processMessage
+  processSearch,
+  processMessage,
+  processAddContact
 }

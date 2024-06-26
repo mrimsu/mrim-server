@@ -6,7 +6,13 @@
 
 const { MrimMessageCommands } = require('./globals')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
-const { processHello, processLogin, processMessage } = require('./processors')
+const {
+  processHello,
+  processLogin,
+  processMessage,
+  processSearch,
+  processAddContact
+} = require('./processors')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
@@ -100,7 +106,17 @@ async function processPacket (
         state
       )
     case MrimMessageCommands.MESSAGE:
-      return processMessage(containerHeader, packetData, connectionId, logger, state)
+      return processMessage(containerHeader, packetData, connectionId, logger)
+    case MrimMessageCommands.WP_REQUEST:
+      return processSearch(containerHeader, packetData, connectionId, logger)
+    case MrimMessageCommands.ADD_CONTACT:
+      return processAddContact(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state
+      )
     case MrimMessageCommands.PING: {
       logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)
       break
