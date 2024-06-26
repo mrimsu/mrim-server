@@ -16,13 +16,11 @@ const pool = mysql2.createPool(config.database.connectionUri);
 async function getUserIdViaCredentials(login, password) {
   const connection = await pool.getConnection();
 
-  console.log(login, password);
   password = crypto
     .createHash("md5")
     .update(password)
     .digest("hex")
     .toLowerCase();
-  console.log(login, password);
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
@@ -30,6 +28,7 @@ async function getUserIdViaCredentials(login, password) {
     [login, password],
   );
 
+  pool.releaseConnection(connection);
   return results[0].id;
 }
 
@@ -51,6 +50,7 @@ async function getContactGroups(userId) {
     [userId],
   );
 
+  pool.releaseConnection(connection);
   return results;
 }
 
@@ -73,6 +73,7 @@ async function getContactsFromGroups(ownerUserId) {
     [ownerUserId],
   );
 
+  pool.releaseConnection(connection);
   return results;
 }
 
@@ -155,6 +156,8 @@ async function searchUsers(searchParameters) {
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables);
+
+  pool.releaseConnection(connection);
   return results;
 }
 
@@ -202,6 +205,7 @@ async function addContactToGroup(
     [contactGroupId, ownerUserId, contactUserId, contactNickname],
   );
 
+  pool.releaseConnection(connection);
   return contactUserId;
 }
 
@@ -232,6 +236,7 @@ async function createNewGroup(userId, groupName) {
     [userId, groupName, groupIndex],
   );
 
+  pool.releaseConnection(connection);
   return groupIndex;
 }
 
@@ -251,6 +256,8 @@ async function modifyGroupName(userId, groupIndex, groupName) {
       "WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?",
     [groupName, userId, groupIndex],
   );
+
+  pool.releaseConnection(connection);
 }
 
 /**
@@ -274,6 +281,8 @@ async function deleteGroup(userId, groupIndex) {
       "WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` > ?",
     [userId, groupIndex],
   );
+
+  pool.releaseConnection(connection);
 }
 
 /**
@@ -291,6 +300,8 @@ async function modifyContactName(contactId, contactNickname) {
       "WHERE `contact`.`id` = ?",
     [contactNickname, contactId],
   );
+
+  pool.releaseConnection(connection);
 }
 
 /**
@@ -304,6 +315,8 @@ async function deleteContact(contactId) {
     "DELETE FROM `contact` " + "WHERE `contact`.`id` = ?",
     [contactId],
   );
+
+  pool.releaseConnection(connection);
 }
 
 module.exports = {
