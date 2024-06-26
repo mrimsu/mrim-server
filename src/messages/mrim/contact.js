@@ -59,11 +59,26 @@ const MrimContactAuthorize = new MessageConstructor()
   .field('contact', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
+const MrimModifyContactRequest = new MessageConstructor()
+  .field('id', FieldDataType.UINT32)
+  .field('flags', FieldDataType.UINT32)
+  .field('groupIndex', FieldDataType.UINT32)
+  .field('contact', FieldDataType.UBIART_LIKE_STRING)
+  .field('nickname', FieldDataType.UBIART_LIKE_STRING)
+  .field('unknown1', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
+const MrimModifyContactResponse = new MessageConstructor()
+  .field('status', FieldDataType.UINT32)
+  .finish()
+
 module.exports = {
   MrimContactList,
   MrimContactGroup,
   MrimContact,
   MrimAddContactRequest,
   MrimAddContactResponse,
-  MrimContactAuthorize
+  MrimContactAuthorize,
+  MrimModifyContactRequest,
+  MrimModifyContactResponse
 }

@@ -11,7 +11,8 @@ const {
   processLogin,
   processMessage,
   processSearch,
-  processAddContact
+  processAddContact,
+  processModifyContact
 } = require('./processors')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
@@ -54,9 +55,11 @@ function onData (socket, connectionId, logger, state) {
         }
 
         if (result.end) {
-          logger.debug(
-            `[${connectionId}] Ответ от сервера -> ${result.reply.toString('hex')}`
-          )
+          if (result.reply) {
+            logger.debug(
+              `[${connectionId}] Ответ от сервера -> ${result.reply.toString('hex')}`
+            )
+          }
           return socket.end(result.reply)
         }
 
@@ -78,7 +81,9 @@ function onData (socket, connectionId, logger, state) {
 function onClose (socket, connectionId, logger, state) {
   return () => {
     if (global.clients.length > 0) {
-      const clientIndex = global.clients.findIndex(({ userId }) => userId === state.userId)
+      const clientIndex = global.clients.findIndex(
+        ({ userId }) => userId === state.userId
+      )
       global.clients.splice(clientIndex, 1)
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
@@ -111,6 +116,14 @@ async function processPacket (
       return processSearch(containerHeader, packetData, connectionId, logger)
     case MrimMessageCommands.ADD_CONTACT:
       return processAddContact(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state
+      )
+    case MrimMessageCommands.MODIFY_CONTACT:
+      return processModifyContact(
         containerHeader,
         packetData,
         connectionId,

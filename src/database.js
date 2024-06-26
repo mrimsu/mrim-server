@@ -1,7 +1,7 @@
 const config = require('../config')
 
 const mysql2 = require('mysql2/promise')
-const bcrypt = require('bcrypt')
+const crypto = require('node:crypto')
 
 const pool = mysql2.createPool(config.database.connectionUri)
 
@@ -16,23 +16,21 @@ const pool = mysql2.createPool(config.database.connectionUri)
 async function getUserIdViaCredentials (login, password) {
   const connection = await pool.getConnection()
 
+  password = crypto
+    .createHash('md5')
+    .update(password)
+    .digest('hex')
+    .toLowerCase()
+
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
-    'SELECT `user`.`id`, `user`.`passwd` FROM `user` WHERE `user`.`login` = ?',
-    [login]
+    'SELECT `user`.`id`, `user`.`passwd` FROM `user` ' +
+      'WHERE `user`.`login` = ? AND `user`.`passwd` = ?',
+    [login, password]
   )
 
-  if (results.length === 0) {
-    throw new Error(`пользователь ${login} не найден`)
-  }
-
-  const [user] = results
-
-  if (!bcrypt.compareSync(password, user.passwd)) {
-    throw new Error('пароль неверный')
-  }
-
-  return user.id
+  pool.releaseConnection(connection)
+  return results[0].id
 }
 
 /**
@@ -53,6 +51,7 @@ async function getContactGroups (userId) {
     [userId]
   )
 
+  pool.releaseConnection(connection)
   return results
 }
 
@@ -67,13 +66,15 @@ async function getContactsFromGroups (ownerUserId) {
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
-    'SELECT `contact`.`contact_group_id`, `user`.`id`, `user`.`login` ' +
+    'SELECT `contact`.`contact_group_id`, `contact`.`nickname` as `contact_nick`, ' +
+      '`user`.`nick`, `user`.`id`, `user`.`login` ' +
       'FROM `contact` ' +
       'INNER JOIN `user` ON `contact`.`user_id` = `user`.`id` ' +
       'WHERE `contact`.`owner_user_id` = ?',
     [ownerUserId]
   )
 
+  pool.releaseConnection(connection)
   return results
 }
 
@@ -156,6 +157,8 @@ async function searchUsers (searchParameters) {
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
+
+  pool.releaseConnection(connection)
   return results
 }
 
@@ -165,10 +168,16 @@ async function searchUsers (searchParameters) {
  * @param {number} ownerUserId ID владелец пользователя
  * @param {number} groupIndex Индекс группы
  * @param {String} contactLogin Логин контакта
+ * @param {String} contactNickname Никнейм контакта
  *
  * @returns {Promise<number>} ID пользователя из нового контакта
  */
-async function addContactToGroup (ownerUserId, groupIndex, contactLogin) {
+async function addContactToGroup (
+  ownerUserId,
+  groupIndex,
+  contactLogin,
+  contactNickname
+) {
   const connection = await pool.getConnection()
 
   const [contactUserResults, groupResults] = await Promise.all([
@@ -192,12 +201,123 @@ async function addContactToGroup (ownerUserId, groupIndex, contactLogin) {
 
   await connection.execute(
     'INSERT INTO `contact` ' +
-      '(contact_group_id, owner_user_id, user_id) ' +
-      'VALUES (?, ?, ?)',
-    [contactGroupId, ownerUserId, contactUserId]
+      '(`contact`.`contact_group_id`, `contact`.`owner_user_id`, `contact`.`user_id`, `contact`.`nickname`) ' +
+      'VALUES (?, ?, ?, ?)',
+    [contactGroupId, ownerUserId, contactUserId, contactNickname]
   )
 
+  pool.releaseConnection(connection)
   return contactUserId
+}
+
+/**
+ * Создание новой группы контактов
+ *
+ * @param {number} userId ID пользователя
+ * @param {string} groupName Имя группы
+ *
+ * @returns {Promise<number>} Индекс группы контактов
+ */
+async function createNewGroup (userId, groupName) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [countResults, _countFields] = await connection.query(
+    'SELECT COUNT(`contact_group`.`id`) as `contact_group_cnt` ' +
+      'FROM `contact_group` ' +
+      'WHERE `contact_group`.`user_id` = ?',
+    [userId]
+  )
+  const groupIndex = countResults[0].contact_group_cnt
+
+  await connection.execute(
+    'INSERT INTO `contact_group` ' +
+      '(`contact_group`.`user_id`, `contact_group`.`name`, `contact_group`.`idx`) ' +
+      'VALUES (?, ?, ?)',
+    [userId, groupName, groupIndex]
+  )
+
+  pool.releaseConnection(connection)
+  return groupIndex
+}
+
+/**
+ * Редактировать имя группы контактов
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} groupIndex Индекс группы
+ * @param {string} groupName Новое имя группы
+ */
+async function modifyGroupName (userId, groupIndex, groupName) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'UPDATE `contact_group` ' +
+      'SET `contact_group`.`name` = ? ' +
+      'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?',
+    [groupName, userId, groupIndex]
+  )
+
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Удалить группу контактов
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} groupIndex Индекс группы
+ */
+async function deleteGroup (userId, groupIndex) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'DELETE FROM `contact_group` ' +
+      'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?',
+    [userId, groupIndex]
+  )
+
+  await connection.execute(
+    'UPDATE `contact_group` ' +
+      'SET `contact_group`.`idx` = `contact_group`.`idx` - 1 ' +
+      'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` > ?',
+    [userId, groupIndex]
+  )
+
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Редактировать никнейм контакта
+ *
+ * @param {number} contactId ID контакта
+ * @param {string} contactNickname Никнейм контакта
+ */
+async function modifyContactName (contactId, contactNickname) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'UPDATE `contact` ' +
+      'SET `contact`.`nickname` = ? ' +
+      'WHERE `contact`.`id` = ?',
+    [contactNickname, contactId]
+  )
+
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Удалить контакт
+ * @param {number} contactId ID контакта
+ */
+async function deleteContact (contactId) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'DELETE FROM `contact` ' + 'WHERE `contact`.`id` = ?',
+    [contactId]
+  )
+
+  pool.releaseConnection(connection)
 }
 
 module.exports = {
@@ -205,5 +325,10 @@ module.exports = {
   getContactGroups,
   getContactsFromGroups,
   addContactToGroup,
-  searchUsers
+  createNewGroup,
+  searchUsers,
+  modifyGroupName,
+  deleteGroup,
+  modifyContactName,
+  deleteContact
 }
