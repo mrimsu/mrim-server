@@ -11,7 +11,8 @@ const {
   MrimContactList,
   MrimContactGroup,
   MrimContact,
-  MrimAddContact
+  MrimAddContactRequest,
+  MrimAddContactResponse
 } = require('../../messages/mrim/contact')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
@@ -362,28 +363,28 @@ async function processAddContact (
   logger,
   state
 ) {
-  const addContactData = MrimAddContact.reader(packetData)
+  const request = MrimAddContactRequest.reader(packetData)
+  console.log(request)
 
-  await addContactToGroup(
+  const contactId = await addContactToGroup(
     state.userId,
-    addContactData.groupIndex,
-    addContactData.contact.split('@')[0]
+    request.groupIndex,
+    request.contact.split('@')[0]
   )
-  console.log('addContactToGroup finished')
+  const response = MrimAddContactResponse.writer({ status: 0, contactId })
 
   return {
     reply: new BinaryConstructor()
       .subbuffer(
         MrimContainerHeader.writer({
           ...containerHeader,
-          packetOrder: 0,
           packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
-          dataSize: 0x4,
+          dataSize: response.length,
           senderAddress: 0,
           senderPort: 0
         })
       )
-      .integer(0, 4)
+      .subbuffer(response)
       .finish()
   }
 }

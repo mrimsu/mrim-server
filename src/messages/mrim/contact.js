@@ -43,17 +43,22 @@ const MrimContact = new MessageConstructor()
   .field('clientInfo', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-const MrimAddContact = new MessageConstructor()
+const MrimAddContactRequest = new MessageConstructor()
   .field('flags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
   .field('contact', FieldDataType.UBIART_LIKE_STRING)
-  .field('name', FieldDataType.UBIART_LIKE_STRING)
-  .field('unknown1', FieldDataType.UBIART_LIKE_STRING)
+  .field('nickname', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
+const MrimAddContactResponse = new MessageConstructor()
+  .field('status', FieldDataType.UINT32)
+  .field('contactId', FieldDataType.UINT32)
   .finish()
 
 module.exports = {
   MrimContactList,
   MrimContactGroup,
   MrimContact,
-  MrimAddContact
+  MrimAddContactRequest,
+  MrimAddContactResponse
 }

@@ -153,7 +153,6 @@ async function searchUsers (searchParameters) {
 
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
   query = query.substring(0, query.length - 4) + 'LIMIT 50'
-  console.log(query)
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
@@ -161,11 +160,13 @@ async function searchUsers (searchParameters) {
 }
 
 /**
- * Добавление контакта
+ * Добавление контакта в групп контактов
  *
  * @param {number} ownerUserId ID владелец пользователя
  * @param {number} groupIndex Индекс группы
  * @param {String} contactLogin Логин контакта
+ *
+ * @returns {Promise<number>} ID пользователя из нового контакта
  */
 async function addContactToGroup (ownerUserId, groupIndex, contactLogin) {
   const connection = await pool.getConnection()
@@ -195,6 +196,8 @@ async function addContactToGroup (ownerUserId, groupIndex, contactLogin) {
       'VALUES (?, ?, ?)',
     [contactGroupId, ownerUserId, contactUserId]
   )
+
+  return contactUserId
 }
 
 module.exports = {
