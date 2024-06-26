@@ -327,8 +327,37 @@ async function processSearch (
   containerHeader,
   packetData,
   connectionId,
-  logger
+  logger,
+  state
 ) {
+  if (!state.searchRateLimiter) {
+    state.searchRateLimiter = {
+      available: 25,
+      refreshTime: Date.now() + 15 * 60 * 60
+    }
+  }
+
+  if (state.searchRateLimiter.available < 1) {
+    if (Date.now() > state.searchRateLimiter.refreshTime) {
+      state.searchRateLimiter.available = 25
+    } else {
+      return {
+        reply: new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.ANKETA_INFO,
+              dataSize: 0x4,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .integer(AnketaInfoStatus.RATELIMITER, 4)
+          .finish()
+      }
+    }
+  }
+
   const packetFields = {}
 
   while (packetData.length !== 0) {
@@ -427,6 +456,8 @@ async function processSearch (
   }
 
   anketaInfo = anketaInfo.finish()
+
+  state.searchRateLimiter.available--
 
   return {
     reply: new BinaryConstructor()
