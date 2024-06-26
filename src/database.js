@@ -201,7 +201,8 @@ async function addContactToGroup(
 
   await connection.execute(
     "INSERT INTO `contact` " +
-      "(`contact`.`contact_group_id`, `contact`.`owner_user_id`, `contact`.`user_id`, `contact`.`nickname`) " +
+      "(`contact`.`contact_group_id`, `contact`.`owner_user_id`, " +
+      " `contact`.`user_id`, `contact`.`nickname`) " +
       "VALUES (?, ?, ?, ?)",
     [contactGroupId, ownerUserId, contactUserId, contactNickname],
   );
@@ -294,28 +295,39 @@ async function deleteGroup(userId, groupIndex) {
  */
 async function moveContactToGroup(
   ownerUserId,
-  contactId,
   groupIndex,
+  contactLogin,
   contactNickname,
 ) {
   const connection = await pool.getConnection();
 
-  const [results, _fields] = await connection.query(
-    "SELECT `contact_group`.`id` FROM `contact_group` " +
-      "WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?",
-    [ownerUserId, groupIndex],
-  );
+  const [contactGroupResults, contactUserResults] = await Promise.all([
+    connection.query(
+      "SELECT `contact_group`.`id` FROM `contact_group` " +
+        "WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?",
+      [ownerUserId, groupIndex],
+    ),
+    connection.query(
+      "SELECT `user`.`id` FROM `user` " + "WHERE `user`.`login` = ? ",
+      [contactLogin],
+    ),
+  ]);
 
-  if (results.length === 0) {
-    throw new Error("группа не найдена");
+  if (
+    contactGroupResults[0].length === 0 ||
+    contactUserResults[0].length === 0
+  ) {
+    throw new Error("либо группа, либо пользователь не найден");
   }
 
-  console.log(contactId);
+  const [{ id: contactGroupId }] = contactGroupResults[0];
+  const [{ id: contactUserId }] = contactUserResults[0];
+
   await connection.execute(
     "UPDATE `contact` " +
       "SET `contact`.`nickname` = ?, `contact`.`contact_group_id` = ? " +
-      "WHERE `contact`.`id` = ?",
-    [contactNickname, results[0].id, contactId],
+      "WHERE `contact`.`owner_user_id` = ? AND `contact`.`user_id` = ?",
+    [contactNickname, contactGroupId, ownerUserId, contactUserId],
   );
 
   pool.releaseConnection(connection);
@@ -325,12 +337,23 @@ async function moveContactToGroup(
  * Удалить контакт
  * @param {number} contactId ID контакта
  */
-async function deleteContact(contactId) {
+async function deleteContact(ownerUserId, contactLogin) {
   const connection = await pool.getConnection();
 
+  const [results, _fields] = await connection.query(
+    "SELECT `user`.`id` FROM `user` " + "WHERE `user`.`login` = ? ",
+    [contactLogin],
+  );
+
+  if (results.length === 0) {
+    throw new Error("пользователь не найден");
+  }
+
+  const [{ id: contactUserId }] = results;
+
   await connection.execute(
-    "DELETE FROM `contact` " + "WHERE `contact`.`id` = ?",
-    [contactId],
+    "DELETE FROM `contact` WHERE `contact`.`owner_user_id` = ? AND `contact`.`user_id` = ?",
+    [ownerUserId, contactUserId],
   );
 
   pool.releaseConnection(connection);

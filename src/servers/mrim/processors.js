@@ -593,6 +593,7 @@ async function processModifyContact(
   request.flags = request.flags & 0x000000ff;
 
   switch (request.flags) {
+    case 0:
     case 8: {
       /*if (request.groupIndex !== 0) {
         console.log(request.groupIndex);
@@ -614,8 +615,8 @@ async function processModifyContact(
       } else {
         await moveContactToGroup(
           state.userId,
-          request.id,
           request.groupIndex,
+          request.contact.split("@")[0],
           request.nickname,
         );
       }
@@ -627,7 +628,7 @@ async function processModifyContact(
       if (request.contact.split("@").length < 2) {
         await deleteGroup(state.userId, request.id);
       } else {
-        await deleteContact(request.id);
+        await deleteContact(state.userId, request.contact.split("@")[0]);
       }
       break;
     }
