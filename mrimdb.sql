@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Jun 26, 2024 at 10:38 AM
+-- Generation Time: Jun 26, 2024 at 11:22 AM
 -- Server version: 8.3.0
 -- PHP Version: 8.1.2-1ubuntu2.17
 
@@ -31,15 +31,16 @@ CREATE TABLE `contact` (
   `id` int NOT NULL,
   `owner_user_id` int NOT NULL,
   `user_id` int NOT NULL,
-  `contact_group_id` int NOT NULL
+  `contact_group_id` int NOT NULL,
+  `nickname` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `contact`
 --
 
-INSERT INTO `contact` (`id`, `owner_user_id`, `user_id`, `contact_group_id`) VALUES
-(22, 1, 2, 1);
+INSERT INTO `contact` (`id`, `owner_user_id`, `user_id`, `contact_group_id`, `nickname`) VALUES
+(22, 1, 2, 1, NULL);
 
 -- --------------------------------------------------------
 
@@ -131,7 +132,7 @@ ALTER TABLE `contact`
 -- AUTO_INCREMENT for table `contact_group`
 --
 ALTER TABLE `contact_group`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `user`

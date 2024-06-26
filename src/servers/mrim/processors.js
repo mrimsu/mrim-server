@@ -458,6 +458,7 @@ async function processAddContact(
         state.userId,
         request.groupIndex,
         request.contact.split("@")[0],
+        request.name,
       );
 
       const contactResponse = MrimAddContactResponse.writer({
