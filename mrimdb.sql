@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Jun 26, 2024 at 11:22 AM
+-- Generation Time: Jun 26, 2024 at 02:52 PM
 -- Server version: 8.3.0
 -- PHP Version: 8.1.2-1ubuntu2.17
 
@@ -35,13 +35,6 @@ CREATE TABLE `contact` (
   `nickname` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
---
--- Dumping data for table `contact`
---
-
-INSERT INTO `contact` (`id`, `owner_user_id`, `user_id`, `contact_group_id`, `nickname`) VALUES
-(22, 1, 2, 1, NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -60,8 +53,18 @@ CREATE TABLE `contact_group` (
 --
 
 INSERT INTO `contact_group` (`id`, `user_id`, `name`, `idx`) VALUES
-(1, 1, 'Friends', 0),
-(2, 2, 'Friends', 0);
+(6, 4, 'Остальные', 0),
+(7, 4, 'Друзья', 1),
+(8, 4, 'Родные', 2),
+(9, 4, 'Коллеги', 3),
+(15, 5, 'Остальные', 0),
+(16, 5, 'Друзья', 1),
+(17, 5, 'Родные', 2),
+(18, 5, 'Коллеги', 3),
+(19, 6, 'Остальные', 0),
+(20, 6, 'Друзья', 1),
+(21, 6, 'Родные', 2),
+(22, 6, 'Коллеги', 3);
 
 -- --------------------------------------------------------
 
@@ -88,8 +91,9 @@ CREATE TABLE `user` (
 --
 
 INSERT INTO `user` (`id`, `login`, `passwd`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `zodiac`, `phone`, `sex`) VALUES
-(1, 'biba', '$2b$10$sROyimBWn7PnX7Ug258VFuDj1R5g76ta7SwPAWPZ931Eot7pbqpji', NULL, 'Биба', NULL, 'Астрахань', '1999-01-01', 1, NULL, '1'),
-(2, 'boba', '$2b$10$YCbbuQLe49EeIfEfEa9Dv.ByMPudxU9DiEJJqnfXnFgIQCqkQEl7.', NULL, 'Боба', NULL, 'Астрахань', '1999-01-01', 1, NULL, '1');
+(4, 'veselcraft', 'f423d4e8afac887535717d8335d7c616', 'veselcraft', 'Владимир', 'Баринов', 'Воскресенск', '2004-04-16', NULL, NULL, '1'),
+(5, 'synzr', '741dd15c5f169ecf90befccb870973bf', 'synzr', 'Михаил', 'Серебряков', 'Магнитогорск', '2007-08-25', NULL, NULL, '1'),
+(6, 'motionarium', '3005508b38480948959e55aa3fe50d7b', 'motionarium', 'Georgiy', 'Moushenov', NULL, NULL, NULL, NULL, '1');
 
 --
 -- Indexes for dumped tables
@@ -132,13 +136,13 @@ ALTER TABLE `contact`
 -- AUTO_INCREMENT for table `contact_group`
 --
 ALTER TABLE `contact_group`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `user`
 --
 ALTER TABLE `user`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Constraints for dumped tables
