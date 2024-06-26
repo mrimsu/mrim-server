@@ -35,7 +35,7 @@ const {
   createNewGroup,
   modifyGroupName,
   deleteGroup,
-  modifyContactName,
+  moveContactToGroup,
   deleteContact
 } = require('../../database')
 const { Iconv } = require('iconv')
@@ -327,8 +327,37 @@ async function processSearch (
   containerHeader,
   packetData,
   connectionId,
-  logger
+  logger,
+  state
 ) {
+  if (!state.searchRateLimiter) {
+    state.searchRateLimiter = {
+      available: 25,
+      refreshTime: Date.now() + 15 * 60 * 60
+    }
+  }
+
+  if (state.searchRateLimiter.available < 1) {
+    if (Date.now() > state.searchRateLimiter.refreshTime) {
+      state.searchRateLimiter.available = 25
+    } else {
+      return {
+        reply: new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.ANKETA_INFO,
+              dataSize: 0x4,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .integer(AnketaInfoStatus.RATELIMITER, 4)
+          .finish()
+      }
+    }
+  }
+
   const packetFields = {}
 
   while (packetData.length !== 0) {
@@ -384,7 +413,7 @@ async function processSearch (
   logger.debug(
     `[${connectionId}] searchParameters -> ${JSON.stringify(searchParameters)}`
   )
-  const searchResults = await searchUsers(searchParameters)
+  const searchResults = await searchUsers(state.userId, searchParameters)
 
   const responseFields = {
     Username: 'login',
@@ -415,7 +444,9 @@ async function processSearch (
   }
 
   for (const user of searchResults) {
-    user.birthday = `${user.birthday.getFullYear()}-${user.birthday.getMonth().toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+    user.birthday = user.birthday
+      ? `${user.birthday.getFullYear()}-${user.birthday.getMonth().toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+      : ''
     user.domain = 'mail.ru'
 
     for (const key of Object.values(responseFields)) {
@@ -427,6 +458,8 @@ async function processSearch (
   }
 
   anketaInfo = anketaInfo.finish()
+
+  state.searchRateLimiter.available--
 
   return {
     reply: new BinaryConstructor()
@@ -461,7 +494,7 @@ async function processAddContact (
         state.userId,
         request.groupIndex,
         request.contact.split('@')[0],
-        request.name
+        request.nickname
       )
 
       const contactResponse = MrimAddContactResponse.writer({
@@ -525,6 +558,7 @@ async function processAddContact (
       }
     }
     default: {
+      console.log(request.flags, request)
       const contactResponse = MrimAddContactResponse.writer({
         status: 1,
         contactId: 0xffffffff
@@ -556,18 +590,23 @@ async function processModifyContact (
   state
 ) {
   const request = MrimModifyContactRequest.reader(packetData)
-  console.log(request.flags)
   request.flags = request.flags & 0x000000ff
-  console.log(request.flags)
 
   switch (request.flags) {
+    case 0:
     case 8: {
       // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
       if (request.contact.split('@').length < 2) {
         await modifyGroupName(state.userId, request.id, request.contact)
       } else {
-        await modifyContactName(request.id, request.nickname)
+        await moveContactToGroup(
+          state.userId,
+          request.groupIndex,
+          request.contact.split('@')[0],
+          request.nickname
+        )
       }
+
       break
     }
     case 9: {
@@ -575,7 +614,7 @@ async function processModifyContact (
       if (request.contact.split('@').length < 2) {
         await deleteGroup(state.userId, request.id)
       } else {
-        await deleteContact(request.id)
+        await deleteContact(state.userId, request.contact.split('@')[0])
       }
       break
     }

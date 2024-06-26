@@ -81,17 +81,19 @@ async function getContactsFromGroups (ownerUserId) {
 /**
  * Поиск пользователей
  *
+ * @param {number} userId ID пользователя
  * @param {Object} searchParameters Параметры поиска
+ *
  * @returns {Promise<Array>} Массив поиска
  */
-async function searchUsers (searchParameters) {
+async function searchUsers (userId, searchParameters) {
   const connection = await pool.getConnection()
   let query =
     'SELECT `user`.`login`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
     '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex` ' +
     'FROM `user` ' +
-    'WHERE '
-  const variables = []
+    'WHERE `user`.`id` != ? AND '
+  const variables = [userId]
 
   if (Object.hasOwn(searchParameters, 'login')) {
     query += '`user`.`login` LIKE ? AND '
@@ -201,7 +203,8 @@ async function addContactToGroup (
 
   await connection.execute(
     'INSERT INTO `contact` ' +
-      '(`contact`.`contact_group_id`, `contact`.`owner_user_id`, `contact`.`user_id`, `contact`.`nickname`) ' +
+      '(`contact`.`contact_group_id`, `contact`.`owner_user_id`, ' +
+      ' `contact`.`user_id`, `contact`.`nickname`) ' +
       'VALUES (?, ?, ?, ?)',
     [contactGroupId, ownerUserId, contactUserId, contactNickname]
   )
@@ -287,19 +290,48 @@ async function deleteGroup (userId, groupIndex) {
 }
 
 /**
- * Редактировать никнейм контакта
+ * Перемесить/переименовать контакта
  *
- * @param {number} contactId ID контакта
+ * @param {number} ownerUserId ID пользователя владелеца
+ * @param {number} groupIndex Индекс группы контактов
+ * @param {string} contactLogin Логин пользователя контакта
  * @param {string} contactNickname Никнейм контакта
  */
-async function modifyContactName (contactId, contactNickname) {
+async function moveContactToGroup (
+  ownerUserId,
+  groupIndex,
+  contactLogin,
+  contactNickname
+) {
   const connection = await pool.getConnection()
+
+  const [contactGroupResults, contactUserResults] = await Promise.all([
+    connection.query(
+      'SELECT `contact_group`.`id` FROM `contact_group` ' +
+        'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?',
+      [ownerUserId, groupIndex]
+    ),
+    connection.query(
+      'SELECT `user`.`id` FROM `user` ' + 'WHERE `user`.`login` = ? ',
+      [contactLogin]
+    )
+  ])
+
+  if (
+    contactGroupResults[0].length === 0 ||
+    contactUserResults[0].length === 0
+  ) {
+    throw new Error('либо группа, либо пользователь не найден')
+  }
+
+  const [{ id: contactGroupId }] = contactGroupResults[0]
+  const [{ id: contactUserId }] = contactUserResults[0]
 
   await connection.execute(
     'UPDATE `contact` ' +
-      'SET `contact`.`nickname` = ? ' +
-      'WHERE `contact`.`id` = ?',
-    [contactNickname, contactId]
+      'SET `contact`.`nickname` = ?, `contact`.`contact_group_id` = ? ' +
+      'WHERE `contact`.`owner_user_id` = ? AND `contact`.`user_id` = ?',
+    [contactNickname, contactGroupId, ownerUserId, contactUserId]
   )
 
   pool.releaseConnection(connection)
@@ -307,14 +339,28 @@ async function modifyContactName (contactId, contactNickname) {
 
 /**
  * Удалить контакт
- * @param {number} contactId ID контакта
+ *
+ * @param {number} ownerUserId ID пользователя владелеца
+ * @param {number} contactLogin Логин пользователя контакта
  */
-async function deleteContact (contactId) {
+async function deleteContact (ownerUserId, contactLogin) {
   const connection = await pool.getConnection()
 
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.query(
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? ',
+    [contactLogin]
+  )
+
+  if (results.length === 0) {
+    throw new Error('пользователь не найден')
+  }
+
+  const [{ id: contactUserId }] = results
+
   await connection.execute(
-    'DELETE FROM `contact` ' + 'WHERE `contact`.`id` = ?',
-    [contactId]
+    'DELETE FROM `contact` WHERE `contact`.`owner_user_id` = ? AND `contact`.`user_id` = ?',
+    [ownerUserId, contactUserId]
   )
 
   pool.releaseConnection(connection)
@@ -329,6 +375,6 @@ module.exports = {
   searchUsers,
   modifyGroupName,
   deleteGroup,
-  modifyContactName,
+  moveContactToGroup,
   deleteContact
 }
