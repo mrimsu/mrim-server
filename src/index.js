@@ -15,7 +15,7 @@ const DEFAULT_REDIRECTOR_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
 const LOCALHOST = 'localhost' // пиздец
 
-global.clients = [];
+global.clients = []
 
 function main () {
   const logger = winston.createLogger({
@@ -24,52 +24,52 @@ function main () {
     transports: [new winston.transports.Console()]
   })
 
-  const mrimServer = createMrimServer({
-    logger
-  })
+  const servers = {}
 
-  const redirectorServer = createRedirectorServer({ logger })
+  if (config.mrim.enabled) {
+    servers.mrim = createMrimServer({ logger })
 
-  const socksServer = createSocksServer({
-    servers: {
-      mrim: mrimServer,
-      redirector: redirectorServer
-    },
-    logger
-  })
+    const listener = servers.mrim.listen(
+      config.mrim?.serverPort ?? DEFAULT_MRIM_PORT,
+      config.mrim?.serverHostname ?? LOCALHOST,
+      () => {
+        const { address, port } = listener.address()
+        return logger.info(
+          `MRIM сервер запущен -> адрес: ${address}, порт: ${port}`
+        )
+      }
+    )
+  }
 
-  const mrimListener = mrimServer.listen(
-    config.mrim?.serverPort ?? DEFAULT_MRIM_PORT,
-    config.mrim?.serverHostname ?? LOCALHOST,
-    () => {
-      const { address, port } = mrimListener.address()
-      return logger.info(
-        `MRIM сервер запущен -> адрес: ${address}, порт: ${port}`
-      )
-    }
-  )
+  if (config.redirector.enabled) {
+    servers.redirector = createRedirectorServer({ logger })
 
-  const redirectorListener = redirectorServer.listen(
-    config.redirector?.serverPort ?? DEFAULT_REDIRECTOR_PORT,
-    config.redirector?.serverHostname ?? LOCALHOST,
-    () => {
-      const { address, port } = redirectorListener.address()
-      return logger.info(
-        `перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`
-      )
-    }
-  )
+    const listener = servers.redirector.listen(
+      config.redirector?.serverPort ?? DEFAULT_REDIRECTOR_PORT,
+      config.redirector?.serverHostname ?? LOCALHOST,
+      () => {
+        const { address, port } = listener.address()
+        return logger.info(
+          `Перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`
+        )
+      }
+    )
+  }
 
-  const socksListener = socksServer.listen(
-    config.socks?.serverPort ?? DEFAULT_SOCKS5_PORT,
-    config.socks?.serverHostname ?? LOCALHOST,
-    () => {
-      const { address, port } = socksListener.address()
-      return logger.info(
-        `SOCKS5 прокси-сервер запущен -> адрес: ${address}, порт: ${port}`
-      )
-    }
-  )
+  if (config.socks.enabled) {
+    servers.socks = createSocksServer({ logger, servers })
+
+    const listener = servers.socks.listen(
+      config.socks?.serverPort ?? DEFAULT_SOCKS5_PORT,
+      config.socks?.serverHostname ?? LOCALHOST,
+      () => {
+        const { address, port } = listener.address()
+        return logger.info(
+          `SOCKS сервер запущен -> адрес: ${address}, порт: ${port}`
+        )
+      }
+    )
+  }
 }
 
 main()
