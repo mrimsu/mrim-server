@@ -111,7 +111,13 @@ async function processPacket (
         state
       )
     case MrimMessageCommands.MESSAGE:
-      return processMessage(containerHeader, packetData, connectionId, logger)
+      return processMessage(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state
+      )
     case MrimMessageCommands.WP_REQUEST:
       return processSearch(containerHeader, packetData, connectionId, logger)
     case MrimMessageCommands.ADD_CONTACT:
