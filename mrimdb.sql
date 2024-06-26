@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3306
--- Generation Time: Jun 25, 2024 at 07:05 AM
+-- Generation Time: Jun 26, 2024 at 10:38 AM
 -- Server version: 8.3.0
 -- PHP Version: 8.1.2-1ubuntu2.17
 
@@ -39,8 +39,7 @@ CREATE TABLE `contact` (
 --
 
 INSERT INTO `contact` (`id`, `owner_user_id`, `user_id`, `contact_group_id`) VALUES
-(1, 1, 2, 1),
-(2, 2, 1, 2);
+(22, 1, 2, 1);
 
 -- --------------------------------------------------------
 
@@ -51,16 +50,17 @@ INSERT INTO `contact` (`id`, `owner_user_id`, `user_id`, `contact_group_id`) VAL
 CREATE TABLE `contact_group` (
   `id` int NOT NULL,
   `user_id` int NOT NULL,
-  `name` varchar(255) NOT NULL
+  `name` varchar(255) NOT NULL,
+  `idx` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `contact_group`
 --
 
-INSERT INTO `contact_group` (`id`, `user_id`, `name`) VALUES
-(1, 1, 'Friends'),
-(2, 2, 'Friends');
+INSERT INTO `contact_group` (`id`, `user_id`, `name`, `idx`) VALUES
+(1, 1, 'Friends', 0),
+(2, 2, 'Friends', 0);
 
 -- --------------------------------------------------------
 
@@ -71,16 +71,24 @@ INSERT INTO `contact_group` (`id`, `user_id`, `name`) VALUES
 CREATE TABLE `user` (
   `id` int NOT NULL,
   `login` varchar(255) NOT NULL,
-  `passwd` varchar(255) NOT NULL
+  `passwd` varchar(255) NOT NULL,
+  `nick` varchar(255) DEFAULT NULL,
+  `f_name` varchar(255) DEFAULT NULL,
+  `l_name` varchar(255) DEFAULT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `birthday` date DEFAULT NULL,
+  `zodiac` int DEFAULT NULL,
+  `phone` varchar(255) DEFAULT NULL,
+  `sex` enum('1','2') DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `user`
 --
 
-INSERT INTO `user` (`id`, `login`, `passwd`) VALUES
-(1, 'biba', '$2b$10$sROyimBWn7PnX7Ug258VFuDj1R5g76ta7SwPAWPZ931Eot7pbqpji'),
-(2, 'boba', '$2b$10$YCbbuQLe49EeIfEfEa9Dv.ByMPudxU9DiEJJqnfXnFgIQCqkQEl7.');
+INSERT INTO `user` (`id`, `login`, `passwd`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `zodiac`, `phone`, `sex`) VALUES
+(1, 'biba', '$2b$10$sROyimBWn7PnX7Ug258VFuDj1R5g76ta7SwPAWPZ931Eot7pbqpji', NULL, 'Биба', NULL, 'Астрахань', '1999-01-01', 1, NULL, '1'),
+(2, 'boba', '$2b$10$YCbbuQLe49EeIfEfEa9Dv.ByMPudxU9DiEJJqnfXnFgIQCqkQEl7.', NULL, 'Боба', NULL, 'Астрахань', '1999-01-01', 1, NULL, '1');
 
 --
 -- Indexes for dumped tables
@@ -117,7 +125,7 @@ ALTER TABLE `user`
 -- AUTO_INCREMENT for table `contact`
 --
 ALTER TABLE `contact`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `contact_group`

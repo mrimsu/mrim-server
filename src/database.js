@@ -200,10 +200,41 @@ async function addContactToGroup (ownerUserId, groupIndex, contactLogin) {
   return contactUserId
 }
 
+/**
+ * Создание новой группы контактов
+ *
+ * @param {number} userId ID пользователя
+ * @param {string} groupName Имя группы
+ *
+ * @returns {Promise<number>} Индекс группы контактов
+ */
+async function createNewGroup (userId, groupName) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [countResults, _countFields] = await connection.query(
+    'SELECT COUNT(`contact_group`.`id`) as `contact_group_cnt` ' +
+      'FROM `contact_group` ' +
+      'WHERE `contact_group`.`user_id` = ?',
+    [userId]
+  )
+  const groupIndex = countResults[0].contact_group_cnt
+
+  await connection.execute(
+    'INSERT INTO `contact_group` ' +
+      '(`contact_group`.`user_id`, `contact_group`.`name`, `contact_group`.`idx`) ' +
+      'VALUES (?, ?, ?)',
+    [userId, groupName, groupIndex]
+  )
+
+  return groupIndex
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroups,
   addContactToGroup,
+  createNewGroup,
   searchUsers
 }
