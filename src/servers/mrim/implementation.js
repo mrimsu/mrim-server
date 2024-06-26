@@ -11,7 +11,8 @@ const {
   processLogin,
   processMessage,
   processSearch,
-  processAddContact
+  processAddContact,
+  processModifyContact
 } = require('./processors')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
@@ -115,6 +116,14 @@ async function processPacket (
       return processSearch(containerHeader, packetData, connectionId, logger)
     case MrimMessageCommands.ADD_CONTACT:
       return processAddContact(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state
+      )
+    case MrimMessageCommands.MODIFY_CONTACT:
+      return processModifyContact(
         containerHeader,
         packetData,
         connectionId,

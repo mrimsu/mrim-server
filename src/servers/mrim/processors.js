@@ -13,7 +13,9 @@ const {
   MrimContact,
   MrimAddContactRequest,
   MrimAddContactResponse,
-  MrimContactAuthorize
+  MrimContactAuthorize,
+  MrimModifyContactRequest,
+  MrimModifyContactResponse
 } = require('../../messages/mrim/contact')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
@@ -30,7 +32,8 @@ const {
   getContactsFromGroups,
   addContactToGroup,
   searchUsers,
-  createNewGroup
+  createNewGroup,
+  modifyGroupName
 } = require('../../database')
 const { Iconv } = require('iconv')
 
@@ -446,7 +449,7 @@ async function processAddContact (
   state
 ) {
   const request = MrimAddContactRequest.reader(packetData)
-  console.log(request)
+
   switch (request.flags) {
     case 0: {
       // добавление ИМЕННО контакта
@@ -518,7 +521,77 @@ async function processAddContact (
       }
     }
     default: {
-      return { end: true } // клиент послан НАХУЙ с таким запросами
+      const contactResponse = MrimAddContactResponse.writer({
+        status: 1,
+        contactId: 0xffffffff
+      })
+
+      return {
+        reply: new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
+              dataSize: contactResponse.length,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .subbuffer(contactResponse)
+          .finish()
+      }
+    }
+  }
+}
+
+async function processModifyContact (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state
+) {
+  const request = MrimModifyContactRequest.reader(packetData)
+
+  switch (request.flags) {
+    case 8: {
+      await modifyGroupName(state.userId, request.id, request.contact)
+      const contactResponse = MrimModifyContactResponse.writer({ status: 0 })
+
+      return {
+        reply: new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
+              dataSize: contactResponse.length,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .subbuffer(contactResponse)
+          .finish()
+      }
+    }
+    default: {
+      const contactResponse = MrimModifyContactResponse.writer({
+        status: 1
+      })
+
+      return {
+        reply: new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
+              dataSize: contactResponse.length,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .subbuffer(contactResponse)
+          .finish()
+      }
     }
   }
 }
@@ -528,5 +601,6 @@ module.exports = {
   processLogin,
   processSearch,
   processMessage,
-  processAddContact
+  processAddContact,
+  processModifyContact
 }

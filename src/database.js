@@ -230,11 +230,30 @@ async function createNewGroup (userId, groupName) {
   return groupIndex
 }
 
+/**
+ * Редактировать имя группы контактов
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} groupIndex Индекс группы
+ * @param {string} groupName Новое имя группы
+ */
+async function modifyGroupName (userId, groupIndex, groupName) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'UPDATE `contact_group` ' +
+      'SET `contact_group`.`name` = ? ' +
+      'WHERE `contact_group`.`user_id` = ? AND `contact_group`.`idx` = ?',
+    [groupName, userId, groupIndex]
+  )
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroups,
   addContactToGroup,
   createNewGroup,
-  searchUsers
+  searchUsers,
+  modifyGroupName
 }
