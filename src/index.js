@@ -26,6 +26,14 @@ function main () {
 
   const servers = {}
 
+  if (
+    !config.mrim.enabled &&
+    !config.redirector.enabled &&
+    !config.socks.enabled
+  ) {
+    config.mrim.enabled = true
+  }
+
   if (config.mrim.enabled) {
     servers.mrim = createMrimServer({ logger })
 
