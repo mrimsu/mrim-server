@@ -83,17 +83,18 @@ CREATE TABLE `user` (
   `birthday` date DEFAULT NULL,
   `zodiac` int DEFAULT NULL,
   `phone` varchar(255) DEFAULT NULL,
-  `sex` enum('1','2') DEFAULT NULL
+  `sex` enum('1','2') DEFAULT NULL,
+  `status` int NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `user`
 --
 
-INSERT INTO `user` (`id`, `login`, `passwd`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `zodiac`, `phone`, `sex`) VALUES
-(4, 'veselcraft', 'f423d4e8afac887535717d8335d7c616', 'veselcraft', 'Владимир', 'Баринов', 'Воскресенск', '2004-04-16', NULL, NULL, '1'),
-(5, 'synzr', '741dd15c5f169ecf90befccb870973bf', 'synzr', 'Михаил', 'Серебряков', 'Магнитогорск', '2007-08-25', NULL, NULL, '1'),
-(6, 'motionarium', '3005508b38480948959e55aa3fe50d7b', 'motionarium', 'Georgiy', 'Moushenov', NULL, NULL, NULL, NULL, '1');
+INSERT INTO `user` (`id`, `login`, `passwd`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `zodiac`, `phone`, `sex`, `status`) VALUES
+(4, 'veselcraft', 'f423d4e8afac887535717d8335d7c616', 'veselcraft', 'Владимир', 'Баринов', 'Воскресенск', '2004-04-16', NULL, NULL, '1', 0),
+(5, 'synzr', '741dd15c5f169ecf90befccb870973bf', 'synzr', 'Михаил', 'Серебряков', 'Магнитогорск', '2007-08-25', NULL, NULL, '1', 0),
+(6, 'motionarium', '3005508b38480948959e55aa3fe50d7b', 'motionarium', 'Georgiy', 'Moushenov', NULL, NULL, NULL, NULL, '1', 0);
 
 --
 -- Indexes for dumped tables

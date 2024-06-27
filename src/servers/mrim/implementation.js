@@ -12,8 +12,10 @@ const {
   processMessage,
   processSearch,
   processAddContact,
-  processModifyContact
+  processModifyContact,
+  processChangeStatus
 } = require('./processors')
+const { modifyUserStatus } = require('../../database')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
@@ -79,14 +81,12 @@ function onData (socket, connectionId, logger, state, variables) {
 }
 
 function onClose (socket, connectionId, logger, state, variables) {
-  return () => {
-    // NOTE вова адидас, ты еблан?
-    //      нахуя нам нужен globalThis, если можно использовать ебучие variables для этого?
-    //      нахуй я variables сделал по твоему?
+  return async () => {
     if (variables.clients.length > 0) {
       const clientIndex = variables.clients.findIndex(
         ({ userId }) => userId === state.userId
       )
+      await modifyUserStatus(variables.clients[clientIndex].userId, 0)
       variables.clients.splice(clientIndex, 1)
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
@@ -147,6 +147,15 @@ async function processPacket (
         connectionId,
         logger,
         state
+      )
+    case MrimMessageCommands.CHANGE_STATUS:
+      return processChangeStatus(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
       )
     case MrimMessageCommands.PING: {
       logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)

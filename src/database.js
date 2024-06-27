@@ -366,6 +366,23 @@ async function deleteContact (ownerUserId, contactLogin) {
   pool.releaseConnection(connection)
 }
 
+/**
+ * Редактировать статус пользователя
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} status Статус пользователя
+ */
+async function modifyUserStatus (userId, status) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'UPDATE `user` SET `user`.`status` = ? WHERE `user`.`id` = ?',
+    [status, userId]
+  )
+
+  pool.releaseConnection(connection)
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
@@ -376,5 +393,6 @@ module.exports = {
   modifyGroupName,
   deleteGroup,
   moveContactToGroup,
-  deleteContact
+  deleteContact,
+  modifyUserStatus
 }

@@ -26,6 +26,7 @@ const {
   MrimSearchField,
   MrimAnketaHeader
 } = require('../../messages/mrim/search')
+const { MrimChangeStatusRequest, MrimUserStatusUpdate } = require('../../messages/mrim/status')
 const {
   getUserIdViaCredentials,
   getContactGroups,
@@ -36,7 +37,8 @@ const {
   modifyGroupName,
   deleteGroup,
   moveContactToGroup,
-  deleteContact
+  deleteContact,
+  modifyUserStatus
 } = require('../../database')
 const { Iconv } = require('iconv')
 
@@ -129,9 +131,11 @@ async function processLogin (
     }
   }
 
-  const [contactGroups, contacts] = await Promise.all([
+  // eslint-disable-next-line no-unused-vars
+  const [contactGroups, contacts, _status] = await Promise.all([
     getContactGroups(state.userId),
-    getContactsFromGroups(state.userId)
+    getContactsFromGroups(state.userId),
+    modifyUserStatus(state.userId, loginData.status)
   ])
 
   const contactList = MrimContactList.writer({
@@ -152,21 +156,23 @@ async function processLogin (
         )
         if (isClientOnline !== undefined) {
           // Отправляем пользователю сообщение о том что юзер онлайн
+
+          /*
           const dataToSend = new BinaryConstructor()
             .integer(state.status, 4)
-            /* .integer(1, 4)
+            .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // xstatus title i guess
           .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // xstatus desc
           .integer(1, 4)
-          .subbuffer(Buffer.from(` `, 'utf-8')) */
+          .subbuffer(Buffer.from(` `, 'utf-8'))
             .integer((state.username + '@mail.ru').length, 4)
             .subbuffer(Buffer.from(`${state.username}@mail.ru`, 'utf-8'))
-            /* .integer(0xFFFFFFFF, 4)
+            .integer(0xFFFFFFFF, 4)
           .integer(1, 4)
           .subbuffer(Buffer.from(` `, 'utf-8')) // client text
           .integer(1, 4)
-          .subbuffer(Buffer.from(` `, 'utf-8')) // unknown */
+          .subbuffer(Buffer.from(` `, 'utf-8')) // unknown
             .finish()
 
           const dataToSendWithHeader = new BinaryConstructor()
@@ -184,8 +190,30 @@ async function processLogin (
             .finish()
 
           isClientOnline.socket.write(dataToSendWithHeader)
+          */
+
+          const userStatusUpdate = MrimUserStatusUpdate.writer({
+            status: loginData.status,
+            contact: `${state.username}@mail.ru`
+          })
+
+          isClientOnline.socket.write(
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetCommand: MrimMessageCommands.USER_STATUS,
+                  dataSize: userStatusUpdate.length,
+                  senderAddress: 0,
+                  senderPort: 0
+                })
+              )
+              .subbuffer(userStatusUpdate)
+              .finish()
+          )
+
           logger.debug(
-            `[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.login + '@mail.ru'}. Данные в HEX: ${dataToSend.toString('hex')}`
+            `[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.login + '@mail.ru'}. Данные в HEX: ${userStatusUpdate.toString('hex')}`
           )
           isClientOnline = isClientOnline.status
         } else {
@@ -592,8 +620,6 @@ async function processModifyContact (
   state
 ) {
   const request = MrimModifyContactRequest.reader(packetData)
-
-  console.log(request.flags)
   request.flags = request.flags & 0x000000ff
 
   switch (request.flags) {
@@ -662,11 +688,61 @@ async function processModifyContact (
   }
 }
 
+async function processChangeStatus (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  const { status } = MrimChangeStatusRequest.reader(packetData)
+
+  // eslint-disable-next-line no-unused-vars
+  const [contacts, _status] = await Promise.all([
+    getContactsFromGroups(state.userId),
+    modifyUserStatus(state.userId, status)
+  ])
+
+  for (const contact of contacts) {
+    const client = variables.clients.find(
+      ({ userId }) => userId === contact.id
+    )
+
+    if (client === undefined) {
+      continue
+    }
+
+    const userStatusUpdate = MrimUserStatusUpdate.writer({
+      status,
+      contact: `${state.username}@mail.ru`
+    })
+
+    client.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_STATUS,
+            dataSize: userStatusUpdate.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(userStatusUpdate)
+        .finish()
+    )
+
+    logger.debug(`[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.login + '@mail.ru'}. Данные в HEX: ${userStatusUpdate.toString('hex')}`)
+  }
+}
+
 module.exports = {
   processHello,
   processLogin,
   processSearch,
   processMessage,
   processAddContact,
-  processModifyContact
+  processModifyContact,
+  processChangeStatus
 }
