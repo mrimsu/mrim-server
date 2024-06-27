@@ -114,6 +114,8 @@ async function processLogin (
     )
     state.username = loginData.login.split('@')[0]
     state.status = loginData.status
+    state.protocolVersionMajor = containerHeader.protocolVersionMajor
+    state.protocolVersionMinor = containerHeader.protocolVersionMinor
     variables.clients.push(state)
   } catch {
     return {
@@ -436,6 +438,9 @@ async function processSearch (
         break
       case MrimSearchRequestFields.BIRTHDAY_DAY:
         searchParameters.birthday = parseInt(value, 10)
+        break
+      case MrimSearchRequestFields.ONLINE:
+        searchParameters.onlyOnline = true
         break
     }
   }

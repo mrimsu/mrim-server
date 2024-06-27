@@ -15,8 +15,6 @@ const DEFAULT_REDIRECTOR_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
 const LOCALHOST = 'localhost' // пиздец
 
-global.clients = []
-
 function main () {
   const logger = winston.createLogger({
     level: config.logger?.level ?? 'debug',

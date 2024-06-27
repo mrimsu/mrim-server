@@ -154,6 +154,10 @@ async function searchUsers (userId, searchParameters) {
     variables.push(searchParameters.birthday)
   }
 
+  if (Object.hasOwn(searchParameters, 'onlyOnline')) {
+    query += '`user`.`status` = 1 AND ' // 1 = STATUS_ONLINE
+  }
+
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
   query = query.substring(0, query.length - 4) + 'LIMIT 50'
 

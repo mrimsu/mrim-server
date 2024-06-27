@@ -5,6 +5,7 @@
  */
 
 const { MrimMessageCommands } = require('./globals')
+const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   processHello,
@@ -15,7 +16,6 @@ const {
   processModifyContact,
   processChangeStatus
 } = require('./processors')
-const { modifyUserStatus } = require('../../database')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
@@ -86,7 +86,21 @@ function onClose (socket, connectionId, logger, state, variables) {
       const clientIndex = variables.clients.findIndex(
         ({ userId }) => userId === state.userId
       )
-      await modifyUserStatus(variables.clients[clientIndex].userId, 0)
+      // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+      await processChangeStatus(
+        {
+          protocolVersionMajor: state.protocolVersionMajor,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetOrder: 0,
+        },
+        new BinaryConstructor()
+          .integer(0, 4)
+          .finish(),
+        connectionId,
+        logger,
+        state,
+        variables
+      )
       variables.clients.splice(clientIndex, 1)
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
