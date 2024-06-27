@@ -131,3 +131,6 @@ dist
 
 # Configuration
 config.js
+
+# Zed-specific settings
+.zed/

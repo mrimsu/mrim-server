@@ -337,24 +337,24 @@ async function processSearch (
     }
   }
 
+  if (Date.now() > state.searchRateLimiter.refreshTime) {
+    state.searchRateLimiter.available = 25
+  }
+
   if (state.searchRateLimiter.available < 1) {
-    if (Date.now() > state.searchRateLimiter.refreshTime) {
-      state.searchRateLimiter.available = 25
-    } else {
-      return {
-        reply: new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.ANKETA_INFO,
-              dataSize: 0x4,
-              senderAddress: 0,
-              senderPort: 0
-            })
-          )
-          .integer(AnketaInfoStatus.RATELIMITER, 4)
-          .finish()
-      }
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.ANKETA_INFO,
+            dataSize: 0x4,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .integer(AnketaInfoStatus.RATELIMITER, 4)
+        .finish()
     }
   }
 
@@ -590,6 +590,8 @@ async function processModifyContact (
   state
 ) {
   const request = MrimModifyContactRequest.reader(packetData)
+
+  console.log(request.flags)
   request.flags = request.flags & 0x000000ff
 
   switch (request.flags) {
