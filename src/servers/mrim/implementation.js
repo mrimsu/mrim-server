@@ -17,13 +17,13 @@ const {
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
-function onConnection (socket, connectionId, logger, _variables) {
+function onConnection (socket, connectionId, logger, variables) {
   const state = { userId: null, username: null, status: null, socket }
-  socket.on('data', onData(socket, connectionId, logger, state))
-  socket.on('close', onClose(socket, connectionId, logger, state))
+  socket.on('data', onData(socket, connectionId, logger, state, variables))
+  socket.on('close', onClose(socket, connectionId, logger, state, variables))
 }
 
-function onData (socket, connectionId, logger, state) {
+function onData (socket, connectionId, logger, state, variables) {
   return (data) => {
     const header = MrimContainerHeader.reader(data)
 
@@ -48,7 +48,7 @@ function onData (socket, connectionId, logger, state) {
       MRIM_HEADER_CONTAINER_SIZE + header.dataSize
     )
 
-    processPacket(header, packetData, connectionId, logger, state).then(
+    processPacket(header, packetData, connectionId, logger, state, variables).then(
       (result) => {
         if (result === undefined) {
           return
@@ -78,13 +78,16 @@ function onData (socket, connectionId, logger, state) {
   }
 }
 
-function onClose (socket, connectionId, logger, state) {
+function onClose (socket, connectionId, logger, state, variables) {
   return () => {
-    if (global.clients.length > 0) {
-      const clientIndex = global.clients.findIndex(
+    // NOTE вова адидас, ты еблан?
+    //      нахуя нам нужен globalThis, если можно использовать ебучие variables для этого?
+    //      нахуй я variables сделал по твоему?
+    if (variables.clients.length > 0) {
+      const clientIndex = variables.clients.findIndex(
         ({ userId }) => userId === state.userId
       )
-      global.clients.splice(clientIndex, 1)
+      variables.clients.splice(clientIndex, 1)
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
       )
@@ -97,7 +100,8 @@ async function processPacket (
   packetData,
   connectionId,
   logger,
-  state
+  state,
+  variables
 ) {
   switch (containerHeader.packetCommand) {
     case MrimMessageCommands.HELLO:
@@ -108,7 +112,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.MESSAGE:
       return processMessage(
@@ -116,7 +121,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.WP_REQUEST:
       return processSearch(

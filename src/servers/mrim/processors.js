@@ -94,7 +94,8 @@ async function processLogin (
   packetData,
   connectionId,
   logger,
-  state
+  state,
+  variables
 ) {
   const loginData = MrimLoginData.reader(packetData)
 
@@ -111,7 +112,7 @@ async function processLogin (
     )
     state.username = loginData.login.split('@')[0]
     state.status = loginData.status
-    global.clients.push(state)
+    variables.clients.push(state)
   } catch {
     return {
       reply: new BinaryConstructor()
@@ -146,7 +147,7 @@ async function processLogin (
     ),
     contacts: Buffer.concat(
       contacts.flat().map((contact) => {
-        let isClientOnline = global.clients.find(
+        let isClientOnline = variables.clients.find(
           ({ userId }) => userId === contact.id
         )
         if (isClientOnline !== undefined) {
@@ -249,7 +250,8 @@ function processMessage (
   packetData,
   connectionId,
   logger,
-  state
+  state,
+  variables
 ) {
   const messageData = MrimClientMessageData.reader(packetData)
 
@@ -257,7 +259,7 @@ function processMessage (
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
   )
 
-  const addresserClient = global.clients.find(
+  const addresserClient = variables.clients.find(
     ({ username }) => username === messageData.addresser.split('@')[0]
   )
   if (addresserClient !== undefined) {

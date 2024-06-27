@@ -10,6 +10,7 @@ const onConnection = require('./implementation')
 function createMrimServer (options) {
   return new ServerConstructor({
     logger: options.logger,
+    variables: { clients: [] },
     onConnection
   }).finish()
 }
