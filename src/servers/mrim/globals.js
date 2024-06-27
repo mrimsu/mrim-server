@@ -27,6 +27,9 @@ const MrimMessageCommands = {
   MODIFY_CONTACT: 0x101b,
   MODIFY_CONTACT_ACK: 0x101c,
   AUTHORIZE_ACK: 0x1021,
+  // Status
+  CHANGE_STATUS: 0x1022,
+  // Search
   ANKETA_INFO: 0x1028,
   WP_REQUEST: 0x1029
 }

@@ -5,6 +5,7 @@
  */
 
 const { MrimMessageCommands } = require('./globals')
+const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   processHello,
@@ -12,18 +13,19 @@ const {
   processMessage,
   processSearch,
   processAddContact,
-  processModifyContact
+  processModifyContact,
+  processChangeStatus
 } = require('./processors')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
-function onConnection (socket, connectionId, logger, _variables) {
+function onConnection (socket, connectionId, logger, variables) {
   const state = { userId: null, username: null, status: null, socket }
-  socket.on('data', onData(socket, connectionId, logger, state))
-  socket.on('close', onClose(socket, connectionId, logger, state))
+  socket.on('data', onData(socket, connectionId, logger, state, variables))
+  socket.on('close', onClose(socket, connectionId, logger, state, variables))
 }
 
-function onData (socket, connectionId, logger, state) {
+function onData (socket, connectionId, logger, state, variables) {
   return (data) => {
     const header = MrimContainerHeader.reader(data)
 
@@ -48,7 +50,7 @@ function onData (socket, connectionId, logger, state) {
       MRIM_HEADER_CONTAINER_SIZE + header.dataSize
     )
 
-    processPacket(header, packetData, connectionId, logger, state).then(
+    processPacket(header, packetData, connectionId, logger, state, variables).then(
       (result) => {
         if (result === undefined) {
           return
@@ -78,13 +80,28 @@ function onData (socket, connectionId, logger, state) {
   }
 }
 
-function onClose (socket, connectionId, logger, state) {
-  return () => {
-    if (global.clients.length > 0) {
-      const clientIndex = global.clients.findIndex(
+function onClose (socket, connectionId, logger, state, variables) {
+  return async () => {
+    if (variables.clients.length > 0) {
+      const clientIndex = variables.clients.findIndex(
         ({ userId }) => userId === state.userId
       )
-      global.clients.splice(clientIndex, 1)
+      // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+      await processChangeStatus(
+        {
+          protocolVersionMajor: state.protocolVersionMajor,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetOrder: 0,
+        },
+        new BinaryConstructor()
+          .integer(0, 4)
+          .finish(),
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+      variables.clients.splice(clientIndex, 1)
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
       )
@@ -97,7 +114,8 @@ async function processPacket (
   packetData,
   connectionId,
   logger,
-  state
+  state,
+  variables
 ) {
   switch (containerHeader.packetCommand) {
     case MrimMessageCommands.HELLO:
@@ -108,7 +126,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.MESSAGE:
       return processMessage(
@@ -116,7 +135,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.WP_REQUEST:
       return processSearch(
@@ -141,6 +161,15 @@ async function processPacket (
         connectionId,
         logger,
         state
+      )
+    case MrimMessageCommands.CHANGE_STATUS:
+      return processChangeStatus(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
       )
     case MrimMessageCommands.PING: {
       logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)
