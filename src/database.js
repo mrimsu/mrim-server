@@ -364,7 +364,7 @@ async function modifyContact (
 
   const [{ id: contactUserId }] = contactUserResult[0]
   const groupId = groupResult[0].length === 1
-    ? groupResult[0].id
+    ? groupResult[0][0].id
     : null
 
   try { // обновление контакта как сам контакт
