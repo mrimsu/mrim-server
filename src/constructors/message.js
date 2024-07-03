@@ -98,6 +98,7 @@ class MessageConstructor {
             )
             break
           case FieldDataType.UINT32:
+            console.log(field.key, message[field.key])
             binaryConstructor = binaryConstructor.integer(
               field.constantValue ?? message[field.key],
               4

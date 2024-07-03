@@ -91,7 +91,7 @@ function onClose (socket, connectionId, logger, state, variables) {
         {
           protocolVersionMajor: state.protocolVersionMajor,
           protocolVersionMinor: state.protocolVersionMinor,
-          packetOrder: 0,
+          packetOrder: 0
         },
         new BinaryConstructor()
           .integer(0, 4)
@@ -152,7 +152,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.MODIFY_CONTACT:
       return processModifyContact(
