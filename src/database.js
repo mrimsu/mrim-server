@@ -78,6 +78,7 @@ async function getContactsFromGroups (userId) {
     connection.query(
       'SELECT `contact`.`adder_nickname` as `contact_nickname`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
+        '`user`.`id` as `user_id`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
         '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
