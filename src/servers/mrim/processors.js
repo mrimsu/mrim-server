@@ -42,7 +42,8 @@ const {
   deleteGroup,
   modifyContact,
   deleteContact,
-  modifyUserStatus
+  modifyUserStatus,
+  isContactAuthorized
 } = require('../../database')
 const { Iconv } = require('iconv')
 const { BinaryReader } = require('@glagan/binary-reader')
@@ -611,8 +612,9 @@ async function processAuthorizeContact (
       
   let authorizePacket = MrimAddContactData.reader(packetData)
   
+  const contactUsername = authorizePacket.addresser.split('@')[0];
   const clientAddresser = variables.clients.find(
-    ({ username }) => username === authorizePacket.addresser.split('@')[0]
+    ({ username }) => username === contactUsername
   )
 
   if (clientAddresser !== undefined) {
@@ -620,6 +622,7 @@ async function processAuthorizeContact (
       addresser: `${state.username}@mail.ru`
     })
 
+    // Отправлям адресату запрос на авторизацию
     clientAddresser.socket.write(
       new BinaryConstructor()
         .subbuffer(
@@ -636,24 +639,27 @@ async function processAuthorizeContact (
     )
   }
 
-  const authorizeReply = MrimAddContactData.writer({
-    addresser: authorizePacket.addresser
-  })
+  // Если юзер принял авторизацию
+  if (isContactAuthorized(state.id, contactUsername)) {
+    const authorizeReply = MrimAddContactData.writer({
+      addresser: authorizePacket.addresser
+    })
 
-  return {
-    reply:
-    new BinaryConstructor()
-    .subbuffer(
-        MrimContainerHeader.writer({
-          ...containerHeader,
-          packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
-          dataSize: authorizeReply.length,
-          senderAddress: 0,
-          senderPort: 0
-        })
-      )
-      .subbuffer(authorizeReply)
-      .finish()
+    return {
+      reply:
+      new BinaryConstructor()
+      .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+            dataSize: authorizeReply.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(authorizeReply)
+        .finish()
+    }
   }
 }
     

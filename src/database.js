@@ -83,7 +83,7 @@ async function getContactsFromGroups (userId) {
         '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`adder_user_id` = `user`.`id` ' +
-        'WHERE `contact`.`contact_user_id` = ?',
+        'WHERE `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 1',
       [userId]
     )
   ])
@@ -443,6 +443,38 @@ async function modifyUserStatus (userId, status) {
   pool.releaseConnection(connection)
 }
 
+/**
+ * Проверяет, добавил ли его пользователь #2
+ *
+ * @param {number} user ID пользователя
+ * @param {string} contact Username пользователя #2
+ * @returns {Boolean}
+ **/
+async function isContactAuthorized (user, contact) {
+  const connection = await pool.getConnection()
+
+  const contactUserResult =
+    await connection.query(
+      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
+      [contact]
+    )
+
+  const [{ id: contactUserId }] = contactUserResult[0]
+
+  const results =
+    await connection.query(
+      'SELECT `contact`.`contact_nickname` as `contact_nickname`, ' +
+        '`contact`.`is_auth_success`' +
+        'FROM `contact` ' +
+        'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
+        'WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 0',
+        [contactUserId, user]
+      );
+
+  pool.releaseConnection(connection)
+  return (results.length > 0) ? true : false;
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
@@ -454,5 +486,6 @@ module.exports = {
   deleteGroup,
   modifyContact,
   deleteContact,
-  modifyUserStatus
+  modifyUserStatus,
+  isContactAuthorized
 }
