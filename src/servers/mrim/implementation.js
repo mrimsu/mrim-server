@@ -31,7 +31,6 @@ function onData (socket, connectionId, logger, state, variables) {
     const header = MrimContainerHeader.reader(data)
 
     if (header.packetCommand !== MrimMessageCommands.PING) {
-
       logger.debug(
         `[${connectionId}] ===============================================`
       )
@@ -47,7 +46,6 @@ function onData (socket, connectionId, logger, state, variables) {
       logger.debug(
         `[${connectionId}] ===============================================`
       )
-
     }
 
     const packetData = data.subarray(

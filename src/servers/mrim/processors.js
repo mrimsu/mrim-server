@@ -486,13 +486,13 @@ async function processAddContact (
   variables
 ) {
   const request = MrimAddContactRequest.reader(packetData)
-  
+
   let contactResponse
   let contactResult
-  
+
   try {
     contactResult = request.flags & 0x00000002 // CONTACT_FLAG_GROUP
-    ? await createNewGroup(state.userId, request.contact)
+      ? await createNewGroup(state.userId, request.contact)
       : await createOrCompleteContact(
         state.userId,
         request.contact.split('@')[0],
@@ -501,7 +501,7 @@ async function processAddContact (
         request.groupIndex
       )
 
-      contactResponse = MrimAddContactResponse.writer({
+    contactResponse = MrimAddContactResponse.writer({
       status: 0x00000000, // CONTACT_OPER_SUCCESS
       contactId: contactResult.contactId
     })
@@ -511,7 +511,7 @@ async function processAddContact (
       contactId: 0xffffffff
     })
   }
-  
+
   if (!(request.flags & 0x00000002)) {
     const client = variables.clients.find(
       ({ username }) => username === request.contact.split('@')[0]
@@ -524,7 +524,7 @@ async function processAddContact (
 
       client.socket.write(
         new BinaryConstructor()
-        .subbuffer(
+          .subbuffer(
             MrimContainerHeader.writer({
               ...containerHeader,
               packetOrder: 0,
@@ -541,16 +541,16 @@ async function processAddContact (
 
     if (contactResult.action === 'CREATE_NEW') {
       const MrimAddContactData = new MessageConstructor()
-      .field('unknown', FieldDataType.UINT32)
-      .field('unknown2', FieldDataType.UINT32)
-      .field('addresser', FieldDataType.UBIART_LIKE_STRING)
-      .field('nickname', FieldDataType.UBIART_LIKE_STRING)
-      .field('unknown3', FieldDataType.UINT32)
-      .field('message', FieldDataType.UBIART_LIKE_STRING)
-      .finish()
-      
-      let packedMessage = MrimAddContactData.reader(packetData)
-      
+        .field('unknown', FieldDataType.UINT32)
+        .field('unknown2', FieldDataType.UINT32)
+        .field('addresser', FieldDataType.UBIART_LIKE_STRING)
+        .field('nickname', FieldDataType.UBIART_LIKE_STRING)
+        .field('unknown3', FieldDataType.UINT32)
+        .field('message', FieldDataType.UBIART_LIKE_STRING)
+        .finish()
+
+      const packedMessage = MrimAddContactData.reader(packetData)
+
       if (client) {
         const messageData = MrimServerMessageData.writer({
           id: Math.floor(Math.random() * 0xffffffff),
@@ -561,10 +561,10 @@ async function processAddContact (
         })
 
         logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} добавляется к ${request.contact.split('@')[0] + '@mail.ru'}. Данные в HEX: ${messageData.toString('hex')}`)
-        
+
         client.socket.write(
           new BinaryConstructor()
-          .subbuffer(
+            .subbuffer(
               MrimContainerHeader.writer({
                 ...containerHeader,
                 packetOrder: Math.floor(Math.random() * 0xffffffff),
@@ -576,15 +576,15 @@ async function processAddContact (
             )
             .subbuffer(messageData)
             .finish()
-          )
-        }
+        )
       }
     }
-    
-    return {
-      reply:
+  }
+
+  return {
+    reply:
       new BinaryConstructor()
-      .subbuffer(
+        .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
@@ -595,9 +595,9 @@ async function processAddContact (
         )
         .subbuffer(contactResponse)
         .finish()
-      }
-    }
-    
+  }
+}
+
 async function processAuthorizeContact (
   containerHeader,
   packetData,
@@ -609,10 +609,10 @@ async function processAuthorizeContact (
   const MrimAddContactData = new MessageConstructor()
     .field('addresser', FieldDataType.UBIART_LIKE_STRING)
     .finish()
-      
-  let authorizePacket = MrimAddContactData.reader(packetData)
-  
-  const contactUsername = authorizePacket.addresser.split('@')[0];
+
+  const authorizePacket = MrimAddContactData.reader(packetData)
+
+  const contactUsername = authorizePacket.addresser.split('@')[0]
   const clientAddresser = variables.clients.find(
     ({ username }) => username === contactUsername
   )
@@ -648,7 +648,7 @@ async function processAuthorizeContact (
     return {
       reply:
       new BinaryConstructor()
-      .subbuffer(
+        .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
@@ -662,8 +662,7 @@ async function processAuthorizeContact (
     }
   }
 }
-    
-    
+
 async function processModifyContact (
   containerHeader,
   packetData,
@@ -672,17 +671,17 @@ async function processModifyContact (
   state
 ) {
   const request = MrimModifyContactRequest.reader(packetData)
-  
+
   const contactResponse = MrimModifyContactResponse.writer({
     status: 0x00000000 // CONTACT_OPER_SUCCESS
   })
   const reply = new BinaryConstructor()
-  .subbuffer(
-    MrimContainerHeader.writer({
-      ...containerHeader,
-      packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
-      dataSize: contactResponse.length,
-      senderAddress: 0,
+    .subbuffer(
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
+        dataSize: contactResponse.length,
+        senderAddress: 0,
         senderPort: 0
       })
     )

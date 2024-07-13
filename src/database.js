@@ -468,11 +468,11 @@ async function isContactAuthorized (user, contact) {
         'FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
         'WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 0',
-        [contactUserId, user]
-      );
+      [contactUserId, user]
+    )
 
   pool.releaseConnection(connection)
-  return (results.length > 0) ? true : false;
+  return (results.length > 0)
 }
 
 module.exports = {
