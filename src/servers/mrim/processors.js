@@ -35,6 +35,7 @@ const {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroups,
+  getUnauthorizedContacts,
   createOrCompleteContact,
   searchUsers,
   createNewGroup,
@@ -213,6 +214,8 @@ async function processLogin (
       variables
     )
   ])
+
+  
 
   return {
     reply: [
@@ -645,20 +648,39 @@ async function processAuthorizeContact (
       addresser: authorizePacket.addresser
     })
 
+    const statusReply = MrimUserStatusUpdate.writer({
+      status: clientAddresser.status ?? 0x00,
+      contact: contactUsername + "@mail.ru"
+    })
+
     return {
       reply:
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
-            dataSize: authorizeReply.length,
-            senderAddress: 0,
-            senderPort: 0
-          })
-        )
-        .subbuffer(authorizeReply)
-        .finish()
+      [
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+              dataSize: authorizeReply.length,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .subbuffer(authorizeReply)
+          .finish(),
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.CHANGE_STATUS,
+              dataSize: statusReply.length,
+              senderAddress: 0,
+              senderPort: 0
+            })
+          )
+          .subbuffer(statusReply)
+          .finish()
+      ]
     }
   }
 }

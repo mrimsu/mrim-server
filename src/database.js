@@ -56,7 +56,7 @@ async function getContactGroups (userId) {
 }
 
 /**
- * Получение контакты из группы контактов
+ * Получение контактов из группы
  *
  * @param {number} userId ID пользователя
  * @returns {Promise<Array>} Массив контактов
@@ -83,7 +83,7 @@ async function getContactsFromGroups (userId) {
         '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`adder_user_id` = `user`.`id` ' +
-        'WHERE `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 1',
+        'WHERE `contact`.`contact_user_id` = ?',
       [userId]
     )
   ])
