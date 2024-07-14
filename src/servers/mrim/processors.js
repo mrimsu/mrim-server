@@ -35,7 +35,6 @@ const {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroups,
-  getUnauthorizedContacts,
   createOrCompleteContact,
   searchUsers,
   createNewGroup,
@@ -643,7 +642,7 @@ async function processAuthorizeContact (
   }
 
   // Если юзер принял авторизацию
-  if (isContactAuthorized(state.id, contactUsername)) {
+  if (isContactAuthorized(state.userId, contactUsername) == true) {
     const authorizeReply = MrimAddContactData.writer({
       addresser: authorizePacket.addresser
     })
@@ -766,6 +765,10 @@ async function processChangeStatus (
     )
 
     if (client === undefined) {
+      continue
+    }
+
+    if (contact.is_auth_success === 0) {
       continue
     }
 
