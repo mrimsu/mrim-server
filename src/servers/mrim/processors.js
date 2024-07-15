@@ -10,7 +10,7 @@ const {
   FieldDataType
 } = require('../../constructors/message')
 const { MrimMessageCommands } = require('./globals')
-const { MrimLoginData } = require('../../messages/mrim/authorization')
+const { MrimLoginData, MrimUserInfo } = require('../../messages/mrim/authorization')
 const {
   MrimContactList,
   MrimContactGroup,
@@ -73,7 +73,7 @@ const AnketaInfoStatus = {
 }
 
 const MRIM_GROUP_FLAG = 'us'
-const MRIM_CONTACT_FLAG = 'uussuussssus'
+const MRIM_CONTACT_FLAG = 'uussuus'
 
 const MRIM_J2ME_AGENT_CLIENT_INFO = 'client=J2MEAgent version=1.3 build=1937'
 
@@ -134,10 +134,10 @@ async function generateContactList (containerHeader, userId) {
           status: contact.contact_flags !== 4 // "Я всегда невидим для..."
             ? contact.user_status
             : 0, // STATUS_OFFLINE
-          extendedStatusName: '',
-          extendedStatusTitle: '',
+          clientInfo: '',
+          /* extendedStatusTitle: '',
           extendedStatusText: '',
-          clientInfo: MRIM_J2ME_AGENT_CLIENT_INFO
+          clientInfo: MRIM_J2ME_AGENT_CLIENT_INFO */
         })
       })
     )
@@ -214,7 +214,14 @@ async function processLogin (
     )
   ])
 
-  
+  const searchResults = await searchUsers(0, {"login": state.username})
+
+  let userInfo = MrimUserInfo.writer({
+    nickname: searchResults[0].nick,
+    messagestotal: "0", // dummy
+    messagesunread: "0", // dummy
+    clientip: "127.0.0.1:" + state.socket.remotePort
+  });
 
   return {
     reply: [
@@ -226,17 +233,17 @@ async function processLogin (
         senderPort: 0
       }),
       new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.MAILBOX_STATUS,
-            dataSize: 0x4,
-            senderAddress: 0,
-            senderPort: 0
-          })
-        )
-        .integer(0, 4)
-        .finish(),
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          packetCommand: MrimMessageCommands.USER_INFO,
+          dataSize: userInfo.length,
+          senderAddress: 0,
+          senderPort: 0
+        })
+      )
+      .subbuffer(userInfo)
+      .finish(),
       contactList
     ]
   }

@@ -12,6 +12,7 @@ const MrimMessageCommands = {
   LOGIN_REJ: 0x1005,
   PING: 0x1006,
   LOGIN2: 0x1038,
+  USER_INFO: 0x1015,
   // Contacts and statuses
   CONTACT_LIST2: 0x1037,
   USER_STATUS: 0x100f,
