@@ -22,7 +22,7 @@ const FieldDataType = {
   INT32: 5,
   SUBBUFFER: 6,
   BYTE_ARRAY: 7,
-  UBIART_LIKE_STRING: 8 // прошлое с Just Dance моя до сих пор не отпускает
+  UBIART_LIKE_STRING: 8 // прошлое с Just Dance меня до сих пор не отпускает
 }
 
 class MessageConstructor {
@@ -98,7 +98,6 @@ class MessageConstructor {
             )
             break
           case FieldDataType.UINT32:
-            console.log(field.key, message[field.key])
             binaryConstructor = binaryConstructor.integer(
               field.constantValue ?? message[field.key],
               4

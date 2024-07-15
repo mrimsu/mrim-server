@@ -708,7 +708,7 @@ async function processModifyContact (
           packetOrder: 0
         },
         new BinaryConstructor()
-          .integer(0x03, 4) // STATUS_UNDETERMINATED
+          .integer(0, 4) // STATUS_OFFLINE
           .finish(),
         connectionId,
         logger,
@@ -756,7 +756,11 @@ async function processChangeStatus (
 
   const contacts = await getContactsFromGroups(state.userId)
 
-  if (state.__NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED === undefined || state.__NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED === false) {
+  // TODO mikhail костыль на костыле
+  const NO_DATABASE_EDIT = state.__NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? false
+  const ONLY_FOR = state.__ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? null
+
+  if (!NO_DATABASE_EDIT) {
     await modifyUserStatus(state.userId, status)
   }
 
@@ -766,7 +770,7 @@ async function processChangeStatus (
     )
 
     // TODO mikhail что это нахуй
-    if (client === undefined || (state.__ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED !== undefined && state.__ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED !== client.userId)) {
+    if (client === undefined || ONLY_FOR !== client.userId) {
       continue
     }
 
@@ -790,7 +794,7 @@ async function processChangeStatus (
         .finish()
     )
 
-    logger.debug(`[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.user_login + '@mail.ru'}. Данные в HEX: ${userStatusUpdate.toString('hex')}`)
+    logger.debug(`[${connectionId}] Обновление статуса у ${state.username}@mail.ru для ${contact.user_login}@mail.ru. Данные в HEX: ${userStatusUpdate.toString('hex')}`)
   }
 }
 
