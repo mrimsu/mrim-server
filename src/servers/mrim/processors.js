@@ -701,7 +701,6 @@ async function processModifyContact (
   const request = MrimModifyContactRequest.reader(packetData)
 
   if (request.contact.length === 0 && state.lastAuthorizedContact === undefined) {
-    console.log(request, state)
     const contactResponse = MrimModifyContactResponse.writer({
       status: 0x00000004 // CONTACT_OPER_INVALID_INFO
     })
