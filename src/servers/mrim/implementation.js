@@ -14,6 +14,7 @@ const {
   processSearch,
   processAddContact,
   processModifyContact,
+  processAuthorizeContact,
   processChangeStatus
 } = require('./processors')
 
@@ -29,21 +30,23 @@ function onData (socket, connectionId, logger, state, variables) {
   return (data) => {
     const header = MrimContainerHeader.reader(data)
 
-    logger.debug(
-      `[${connectionId}] ===============================================`
-    )
-    logger.debug(
-      `[${connectionId}] Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`
-    )
-    logger.debug(
-      `[${connectionId}] Последовательность пакета: ${header.packetOrder}`
-    )
-    logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
-    logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
-    logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
-    logger.debug(
-      `[${connectionId}] ===============================================`
-    )
+    if (header.packetCommand !== MrimMessageCommands.PING) {
+      logger.debug(
+        `[${connectionId}] ===============================================`
+      )
+      logger.debug(
+        `[${connectionId}] Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`
+      )
+      logger.debug(
+        `[${connectionId}] Последовательность пакета: ${header.packetOrder}`
+      )
+      logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
+      logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
+      logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
+      logger.debug(
+        `[${connectionId}] ===============================================`
+      )
+    }
 
     const packetData = data.subarray(
       MRIM_HEADER_CONTAINER_SIZE,
@@ -91,7 +94,7 @@ function onClose (socket, connectionId, logger, state, variables) {
         {
           protocolVersionMajor: state.protocolVersionMajor,
           protocolVersionMinor: state.protocolVersionMinor,
-          packetOrder: 0,
+          packetOrder: 0
         },
         new BinaryConstructor()
           .integer(0, 4)
@@ -152,7 +155,17 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
+      )
+    case MrimMessageCommands.AUTHORIZE:
+      return processAuthorizeContact(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
       )
     case MrimMessageCommands.MODIFY_CONTACT:
       return processModifyContact(
@@ -160,7 +173,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.CHANGE_STATUS:
       return processChangeStatus(
@@ -171,10 +185,10 @@ async function processPacket (
         state,
         variables
       )
-    case MrimMessageCommands.PING: {
-      logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)
-      break
-    }
+    // case MrimMessageCommands.PING: {
+      // logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)
+      // break
+    // }
   }
 }
 
