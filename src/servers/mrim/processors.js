@@ -74,8 +74,6 @@ const AnketaInfoStatus = {
 const MRIM_GROUP_FLAG = 'us'
 const MRIM_CONTACT_FLAG = 'uussuus'
 
-const MRIM_J2ME_AGENT_CLIENT_INFO = 'client=J2MEAgent version=1.3 build=1937'
-
 function processHello (containerHeader, connectionId, logger) {
   logger.debug(`[${connectionId}] Приветствуем клиента...`)
 
@@ -133,7 +131,7 @@ async function generateContactList (containerHeader, userId) {
           status: contact.contact_flags !== 4 // "Я всегда невидим для..."
             ? contact.user_status
             : 0, // STATUS_OFFLINE
-          clientInfo: '',
+          clientInfo: ''
           /* extendedStatusTitle: '',
           extendedStatusText: '',
           clientInfo: MRIM_J2ME_AGENT_CLIENT_INFO */
@@ -213,14 +211,14 @@ async function processLogin (
     )
   ])
 
-  const searchResults = await searchUsers(0, {"login": state.username})
+  const searchResults = await searchUsers(0, { login: state.username })
 
-  let userInfo = MrimUserInfo.writer({
+  const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
-    messagestotal: "0", // dummy
-    messagesunread: "0", // dummy
-    clientip: "127.0.0.1:" + state.socket.remotePort
-  });
+    messagestotal: '0', // dummy
+    messagesunread: '0', // dummy
+    clientip: '127.0.0.1:' + state.socket.remotePort
+  })
 
   return {
     reply: [
@@ -232,17 +230,17 @@ async function processLogin (
         senderPort: 0
       }),
       new BinaryConstructor()
-      .subbuffer(
-        MrimContainerHeader.writer({
-          ...containerHeader,
-          packetCommand: MrimMessageCommands.USER_INFO,
-          dataSize: userInfo.length,
-          senderAddress: 0,
-          senderPort: 0
-        })
-      )
-      .subbuffer(userInfo)
-      .finish(),
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_INFO,
+            dataSize: userInfo.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(userInfo)
+        .finish(),
       contactList
     ]
   }
@@ -648,14 +646,14 @@ async function processAuthorizeContact (
   }
 
   // Если юзер принял авторизацию
-  if (isContactAuthorized(state.userId, contactUsername) == true) {
+  if (isContactAuthorized(state.userId, contactUsername) === true) {
     const authorizeReply = MrimAddContactData.writer({
       addresser: authorizePacket.addresser
     })
 
     const statusReply = MrimUserStatusUpdate.writer({
       status: clientAddresser.status ?? 0x00,
-      contact: contactUsername + "@mail.ru"
+      contact: contactUsername + '@mail.ru'
     })
 
     return {

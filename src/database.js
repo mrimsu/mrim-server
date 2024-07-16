@@ -547,6 +547,7 @@ async function isContactAuthorized (user, contact) {
 
   const [{ id: contactUserId }] = contactUserResult[0]
 
+  // eslint-disable-next-line no-unused-vars
   const [results, _fields] =
     await connection.query(
       'SELECT `contact`.`contact_nickname` as `contact_nickname`, ' +

@@ -10,8 +10,6 @@ const {
 
 const MRIM_GET_CONTACTS_OK = 0
 const MRIM_CONTACT_GROUP_MAGIC = 8
-const MRIM_UNKNOWN1_VALUE_DEFAULT = 0
-const MRIM_UNKNOWN2_VALUE_DEFAULT = 0x03ff
 
 const MrimContactList = new MessageConstructor()
   .field('status', FieldDataType.UINT32, MRIM_GET_CONTACTS_OK)
