@@ -527,6 +527,7 @@ async function processAddContact (
       const authorizeData = MrimContactAuthorizeData.writer({
         contact: state.username + '@mail.ru'
       })
+      state.lastAuthorizedContact = request.contact.split('@')[0]
 
       client.socket.write(
         new BinaryConstructor()
@@ -647,6 +648,8 @@ async function processAuthorizeContact (
 
   // Если юзер принял авторизацию
   if (await isContactAuthorized(state.userId, contactUsername) === true) {
+    state.lastAuthorizedContact = contactUsername
+
     const authorizeReply = MrimAddContactData.writer({
       addresser: authorizePacket.addresser
     })
@@ -657,8 +660,7 @@ async function processAuthorizeContact (
     })
 
     return {
-      reply:
-      [
+      reply: [
         new BinaryConstructor()
           .subbuffer(
             MrimContainerHeader.writer({
@@ -698,6 +700,27 @@ async function processModifyContact (
 ) {
   const request = MrimModifyContactRequest.reader(packetData)
 
+  if (request.contact.length === 0 && state.lastAuthorizedContact === undefined) {
+    console.log(request, state)
+    const contactResponse = MrimModifyContactResponse.writer({
+      status: 0x00000004 // CONTACT_OPER_INVALID_INFO
+    })
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
+            dataSize: contactResponse.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(contactResponse)
+        .finish()
+    }
+  }
+
   const contactResponse = MrimModifyContactResponse.writer({
     status: 0x00000000 // CONTACT_OPER_SUCCESS
   })
@@ -714,11 +737,15 @@ async function processModifyContact (
     .subbuffer(contactResponse)
     .finish()
 
-  if ((request.flags & 0x00000009) === 0x00000009) { // CONTACT_FLAG_REMOVED
+  if ((request.flags & 0x00000009) === 0x00000009 || (request.flags & 0x00000001) === 0x00000001) { // CONTACT_FLAG_REMOVED
+    if (request.contact.length === 0) {
+      request.contact = state.lastAuthorizedContact // я ебал разработчиков майл.ру ЭТО ПИЗДЕЦ
+    }
+
     const isGroup = request.contact.split('@').length < 2
 
     if (isGroup) {
-      await deleteGroup(state.userId, request.id)
+      await deleteGroup(state.userId, request.id, request)
     }
 
     if (!isGroup) {
@@ -742,7 +769,8 @@ async function processModifyContact (
           {
             ...state,
             __NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true,
-            __ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: contactUserId
+            __ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: contactUserId,
+            __IGNORE_AUTH_SUCCESS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true
           },
           variables
         )
@@ -786,6 +814,7 @@ async function processChangeStatus (
 
   // TODO mikhail костыль на костыле
   const NO_DATABASE_EDIT = state.__NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? false
+  const IGNORE_AUTH_SUCCESS = state.__IGNORE_AUTH_SUCCESS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? false
   const ONLY_FOR = state.__ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? null
 
   if (!NO_DATABASE_EDIT) {
@@ -797,12 +826,11 @@ async function processChangeStatus (
       ({ userId }) => userId === contact.user_id
     )
 
-    // TODO mikhail что это нахуй
     if (client === undefined || ONLY_FOR !== client.userId) {
       continue
     }
 
-    if (contact.is_auth_success === 0) {
+    if (!IGNORE_AUTH_SUCCESS && contact.is_auth_success === 0) {
       continue
     }
 

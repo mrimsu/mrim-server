@@ -251,7 +251,6 @@ async function createOrCompleteContact (
 
     result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
   } catch (error) { // создание контакта
-    console.log(error)
     const { insertId } = await connection.execute(
       'INSERT INTO `contact`' +
       '(`contact`.`adder_user_id`, `contact`.`contact_user_id`, ' +
@@ -264,7 +263,9 @@ async function createOrCompleteContact (
     result = { action: 'CREATE_NEW', contactId: insertId }
   }
 
+  await connection.commit()
   pool.releaseConnection(connection)
+
   return result
 }
 
@@ -295,7 +296,9 @@ async function createNewGroup (userId, groupName) {
     [userId, groupName, groupIndex]
   )
 
+  await connection.commit()
   pool.releaseConnection(connection)
+
   return groupIndex
 }
 
@@ -316,6 +319,7 @@ async function modifyGroupName (userId, groupIndex, groupName) {
     [groupName, userId, groupIndex]
   )
 
+  await connection.commit()
   pool.releaseConnection(connection)
 }
 
@@ -325,7 +329,7 @@ async function modifyGroupName (userId, groupIndex, groupName) {
  * @param {number} userId ID пользователя
  * @param {number} groupIndex Индекс группы
  */
-async function deleteGroup (userId, groupIndex) {
+async function deleteGroup (userId, groupIndex, request) {
   const connection = await pool.getConnection()
 
   await connection.execute(
@@ -341,6 +345,7 @@ async function deleteGroup (userId, groupIndex) {
     [userId, groupIndex]
   )
 
+  await connection.commit()
   pool.releaseConnection(connection)
 }
 
@@ -406,6 +411,7 @@ async function modifyContact (
     )
   }
 
+  await connection.commit()
   pool.releaseConnection(connection)
 }
 
@@ -470,7 +476,7 @@ async function deleteContact (adderUserId, contactLogin) {
         'UPDATE `contact` SET ' +
         '`contact`.`adder_user_id` = ?, ' +
         '`contact`.`contact_user_id` = ?, ' +
-        '`contact`.`adder_group_id` = NULL, ' +
+        '`contact`.`adder_group_id` = ?, ' +
         '`contact`.`contact_group_id` = ?, ' +
         '`contact`.`is_auth_success` = 0, ' +
         '`contact`.`adder_nickname` = ?, ' +
@@ -486,6 +492,7 @@ async function deleteContact (adderUserId, contactLogin) {
                   contactData.contact_user_id,
                   contactData.adder_user_id,
                   contactData.adder_group_id,
+                  contactData.contact_group_id,
                   contactData.contact_nickname,
                   contactData.adder_nickname,
                   contactData.adder_flags
@@ -494,6 +501,7 @@ async function deleteContact (adderUserId, contactLogin) {
                   contactData.adder_user_id,
                   contactData.contact_user_id,
                   contactData.contact_group_id,
+                  contactData.adder_group_id,
                   contactData.adder_nickname,
                   contactData.contact_nickname,
                   contactData.contact_flags
@@ -504,6 +512,7 @@ async function deleteContact (adderUserId, contactLogin) {
         ]
       )
     } catch (error) {
+      console.log(error)
       if (error.errno === 1048) {
         // удаляем контакт если ER_BAD_NULL_ERROR
         await connection.execute(
@@ -525,7 +534,9 @@ async function deleteContact (adderUserId, contactLogin) {
     )
   }
 
+  await connection.commit()
   pool.releaseConnection(connection)
+
   return contactUserResults[0].id
 }
 
@@ -543,6 +554,7 @@ async function modifyUserStatus (userId, status) {
     [status, userId]
   )
 
+  await connection.commit()
   pool.releaseConnection(connection)
 }
 
