@@ -551,7 +551,7 @@ async function modifyUserStatus (userId, status) {
  *
  * @param {number} user ID пользователя
  * @param {string} contact Username пользователя #2
- * @returns {Boolean}
+ * @returns {Promise<Boolean>}
  **/
 async function isContactAuthorized (user, contact) {
   const connection = await pool.getConnection()

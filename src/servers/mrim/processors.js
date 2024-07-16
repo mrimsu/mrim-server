@@ -646,7 +646,7 @@ async function processAuthorizeContact (
   }
 
   // Если юзер принял авторизацию
-  if (isContactAuthorized(state.userId, contactUsername) === true) {
+  if (await isContactAuthorized(state.userId, contactUsername) === true) {
     const authorizeReply = MrimAddContactData.writer({
       addresser: authorizePacket.addresser
     })
