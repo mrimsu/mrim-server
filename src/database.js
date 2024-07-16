@@ -418,7 +418,6 @@ async function modifyContact (
  */
 async function deleteContact (adderUserId, contactLogin) {
   const contacts = await getContactsFromGroups(adderUserId)
-
   const contact = contacts.find((contact) => contact.user_login === contactLogin)
 
   const connection = await pool.getConnection()
@@ -434,6 +433,10 @@ async function deleteContact (adderUserId, contactLogin) {
   }
 
   const [{ id: contactUserId }] = contactUserResults
+
+  if (contact === undefined) {
+    return null
+  }
 
   if (contact.is_auth_success === 1) {
     const [contactDataResultsAsAdder, contactDataResultsAsContact] = await Promise.all([
@@ -461,44 +464,58 @@ async function deleteContact (adderUserId, contactLogin) {
       throw new Error('contact not found')
     }
 
-    await connection.execute(
-      // ебем сервер БД как можем
-      'UPDATE `contact` SET ' +
-      '`contact`.`adder_user_id` = ?, ' +
-      '`contact`.`contact_user_id` = ?, ' +
-      '`contact`.`adder_group_id` = NULL, ' +
-      '`contact`.`contact_group_id` = ?, ' +
-      '`contact`.`is_auth_success` = 0, ' +
-      '`contact`.`adder_nickname` = ?, ' +
-      '`contact`.`contact_nickname` = ?, ' +
-      '`contact`.`adder_flags` = 0, ' +
-      '`contact`.`contact_flags` = ? ' +
-      'WHERE `contact`.`adder_user_id` = ? ' +
-      'AND `contact`.`contact_user_id` = ?',
-      [
-        ...(
+    try {
+      await connection.execute(
+        // ебем сервер БД как можем
+        'UPDATE `contact` SET ' +
+        '`contact`.`adder_user_id` = ?, ' +
+        '`contact`.`contact_user_id` = ?, ' +
+        '`contact`.`adder_group_id` = NULL, ' +
+        '`contact`.`contact_group_id` = ?, ' +
+        '`contact`.`is_auth_success` = 0, ' +
+        '`contact`.`adder_nickname` = ?, ' +
+        '`contact`.`contact_nickname` = ?, ' +
+        '`contact`.`adder_flags` = 0, ' +
+        '`contact`.`contact_flags` = ? ' +
+        'WHERE `contact`.`adder_user_id` = ? ' +
+        'AND `contact`.`contact_user_id` = ?',
+        [
+          ...(
+            contact.requester_is_adder === 1
+              ? [
+                  contactData.contact_user_id,
+                  contactData.adder_user_id,
+                  contactData.adder_group_id,
+                  contactData.contact_nickname,
+                  contactData.adder_nickname,
+                  contactData.adder_flags
+                ]
+              : [
+                  contactData.adder_user_id,
+                  contactData.contact_user_id,
+                  contactData.contact_group_id,
+                  contactData.adder_nickname,
+                  contactData.contact_nickname,
+                  contactData.contact_flags
+                ]
+          ),
+          adderUserId,
+          contactUserResults[0].id
+        ]
+      )
+    } catch (error) {
+      if (error.errno === 1048) {
+        // удаляем контакт если ER_BAD_NULL_ERROR
+        await connection.execute(
+          'DELETE FROM `contact` WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',
           contact.requester_is_adder === 1
-            ? [
-                contactData.contact_user_id,
-                contactData.adder_user_id,
-                contactData.adder_group_id,
-                contactData.contact_nickname,
-                contactData.adder_nickname,
-                contactData.adder_flags
-              ]
-            : [
-                contactData.adder_user_id,
-                contactData.contact_user_id,
-                contactData.contact_group_id,
-                contactData.adder_nickname,
-                contactData.contact_nickname,
-                contactData.contact_flags
-              ]
-        ),
-        adderUserId,
-        contactUserResults[0].id
-      ]
-    )
+            ? [adderUserId, contactUserResults[0].id]
+            : [contactUserResults[0].id, adderUserId]
+        )
+      } else {
+        throw error
+      }
+    }
   } else {
     await connection.execute(
       'DELETE FROM `contact` WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',

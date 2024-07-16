@@ -727,24 +727,26 @@ async function processModifyContact (
         request.contact.split('@')[0]
       )
 
-      await processChangeStatus(
-        {
-          protocolVersionMajor: state.protocolVersionMajor,
-          protocolVersionMinor: state.protocolVersionMinor,
-          packetOrder: 0
-        },
-        new BinaryConstructor()
-          .integer(0, 4) // STATUS_OFFLINE
-          .finish(),
-        connectionId,
-        logger,
-        {
-          ...state,
-          __NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true,
-          __ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: contactUserId
-        },
-        variables
-      )
+      if (contactUserId !== null) {
+        await processChangeStatus(
+          {
+            protocolVersionMajor: state.protocolVersionMajor,
+            protocolVersionMinor: state.protocolVersionMinor,
+            packetOrder: 0
+          },
+          new BinaryConstructor()
+            .integer(0, 4) // STATUS_OFFLINE
+            .finish(),
+          connectionId,
+          logger,
+          {
+            ...state,
+            __NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true,
+            __ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: contactUserId
+          },
+          variables
+        )
+      }
     }
 
     return { reply }
