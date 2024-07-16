@@ -173,7 +173,8 @@ async function processPacket (
         packetData,
         connectionId,
         logger,
-        state
+        state,
+        variables
       )
     case MrimMessageCommands.CHANGE_STATUS:
       return processChangeStatus(
@@ -184,10 +185,10 @@ async function processPacket (
         state,
         variables
       )
-    case MrimMessageCommands.PING: {
+    // case MrimMessageCommands.PING: {
       // logger.debug(`[${connectionId}] От клиента прилетел пинг. Игнорируем`)
-      break
-    }
+      // break
+    // }
   }
 }
 

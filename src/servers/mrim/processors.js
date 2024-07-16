@@ -46,7 +46,6 @@ const {
   isContactAuthorized
 } = require('../../database')
 const { Iconv } = require('iconv')
-const { BinaryReader } = require('@glagan/binary-reader')
 
 const MrimSearchRequestFields = {
   USER: 0,
@@ -696,7 +695,8 @@ async function processModifyContact (
   packetData,
   connectionId,
   logger,
-  state
+  state,
+  variables
 ) {
   const request = MrimModifyContactRequest.reader(packetData)
 
@@ -724,7 +724,29 @@ async function processModifyContact (
     }
 
     if (!isGroup) {
-      await deleteContact(state.userId, request.contact.split('@')[0])
+      const contactUserId = await deleteContact(
+        state.userId,
+        request.contact.split('@')[0]
+      )
+
+      await processChangeStatus(
+        {
+          protocolVersionMajor: state.protocolVersionMajor,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetOrder: 0
+        },
+        new BinaryConstructor()
+          .integer(0, 4) // STATUS_OFFLINE
+          .finish(),
+        connectionId,
+        logger,
+        {
+          ...state,
+          __NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true,
+          __ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: contactUserId
+        },
+        variables
+      )
     }
 
     return { reply }
@@ -760,18 +782,23 @@ async function processChangeStatus (
     status = 0 // STATUS_OFFLINE
   }
 
-  // eslint-disable-next-line no-unused-vars
-  const [contacts, _status] = await Promise.all([
-    getContactsFromGroups(state.userId),
-    modifyUserStatus(state.userId, status)
-  ])
+  const contacts = await getContactsFromGroups(state.userId)
+
+  // TODO mikhail костыль на костыле
+  const NO_DATABASE_EDIT = state.__NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? false
+  const ONLY_FOR = state.__ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? null
+
+  if (!NO_DATABASE_EDIT) {
+    await modifyUserStatus(state.userId, status)
+  }
 
   for (const contact of contacts) {
     const client = variables.clients.find(
       ({ userId }) => userId === contact.user_id
     )
 
-    if (client === undefined) {
+    // TODO mikhail что это нахуй
+    if (client === undefined || ONLY_FOR !== client.userId) {
       continue
     }
 
@@ -799,7 +826,7 @@ async function processChangeStatus (
         .finish()
     )
 
-    logger.debug(`[${connectionId}] Обновление статуса у ${state.username + '@mail.ru'} для ${contact.user_login + '@mail.ru'}. Данные в HEX: ${userStatusUpdate.toString('hex')}`)
+    logger.debug(`[${connectionId}] Обновление статуса у ${state.username}@mail.ru для ${contact.user_login}@mail.ru. Данные в HEX: ${userStatusUpdate.toString('hex')}`)
   }
 }
 
