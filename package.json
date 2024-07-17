@@ -21,6 +21,7 @@
     "@glagan/binary-reader": "https://github.com/synzr/binary-reader/releases/download/temporary-release/glagan-binary-reader-1.1.1.tgz",
     "iconv": "^3.0.1",
     "mysql2": "^3.10.1",
+    "sharp": "^0.33.4",
     "winston": "^3.13.0"
   }
 }
