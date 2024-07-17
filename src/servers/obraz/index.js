@@ -4,7 +4,6 @@
  */
 
 const http = require('node:http')
-const path = require('node:path')
 const { processAvatar } = require('./processor')
 const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
