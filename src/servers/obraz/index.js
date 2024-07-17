@@ -9,8 +9,8 @@ const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
 
 const ALLOWED_HOSTS = config?.obraz?.customHost
-  ? [config.obraz.customHost, 'foto.obraz.mail.ru']
-  : ['foto.obraz.mail.ru']
+  ? [config.obraz.customHost, 'obraz.foto.mail.ru']
+  : ['obraz.foto.mail.ru']
 const ALLOWED_DOMAINS = ['mail.ru', 'internet.ru', 'bk.ru']
 
 const server = http.createServer(requestListener)
