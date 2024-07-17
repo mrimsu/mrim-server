@@ -48,6 +48,9 @@ function requestListener (request, response) {
     .then(function onAvatar (avatar) {
       return response.end(avatar)
     }, function onError () {
+      response.statusCode = 500
+      response.setHeader('X-NoImage', '1')
+
       return response.end()
     })
 }

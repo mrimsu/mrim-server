@@ -25,4 +25,12 @@ const socks = {
   serverPort: 8080
 }
 
-module.exports = { database, mrim, redirector, socks }
+// Настройки сервер образов
+const obraz = {
+  enabled: true,
+  customHost: 'localhost:8081', // опционально
+  serverPort: 8081,
+  serverHostname: '0.0.0.0'
+}
+
+module.exports = { database, mrim, redirector, socks, obraz }
