@@ -89,7 +89,8 @@ CREATE TABLE `user` (
   `zodiac` int DEFAULT NULL,
   `phone` varchar(255) DEFAULT NULL,
   `sex` enum('1','2') DEFAULT NULL,
-  `status` int NOT NULL DEFAULT '0'
+  `status` int NOT NULL DEFAULT '0',
+  `avatar` varchar(255) DEFAULT NULL,
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --

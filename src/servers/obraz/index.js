@@ -6,14 +6,13 @@
 const http = require('node:http')
 const path = require('node:path')
 const { processAvatar } = require('./processor')
+const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
 
 const ALLOWED_HOSTS = config?.obraz?.customHost
   ? [config.obraz.customHost, 'foto.obraz.mail.ru']
   : ['foto.obraz.mail.ru']
 const ALLOWED_DOMAINS = ['mail.ru', 'internet.ru', 'bk.ru']
-const PLACEHOLDER_FILE =
-  path.join(__dirname, '../../../ugc/avatars/mdp.jpg')
 
 const server = http.createServer(requestListener)
 
@@ -21,7 +20,7 @@ const server = http.createServer(requestListener)
  * @param {http.IncomingMessage} request Запрос от клиента
  * @param {http.ServerResponse} response Ответ от сервера
  */
-function requestListener (request, response) {
+async function requestListener (request, response) {
   if (!ALLOWED_HOSTS.includes(request.headers.host)) {
     response.statusCode = 418
     return response.end("I'm a teapot")
@@ -34,8 +33,7 @@ function requestListener (request, response) {
     return response.end('Not Found')
   }
 
-  // eslint-disable-next-line no-unused-vars
-  const [domain, _login, avatarType] = path.split('/')
+  const [domain, userLogin, avatarType] = path.split('/')
 
   if (!ALLOWED_DOMAINS.includes(domain)) {
     response.statusCode = 400
@@ -44,15 +42,30 @@ function requestListener (request, response) {
 
   response.setHeader('Content-Type', 'image/jpeg')
 
-  processAvatar(PLACEHOLDER_FILE, avatarType)
-    .then(function onAvatar (avatar) {
-      return response.end(avatar)
-    }, function onError () {
-      response.statusCode = 500
-      response.setHeader('X-NoImage', '1')
+  let avatarPath
 
-      return response.end()
-    })
+  try {
+    avatarPath = await getUserAvatar(userLogin)
+  } catch {
+    response.statusCode = 404
+    response.setHeader('X-NoImage', '1')
+
+    return response.end()
+  }
+
+  try {
+    const avatar = await processAvatar(avatarPath, avatarType)
+
+    response.statusCode = 200
+    response.write(avatar)
+
+    return response.end()
+  } catch {
+    response.statusCode = 500
+    response.setHeader('X-NoImage', '1')
+
+    return response.end()
+  }
 }
 
 module.exports = server
