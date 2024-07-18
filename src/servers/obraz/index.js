@@ -67,7 +67,7 @@ function connectionListener (socket) {
     responseHeaders['X-Powered-By'] = 'mrim-server/obraz'
 
     if (responseBody !== null && !Object.keys(responseHeaders).includes('Content-Length')) {
-      responseHeaders['Content-Length'] = responseBody.byteLength * responseBody.length
+      responseHeaders['Content-Length'] = responseBody.length
     }
 
     responseHeaders = Object.entries(responseHeaders)
@@ -123,10 +123,7 @@ function connectionListener (socket) {
       if (method !== 'HEAD') {
         return respond(version, 200, avatar, { 'Content-Type': 'image/jpeg' })
       } else {
-        return respond(version, 200, null, {
-          'Content-Type': 'image/jpeg',
-          'Content-Length': avatar.byteLength * avatar.length
-        })
+        return respond(version, 200, null, { 'Content-Type': 'image/jpeg', 'Content-Length': avatar.length })
       }
     } catch {
       return respond(version, 500, null, { 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
