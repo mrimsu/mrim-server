@@ -11,7 +11,8 @@ const config = require('../../../config')
 const ALLOWED_HOSTS = config?.obraz?.customHost
   ? [config.obraz.customHost, 'obraz.foto.mail.ru']
   : ['obraz.foto.mail.ru']
-const ALLOWED_DOMAINS = ['mail.ru', 'internet.ru', 'bk.ru']
+const ALLOWED_DOMAINS = ['mail', 'internet', 'bk', 'corp.mail']
+const ALLOWED_METHODS = ['GET', 'HEAD']
 
 const server = http.createServer(requestListener)
 
@@ -20,12 +21,17 @@ const server = http.createServer(requestListener)
  * @param {http.ServerResponse} response Ответ от сервера
  */
 async function requestListener (request, response) {
-  if (!ALLOWED_HOSTS.includes(request.headers.host)) {
+  if (
+    !ALLOWED_HOSTS.includes(request.headers.host) ||
+    !ALLOWED_METHODS.includes(request.method)
+  ) {
     response.statusCode = 418
     return response.end("I'm a teapot")
   }
 
-  const path = request.url.substring(1)
+  const path = request.url.includes('http')
+    ? new URL(request.url).pathname.substring(1)
+    : request.url.substring(1)
 
   if (path.split('/').length !== 3) {
     response.statusCode = 404
@@ -56,7 +62,12 @@ async function requestListener (request, response) {
     const avatar = await processAvatar(avatarPath, avatarType)
 
     response.statusCode = 200
-    response.write(avatar)
+
+    if (request.method !== 'HEAD') {
+      response.write(avatar)
+    } else {
+      response.setHeader('Content-Type', avatar.byteLength * avatar.length)
+    }
 
     return response.end()
   } catch {
