@@ -72,7 +72,7 @@ function connectionListener (socket) {
 
     responseHeaders = Object.entries(responseHeaders)
       .map(([headerField, headerValue]) => `${headerField}: ${headerValue}\r\n`)
-      .join()
+      .join('')
 
     let responseMessage = Buffer.from(
       `${httpVersion} ${statusCode} ${STATUS_CODES[statusCode] ?? ''}\r\n${responseHeaders}\r\n`,
