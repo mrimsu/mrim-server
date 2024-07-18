@@ -591,6 +591,31 @@ async function isContactAuthorized (user, contact) {
   return results.length > 0
 }
 
+/**
+ * Получение пути к аватару пользователя
+ *
+ * @param {string} userLogin Логин пользователя
+ * @returns {string} Путь к аватару пользователя
+ */
+async function getUserAvatar (userLogin) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.query(
+    'SELECT `user`.`avatar` FROM `user` ' +
+    'WHERE `user`.`login` = ? AND `user`.`avatar` IS NOT NULL ' +
+    'LIMIT 1',
+    [userLogin]
+  )
+
+  if (results.length === 0) {
+    throw new Error('у пользователя нету аватара')
+  }
+
+  pool.releaseConnection(connection)
+  return results[0].avatar
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
@@ -603,5 +628,6 @@ module.exports = {
   modifyContact,
   deleteContact,
   modifyUserStatus,
-  isContactAuthorized
+  isContactAuthorized,
+  getUserAvatar
 }

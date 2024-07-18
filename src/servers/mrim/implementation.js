@@ -28,7 +28,13 @@ function onConnection (socket, connectionId, logger, variables) {
 
 function onData (socket, connectionId, logger, state, variables) {
   return (data) => {
-    const header = MrimContainerHeader.reader(data)
+    let header
+
+    try {
+      header = MrimContainerHeader.reader(data)
+    } catch {
+      return socket.end()
+    }
 
     if (header.packetCommand !== MrimMessageCommands.PING) {
       logger.debug(

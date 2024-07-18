@@ -10,9 +10,13 @@ const createRedirectorServer = require('./servers/redirector')
 const createSocksServer = require('./servers/socks')
 const createMrimServer = require('./servers/mrim')
 
+const obrazServer = require('./servers/obraz')
+
 const DEFAULT_MRIM_PORT = 2041
 const DEFAULT_REDIRECTOR_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
+const DEFAULT_OBRAZ_PORT = 8081
+
 const LOCALHOST = 'localhost' // пиздец
 
 function main () {
@@ -27,7 +31,8 @@ function main () {
   if (
     !config.mrim.enabled &&
     !config.redirector.enabled &&
-    !config.socks.enabled
+    !config.socks.enabled &&
+    !config.obraz.enabled
   ) {
     config.mrim.enabled = true
   }
@@ -72,6 +77,21 @@ function main () {
         const { address, port } = listener.address()
         return logger.info(
           `SOCKS сервер запущен -> адрес: ${address}, порт: ${port}`
+        )
+      }
+    )
+  }
+
+  if (config.obraz.enabled) {
+    servers.obraz = obrazServer
+
+    const listener = servers.obraz.listen(
+      config.obraz?.serverPort ?? DEFAULT_OBRAZ_PORT,
+      config.obraz?.serverHostname ?? LOCALHOST,
+      () => {
+        const { address, port } = listener.address()
+        return logger.info(
+          `Сервер образов запущен -> адрес: ${address}, порт: ${port}`
         )
       }
     )
