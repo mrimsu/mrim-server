@@ -15,8 +15,7 @@
     "url": "https://github.com/synzr"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4",
-    "standard": "^17.1.0"
+    "nodemon": "^3.1.4"
   },
   "dependencies": {
     "@glagan/binary-reader": "https://github.com/synzr/binary-reader/releases/download/temporary-release/glagan-binary-reader-1.1.1.tgz",
