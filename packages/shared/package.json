@@ -1,5 +1,6 @@
 {
   "name": "@renaissance/shared",
+  "type": "module",
   "private": true,
   "description": "",
   "main": "index.js",
@@ -11,8 +12,12 @@
   "devDependencies": {
     "@eslint/js": "^9.7.0",
     "@types/eslint__js": "^8.42.3",
+    "@types/node": "^20.14.11",
     "eslint": "^9.7.0",
     "typescript": "^5.5.3",
     "typescript-eslint": "^7.16.1"
+  },
+  "dependencies": {
+    "mysql2": "^3.10.1"
   }
 }
