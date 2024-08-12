@@ -45,6 +45,7 @@ const {
   modifyUserStatus,
   isContactAuthorized
 } = require('../../database')
+const config = require('../../../config')
 const { Iconv } = require('iconv')
 
 const MrimSearchRequestFields = {
@@ -89,7 +90,7 @@ function processHello (containerHeader, connectionId, logger) {
   return {
     reply: new BinaryConstructor()
       .subbuffer(containerHeaderBinary)
-      .integer(10, 4)
+      .integer(config.mrim?.pingTimer ?? 5, 4)
       .finish()
   }
 }
@@ -179,7 +180,7 @@ async function processLogin (
     state.status = loginData.status
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
-    variables.clients.push(state)
+    global.clients.push(state)
   } catch {
     return {
       reply: new BinaryConstructor()
@@ -260,7 +261,7 @@ function processMessage (
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
   )
 
-  const addresserClient = variables.clients.find(
+  const addresserClient = global.clients.find(
     ({ username }) => username === messageData.addresser.split('@')[0]
   )
   if (addresserClient !== undefined) {
@@ -519,13 +520,14 @@ async function processAddContact (
   }
 
   if (!(request.flags & 0x00000002)) {
-    const client = variables.clients.find(
+    const client = global.clients.find(
       ({ username }) => username === request.contact.split('@')[0]
     )
 
     if (contactResult.action === 'MODIFY_EXISTING' && client) {
       const authorizeData = MrimContactAuthorizeData.writer({
-        contact: state.username + '@mail.ru'
+        // TODO: закастомизировать это ЛИБО сделать выбор домена необязательным
+        contact: state.username + '@mail.ru'  
       })
       state.lastAuthorizedContact = request.contact.split('@')[0]
 
@@ -620,7 +622,7 @@ async function processAuthorizeContact (
   const authorizePacket = MrimAddContactData.reader(packetData)
 
   const contactUsername = authorizePacket.addresser.split('@')[0]
-  const clientAddresser = variables.clients.find(
+  const clientAddresser = global.clients.find(
     ({ username }) => username === contactUsername
   )
 
@@ -821,11 +823,11 @@ async function processChangeStatus (
   }
 
   for (const contact of contacts) {
-    const client = variables.clients.find(
+    const client = global.clients.find(
       ({ userId }) => userId === contact.user_id
     )
 
-    if (client === undefined || ONLY_FOR !== client.userId) {
+    if (client === undefined || ONLY_FOR === client.userId) {
       continue
     }
 
