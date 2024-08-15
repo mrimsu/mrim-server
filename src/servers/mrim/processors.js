@@ -45,6 +45,7 @@ const {
   modifyUserStatus,
   isContactAuthorized
 } = require('../../database')
+const config = require('../../../config')
 const { Iconv } = require('iconv')
 
 const MrimSearchRequestFields = {
@@ -89,7 +90,7 @@ function processHello (containerHeader, connectionId, logger) {
   return {
     reply: new BinaryConstructor()
       .subbuffer(containerHeaderBinary)
-      .integer(10, 4)
+      .integer(config.mrim?.pingTimer ?? 5, 4)
       .finish()
   }
 }
@@ -154,6 +155,28 @@ async function generateContactList (containerHeader, userId) {
     .finish()
 }
 
+function _logoutPreviousClientIfNeeded (userId, containerHeader) {
+  // NOTE https://storage.yandexcloud.net/schizophrenia/schizophrenia.jpg
+  const previousClient = global.clients.find((client) => client.userId === userId)
+  if (previousClient === undefined) return false
+
+  const logoutMessage = new BinaryConstructor()
+    .subbuffer(
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.LOGOUT,
+        dataSize: 4, // TODO mikhail хардкод нахуй
+        senderAddress: 0,
+        senderPort: 0
+      })
+    )
+    .integer(0x10, 4) // LOGOUT_NO_RELOGIN_FLAG
+    .finish()
+  previousClient.socket.end(logoutMessage)
+
+  return true
+}
+
 async function processLogin (
   containerHeader,
   packetData,
@@ -162,6 +185,22 @@ async function processLogin (
   state,
   variables
 ) {
+  if (packetData.length === 0) {
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.LOGIN_REJ,
+            dataSize: 0,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .finish()
+    }
+  }
+
   const loginData = MrimLoginData.reader(packetData)
 
   logger.debug(`[${connectionId}] !! Вход в аккаунт !!`)
@@ -179,7 +218,10 @@ async function processLogin (
     state.status = loginData.status
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
-    variables.clients.push(state)
+    if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
+      return logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
+    }
+    global.clients.push(state)
   } catch {
     return {
       reply: new BinaryConstructor()
@@ -260,7 +302,7 @@ function processMessage (
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
   )
 
-  const addresserClient = variables.clients.find(
+  const addresserClient = global.clients.find(
     ({ username }) => username === messageData.addresser.split('@')[0]
   )
   if (addresserClient !== undefined) {
@@ -451,7 +493,7 @@ async function processSearch (
 
   for (const user of searchResults) {
     user.birthday = user.birthday
-      ? `${user.birthday.getFullYear()}-${user.birthday.getMonth().toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+      ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
       : ''
     user.domain = 'mail.ru'
 
@@ -518,13 +560,14 @@ async function processAddContact (
     })
   }
 
-  if (!(request.flags & 0x00000002)) {
-    const client = variables.clients.find(
+  if (contactResult !== undefined && !(request.flags & 0x00000002)) {
+    const client = global.clients.find(
       ({ username }) => username === request.contact.split('@')[0]
     )
 
-    if (contactResult.action === 'MODIFY_EXISTING' && client) {
+    if (contactResult?.action === 'MODIFY_EXISTING' && client) {
       const authorizeData = MrimContactAuthorizeData.writer({
+        // TODO: закастомизировать это ЛИБО сделать выбор домена необязательным
         contact: state.username + '@mail.ru'
       })
       state.lastAuthorizedContact = request.contact.split('@')[0]
@@ -546,7 +589,7 @@ async function processAddContact (
       )
     }
 
-    if (contactResult.action === 'CREATE_NEW') {
+    if (contactResult?.action === 'CREATE_NEW') {
       const MrimAddContactData = new MessageConstructor()
         .field('unknown', FieldDataType.UINT32)
         .field('unknown2', FieldDataType.UINT32)
@@ -620,7 +663,7 @@ async function processAuthorizeContact (
   const authorizePacket = MrimAddContactData.reader(packetData)
 
   const contactUsername = authorizePacket.addresser.split('@')[0]
-  const clientAddresser = variables.clients.find(
+  const clientAddresser = global.clients.find(
     ({ username }) => username === contactUsername
   )
 
@@ -821,11 +864,11 @@ async function processChangeStatus (
   }
 
   for (const contact of contacts) {
-    const client = variables.clients.find(
+    const client = global.clients.find(
       ({ userId }) => userId === contact.user_id
     )
 
-    if (client === undefined || ONLY_FOR !== client.userId) {
+    if (client === undefined || ONLY_FOR === client.userId) {
       continue
     }
 

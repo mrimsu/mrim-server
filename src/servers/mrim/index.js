@@ -7,10 +7,17 @@
 const { ServerConstructor } = require('../../constructors/server')
 const onConnection = require('./implementation')
 
+/*
+  Временный костыль (а может и нет?), так как пихать переменную
+  в функцию или в класс, чтобы он ещё и был одинаковым во всех
+  инстанциях невозможно. Так что придётся делать так.
+*/
+global.clients = []
+
 function createMrimServer (options) {
   return new ServerConstructor({
     logger: options.logger,
-    variables: { clients: [] },
+    variables: { clients: [] }, // Не использовать
     onConnection
   }).finish()
 }

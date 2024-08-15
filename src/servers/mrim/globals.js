@@ -33,7 +33,9 @@ const MrimMessageCommands = {
   CHANGE_STATUS: 0x1022,
   // Search
   ANKETA_INFO: 0x1028,
-  WP_REQUEST: 0x1029
+  WP_REQUEST: 0x1029,
+  // Logout
+  LOGOUT: 0x1013
 }
 
 module.exports = { MrimMessageCommands }
