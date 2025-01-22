@@ -97,33 +97,38 @@ function onData (socket, connectionId, logger, state, variables) {
 function onClose (socket, connectionId, logger, state, variables) {
   return async () => {
     if (global.clients.length > 0) {
-      const clientIndex = global.clients.findIndex(
-        ({ userId }) => userId === state.userId
-      )
-      // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-      // миша любит мальчиков
-      await processChangeStatus(
-        {
-          protocolVersionMajor: state.protocolVersionMajor,
-          protocolVersionMinor: state.protocolVersionMinor,
-          packetOrder: 0
-        },
-        new BinaryConstructor()
-          .integer(0, 4)
-          .finish(),
-        connectionId,
-        logger,
-        state,
-        variables
-      )
-      global.clients.splice(clientIndex, 1)
-      console.log('alo')
-      clearTimeout(timeoutTimer[connectionId])
-      delete timeoutTimer[connectionId]
+      disconnectClient(connectionId, logger, state)
       logger.debug(
         `[${connectionId}] !!! Закрыто соединение для ${state.username}`
       )
     }
+  }
+}
+
+async function disconnectClient(connectionId, logger, state) {
+  const clientIndex = global.clients.findIndex(
+    ({ userId }) => userId === state.userId
+  )
+  // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+  // миша любит мальчиков
+  if (clientIndex) {
+    await processChangeStatus(
+        {
+          protocolVersionMajor: state.protocolVersionMajor,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetOrder: 0
+      },
+      new BinaryConstructor()
+      .integer(0, 4)
+      .finish(),
+      connectionId,
+      logger,
+      state,
+      null
+    )
+    global.clients.splice(clientIndex, 1)
+    clearTimeout(timeoutTimer[connectionId])
+    delete timeoutTimer[connectionId]
   }
 }
 
@@ -207,10 +212,7 @@ async function processPacket (
         const PING_TIMER = (config?.mrim?.pingTimer ?? 5) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
           logger.debug(`[${connectionId}] Клиент ${state.username} улетел по таймауту`)
-          // NOTE можно было просто использовать state.socket.end()
-	  // onClose(state.socket, connectionId, logger, state, null);
-          // state.socket.end();
-          state.socket.end()
+          disconnectClient(connectionId, logger, state)
         }, PING_TIMER + 3000, connectionId, state, logger)
         timeoutTimer[connectionId].unref()
       }
