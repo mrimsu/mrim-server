@@ -34,6 +34,8 @@ const MrimMessageCommands = {
   // Search
   ANKETA_INFO: 0x1028,
   WP_REQUEST: 0x1029,
+  // Games
+  GAME: 0x1035,
   // Logout
   LOGOUT: 0x1013
 }

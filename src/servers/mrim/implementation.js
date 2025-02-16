@@ -15,7 +15,8 @@ const {
   processAddContact,
   processModifyContact,
   processAuthorizeContact,
-  processChangeStatus
+  processChangeStatus,
+  processGame
 } = require('./processors')
 
 const config = require('../../../config')
@@ -198,6 +199,15 @@ async function processPacket (
       )
     case MrimMessageCommands.CHANGE_STATUS:
       return processChangeStatus(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.GAME:
+      return processGame(
         containerHeader,
         packetData,
         connectionId,

@@ -31,6 +31,7 @@ const {
   MrimAnketaHeader
 } = require('../../messages/mrim/search')
 const { MrimChangeStatusRequest, MrimUserStatusUpdate } = require('../../messages/mrim/status')
+const { MrimGameData } = require('../../messages/mrim/games')
 const {
   getUserIdViaCredentials,
   getContactGroups,
@@ -900,6 +901,59 @@ async function processChangeStatus (
   }
 }
 
+async function processGame(
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let pakcet = MrimGameData.reader(packetData)
+
+  // так ну неплохо надо бы переправить данный пакет нужному получателю
+  const addresserClient = global.clients.find(
+    ({ username }) => username === pakcet.addresser_or_receiver.split('@')[0]
+  )
+  if (addresserClient !== undefined) {
+    // basically we're just pushin same data to client
+    const dataToSend = MrimGameData.writer({
+      addresser_or_receiver: state.username + '@mail.ru',
+      session: pakcet.session,
+      internal_msg: pakcet.internal_msg,
+      message_id: pakcet.message_id,
+      data: pakcet.data
+    })
+
+    addresserClient.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetOrder: 0x1337,
+            packetCommand: MrimMessageCommands.GAME,
+            dataSize: dataToSend.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    )
+  } else {
+    return {
+      reply: 
+        MrimGameData.writer({
+        addresser_or_receiver: pakcet.addresser_or_receiver,
+        session: pakcet.session,
+        internal_msg: 10, // means no user found bruv
+        message_id: pakcet.message_id,
+        data: ""
+      })
+    }
+  }
+}
+
 module.exports = {
   processHello,
   processLogin,
@@ -908,5 +962,6 @@ module.exports = {
   processAddContact,
   processModifyContact,
   processAuthorizeContact,
-  processChangeStatus
+  processChangeStatus,
+  processGame
 }
