@@ -3,7 +3,7 @@
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
-const { BinaryReader, BinaryEndianness } = require('@glagan/binary-reader')
+const { BinaryReader, BinaryEndianness } = require('../binary-reader')
 const { strict: assert } = require('node:assert')
 const { Iconv } = require('iconv')
 const BinaryConstructor = require('./binary')
