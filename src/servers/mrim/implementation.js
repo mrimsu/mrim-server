@@ -108,10 +108,9 @@ function onClose (socket, connectionId, logger, state, variables) {
 
 async function disconnectClient(connectionId, logger, state) {
   const clientIndex = global.clients.findIndex(
-    ({ userId }) => userId === state.userId
+    ({ connectionId }) => connectionId === state.connectionId
   )
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  // миша любит мальчиков
   if (clientIndex) {
     await processChangeStatus(
         {
@@ -127,7 +126,11 @@ async function disconnectClient(connectionId, logger, state) {
       state,
       null
     )
-    global.clients.splice(clientIndex, 1)
+    
+    if (clientIndex !== -1) {
+      global.clients.splice(clientIndex, 1)
+    } 
+
     clearTimeout(timeoutTimer[connectionId])
     delete timeoutTimer[connectionId]
   }

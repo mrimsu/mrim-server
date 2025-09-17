@@ -159,6 +159,7 @@ async function generateContactList (containerHeader, userId) {
 function _logoutPreviousClientIfNeeded (userId, containerHeader) {
   // NOTE https://storage.yandexcloud.net/schizophrenia/schizophrenia.jpg
   const previousClient = global.clients.find((client) => client.userId === userId)
+  const previousClientIndex = global.clients.findIndex((client) => client.userId === userId)
   if (previousClient === undefined) return false
 
   const logoutMessage = new BinaryConstructor()
@@ -174,6 +175,7 @@ function _logoutPreviousClientIfNeeded (userId, containerHeader) {
     .integer(0x10, 4) // LOGOUT_NO_RELOGIN_FLAG
     .finish()
   previousClient.socket.end(logoutMessage)
+  global.clients.splice(previousClientIndex, 1)
 
   return true
 }
@@ -219,8 +221,9 @@ async function processLogin (
     state.status = loginData.status
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
+    state.connectionId = connectionId
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
-      return logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
+      logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
     }
     global.clients.push(state)
   } catch {
