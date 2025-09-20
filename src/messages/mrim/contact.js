@@ -32,12 +32,22 @@ const MrimContact = new MessageConstructor()
   .field('login', FieldDataType.UBIART_LIKE_STRING)
   .field('authorized', FieldDataType.UINT32)
   .field('status', FieldDataType.UINT32)
-  .field('clientInfo', FieldDataType.UBIART_LIKE_STRING)
-  /* .field('extendedStatusTitle', FieldDataType.UBIART_LIKE_STRING)
-  .field('extendedStatusText', FieldDataType.UBIART_LIKE_STRING)
-  .field('unknown1', FieldDataType.UINT32, MRIM_UNKNOWN1_VALUE_DEFAULT)
-  .field('unknown2', FieldDataType.UINT32, MRIM_UNKNOWN2_VALUE_DEFAULT)
-  .field('extendedStatusName', FieldDataType.UBIART_LIKE_STRING) */
+  .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
+const MrimContactNewer = new MessageConstructor()
+  .field('magicHeader', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
+  .field('groupIndex', FieldDataType.UINT32)
+  .field('email', FieldDataType.UBIART_LIKE_STRING)
+  .field('login', FieldDataType.UBIART_LIKE_STRING)
+  .field('authorized', FieldDataType.UINT32)
+  .field('status', FieldDataType.UINT32)
+  .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusType', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusTitle', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusDescription', FieldDataType.UBIART_LIKE_STRING)
+  .field('features', FieldDataType.UINT32)
+  .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
 const MrimAddContactRequest = new MessageConstructor()
@@ -73,6 +83,7 @@ module.exports = {
   MrimContactList,
   MrimContactGroup,
   MrimContact,
+  MrimContactNewer,
   MrimAddContactRequest,
   MrimAddContactResponse,
   MrimContactAuthorizeData,

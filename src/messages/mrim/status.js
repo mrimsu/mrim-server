@@ -13,8 +13,26 @@ const MrimUserStatusUpdate = new MessageConstructor()
   .field('contact', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
+const MrimUserXStatusUpdate = new MessageConstructor()
+  .field('status', FieldDataType.UINT32)
+  .field('xstatusType', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusTitle', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusDescription', FieldDataType.UBIART_LIKE_STRING)
+  .field('contact', FieldDataType.UBIART_LIKE_STRING)
+  .field('features', FieldDataType.UINT32)
+  .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
 const MrimChangeStatusRequest = new MessageConstructor()
   .field('status', FieldDataType.UINT32)
   .finish()
 
-module.exports = { MrimUserStatusUpdate, MrimChangeStatusRequest }
+const MrimChangeXStatusRequest = new MessageConstructor()
+  .field('status', FieldDataType.UINT32)
+  .field('xstatusType', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusTitle', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusDescription', FieldDataType.UBIART_LIKE_STRING)
+  .field('features', FieldDataType.UINT32)
+  .finish()
+
+module.exports = { MrimUserStatusUpdate, MrimUserXStatusUpdate, MrimChangeStatusRequest, MrimChangeXStatusRequest }

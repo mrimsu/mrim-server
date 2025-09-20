@@ -120,6 +120,10 @@ async function disconnectClient(connectionId, logger, state) {
       },
       new BinaryConstructor()
       .integer(0, 4)
+      .integer(0, 4)
+      .integer(0, 4)
+      .integer(0, 4)
+      .integer(0, 4)
       .finish(),
       connectionId,
       logger,
