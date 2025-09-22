@@ -16,6 +16,7 @@ const {
   MrimContactGroup,
   MrimContact,
   MrimContactNewer,
+  MrimContactWithMicroblog,
   MrimAddContactRequest,
   MrimAddContactResponse,
   MrimContactAuthorizeData,
@@ -110,7 +111,9 @@ async function generateContactList (containerHeader, userId) {
   let MRIM_CONTACT_FLAG;
 
   
-  if (containerHeader.protocolVersionMinor >= 15) {
+  if (containerHeader.protocolVersionMinor >= 20) {
+    MRIM_CONTACT_FLAG = 'uussuussssusuuusss'
+  } else if (containerHeader.protocolVersionMinor >= 15) {
     MRIM_CONTACT_FLAG = 'uussuussssus'
   } else if (containerHeader.protocolVersionMinor >= 8) {
     MRIM_CONTACT_FLAG = 'uussuus'
@@ -144,7 +147,25 @@ async function generateContactList (containerHeader, userId) {
           ({ userId }) => userId === contact.user_id
         )
 
-        if (containerHeader.protocolVersionMinor >= 15) {
+        if (containerHeader.protocolVersionMinor >= 20) {
+          return MrimContactWithMicroblog.writer({
+            groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
+            email: `${contact.user_login}@mail.ru`,
+            login: contact.contact_nickname ??
+                contact.user_nickname ??
+                contact.user_login,
+            authorized: Number(!contact.is_auth_success),
+            status: contact.contact_flags !== 4 // "Я всегда невидим для..."
+              ? (connectedContact?.status ?? 0)
+              : 0, // STATUS_OFFLINE
+            phoneNumber: '',
+            xstatusType: connectedContact?.xstatus?.type ?? "",
+            xstatusTitle: connectedContact?.xstatus?.title ?? "",
+            xstatusDescription: connectedContact?.xstatus?.description ?? "",
+            features: connectedContact?.xstatus?.state ?? 0,
+            userAgent: connectedContact?.userAgent ?? ""
+          })
+        } else if (containerHeader.protocolVersionMinor >= 15) {
           return MrimContactNewer.writer({
             groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
             email: `${contact.user_login}@mail.ru`,

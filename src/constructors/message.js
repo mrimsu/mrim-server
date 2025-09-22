@@ -133,7 +133,7 @@ class MessageConstructor {
           }
           case FieldDataType.UBIART_LIKE_STRING: {
             const value = field.constantValue ?? message[field.key]
-            const valueBinary = new Iconv('UTF-8', 'CP1251').convert(value)
+            const valueBinary = new Iconv('UTF-8', 'CP1251').convert(value ?? '')
 
             binaryConstructor = binaryConstructor
               .integer(valueBinary.length, 4)
