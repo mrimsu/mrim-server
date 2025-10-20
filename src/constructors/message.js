@@ -22,7 +22,8 @@ const FieldDataType = {
   INT32: 5,
   SUBBUFFER: 6,
   BYTE_ARRAY: 7,
-  UBIART_LIKE_STRING: 8 // прошлое с Just Dance меня до сих пор не отпускает
+  UBIART_LIKE_STRING: 8, // прошлое с Just Dance меня до сих пор не отпускает,
+  UNICODE_STRING: 9 // типа пользовательные данные
 }
 
 class MessageConstructor {
@@ -72,7 +73,7 @@ class MessageConstructor {
   }
 
   generateWriter () {
-    return (message) => {
+    return (message, utf16required = false) => {
       let binaryConstructor = new BinaryConstructor()
 
       for (const field of this.fields) {
@@ -141,6 +142,16 @@ class MessageConstructor {
 
             break
           }
+          case FieldDataType.UNICODE_STRING: {
+            const value = field.constantValue ?? message[field.key]
+            const valueBinary = new Iconv('UTF-8', utf16required ? 'UTF-16LE' : 'CP1251').convert(value ?? '')
+
+            binaryConstructor = binaryConstructor
+              .integer(valueBinary.length, 4)
+              .subbuffer(valueBinary)
+
+            break
+          }
         }
       }
 
@@ -149,7 +160,7 @@ class MessageConstructor {
   }
 
   generateReader () {
-    return (message) => {
+    return (message, utf16required = false) => {
       const binaryReader = new BinaryReader(message, this.endianness)
       const result = {}
 
@@ -228,6 +239,28 @@ class MessageConstructor {
                 )
               )
               .toString('utf-8')
+
+            break
+          }
+          case FieldDataType.UNICODE_STRING: {
+            const length = binaryReader.readUint32()
+
+            if (length > 0) {
+              if (length % 2 != 0) {
+                // fallback to CP1251
+                utf16required = false
+              }
+              result[field.key] = new Iconv(utf16required ? 'UTF-16LE' : 'CP1251', 'UTF-8')
+                .convert(
+                  Buffer.from(
+                    binaryReader.readUint8Array(length)
+                  )
+                )
+                .toString('utf-8')
+            } else {
+              // Пустая строка
+              result[field.key] = ''
+            }
 
             break
           }

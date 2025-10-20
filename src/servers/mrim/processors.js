@@ -111,7 +111,6 @@ async function generateContactList (containerHeader, userId) {
   ])
 
   let MRIM_CONTACT_FLAG;
-
   
   if (containerHeader.protocolVersionMinor >= 20) {
     MRIM_CONTACT_FLAG = 'uussuussssusuuusss'
@@ -123,6 +122,11 @@ async function generateContactList (containerHeader, userId) {
     MRIM_CONTACT_FLAG = 'uussuu'
   }
 
+  let UTF16CAPABLE = false;
+  if (containerHeader.protocolVersionMinor >= 16) {
+    UTF16CAPABLE = true;
+  }
+
   const contactList = MrimContactList.writer({
     groupCount: contactGroups.length,
     groupFlag: MRIM_GROUP_FLAG,
@@ -131,7 +135,7 @@ async function generateContactList (containerHeader, userId) {
       contactGroups.map((contactGroup) =>
         MrimContactGroup.writer({
           name: contactGroup.name
-        })
+        }, UTF16CAPABLE)
       )
     ),
     contacts: Buffer.concat(
@@ -164,9 +168,9 @@ async function generateContactList (containerHeader, userId) {
             xstatusType: connectedContact?.xstatus?.type ?? "",
             xstatusTitle: connectedContact?.xstatus?.title ?? "",
             xstatusDescription: connectedContact?.xstatus?.description ?? "",
-            features: connectedContact?.xstatus?.state ?? 0,
+            features: connectedContact?.xstatus?.state ?? 767,
             userAgent: connectedContact?.userAgent ?? ""
-          })
+          }, UTF16CAPABLE)
         } else if (containerHeader.protocolVersionMinor >= 15) {
           return MrimContactNewer.writer({
             groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
@@ -182,9 +186,9 @@ async function generateContactList (containerHeader, userId) {
             xstatusType: connectedContact?.xstatus?.type ?? "",
             xstatusTitle: connectedContact?.xstatus?.title ?? "",
             xstatusDescription: connectedContact?.xstatus?.description ?? "",
-            features: connectedContact?.xstatus?.state ?? 0,
+            features: connectedContact?.xstatus?.state ?? 767,
             userAgent: connectedContact?.userAgent ?? "",
-          })
+          }, UTF16CAPABLE)
         } else {
           return MrimContact.writer({
             groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
@@ -203,7 +207,7 @@ async function generateContactList (containerHeader, userId) {
 
       })
     )
-  })
+  }, UTF16CAPABLE)
 
   return new BinaryConstructor()
     .subbuffer(
@@ -270,7 +274,7 @@ async function processLogin (
   var loginData;
 
   if (containerHeader.protocolVersionMinor >= 15) {
-    loginData = MrimNewerLoginData.reader(packetData)
+    loginData = MrimNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16 ? true : false)
   } else {
     loginData = MrimLoginData.reader(packetData)
   }
@@ -300,6 +304,13 @@ async function processLogin (
         "description": loginData.xstatusDescription,
         "state": loginData.features,
       }
+
+      logger.debug(`[${connectionId}] Статус: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`);
+    }
+    if (containerHeader.protocolVersionMinor >= 16) {
+      state.utf16capable = true;
+    } else {
+      state.utf16capable = false;
     }
 
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
@@ -326,26 +337,17 @@ async function processLogin (
   let statusData;
 
   if (containerHeader.protocolVersionMinor >= 15) {
-    statusData = new BinaryConstructor()
-        .integer(state.status, 4)
-        .integer(state.xstatus?.type.length, 4)
-        .subbuffer(
-          new Iconv('UTF-8', 'CP1251').convert(Buffer.from(state.xstatus?.type ?? ``, 'utf8'))
-        )
-        .integer(state.xstatus?.title.length, 4)
-        .subbuffer(
-          new Iconv('UTF-8', 'CP1251').convert(Buffer.from(state.xstatus?.title ?? ``, 'utf8'))
-        )
-        .integer(state.xstatus?.description.length, 4)
-        .subbuffer(
-          new Iconv('UTF-8', 'CP1251').convert(Buffer.from(state.xstatus?.description ?? ``, 'utf8'))
-        )
-        .integer(state.xstatus?.state, 4)
-        .finish();
+    statusData = MrimChangeXStatusRequest.writer({
+      status: state.status,
+      xstatusType: state.xstatus?.type ?? "",
+      xstatusTitle: state.xstatus?.title ?? "",
+      xstatusDescription: state.xstatus?.description ?? "",
+      xstatusState: state.xstatus?.state ?? 767 // 02 FF -- everything except videocalls
+    }, state.utf16capable);
   } else {
-    statusData = new BinaryConstructor()
-        .integer(state.status, 4)
-        .finish();
+    statusData = MrimChangeStatusRequest.writer({
+      status: state.status
+    });
   }
 
   // eslint-disable-next-line no-unused-vars
@@ -368,7 +370,7 @@ async function processLogin (
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
     clientip: '127.0.0.1:' + state.socket.remotePort
-  })
+  }, state.utf16capable)
 
   return {
     reply: [
@@ -404,7 +406,7 @@ function processMessage (
   state,
   variables
 ) {
-  const messageData = MrimClientMessageData.reader(packetData)
+  const messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
 
   logger.debug(
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
@@ -420,7 +422,7 @@ function processMessage (
       addresser: state.username + '@mail.ru',
       message: messageData.message + ' ',
       messageRTF: messageData.messageRTF + ' '
-    })
+    }, addresserClient.utf16capable)
 
     addresserClient.socket.write(
       new BinaryConstructor()
@@ -514,7 +516,7 @@ async function processSearch (
   const packetFields = {}
 
   while (packetData.length !== 0) {
-    const field = MrimSearchField.reader(packetData)
+    const field = MrimSearchField.reader(packetData, state.utf16capable)
     packetFields[field.key] = field.value
 
     // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
@@ -590,12 +592,13 @@ async function processSearch (
     fieldCount: Object.keys(responseFields).length,
     maxRows: searchResults.length,
     serverTime: Math.floor(Date.now() / 1000)
-  })
+  }, state.utf16capable)
 
   let anketaInfo = new BinaryConstructor().subbuffer(anketaHeader)
 
   for (let key in responseFields) {
-    key = new Iconv('UTF-8', 'CP1251').convert(key ?? 'unknown')
+    // lol hardcode
+    key = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(key ?? 'unknown')
     anketaInfo = anketaInfo.integer(key.length, 4).subbuffer(key)
   }
 
@@ -606,7 +609,7 @@ async function processSearch (
     user.domain = 'mail.ru'
 
     for (const key of Object.values(responseFields)) {
-      const value = new Iconv('UTF-8', 'CP1251').convert(
+      const value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
@@ -704,10 +707,10 @@ async function processAddContact (
         .field('addresser', FieldDataType.UBIART_LIKE_STRING)
         .field('nickname', FieldDataType.UBIART_LIKE_STRING)
         .field('unknown3', FieldDataType.UINT32)
-        .field('message', FieldDataType.UBIART_LIKE_STRING)
+        .field('message', FieldDataType.UNICODE_STRING)
         .finish()
 
-      const packedMessage = MrimAddContactData.reader(packetData)
+      const packedMessage = MrimAddContactData.reader(packetData, state.utf16capable)
 
       if (client) {
         const messageData = MrimServerMessageData.writer({
@@ -955,7 +958,7 @@ async function processChangeStatus (
   let status;
 
   if (containerHeader.protocolVersionMinor >= 15) {
-    status = MrimChangeXStatusRequest.reader(packetData)
+    status = MrimChangeXStatusRequest.reader(packetData, state.utf16capable)
   } else {
     status = MrimChangeStatusRequest.reader(packetData)
   }
@@ -1008,7 +1011,7 @@ async function processChangeStatus (
         features: status.features ?? 0,
         userAgent: status.userAgent ?? '',
         contact: `${state.username}@mail.ru`
-      })
+      }, client.utf16capable)
     } else {
       userStatusUpdate = MrimUserStatusUpdate.writer({
         status: status.status !== 0x4 ? status.status : 0x1,
