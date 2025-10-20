@@ -16,7 +16,11 @@ const {
   processModifyContact,
   processAuthorizeContact,
   processChangeStatus,
-  processGame
+  processGame,
+  processFileTransfer,
+  processFileTransferAnswer,
+  processCall,
+  processCallAnswer
 } = require('./processors')
 
 const config = require('../../../config')
@@ -222,6 +226,57 @@ async function processPacket (
         state,
         variables
       )
+    case MrimMessageCommands.FILE_TRANSFER:
+      return processFileTransfer(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.FILE_TRANSFER_ACK:
+      return processFileTransferAnswer(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.CALL:
+      return processCall(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.CALL_ACK:
+      return processCallAnswer(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.MPOP_SESSION:
+      return {
+        reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: 0x1025,
+            dataSize: 4+4+5
+          })
+        )
+        .integer(1, 4)
+        .integer(5, 4)
+        .subbuffer(Buffer.from(`testt`, 'utf8'))
+        .finish()
+      }
     case MrimMessageCommands.PING: {
       if (timeoutTimer[connectionId] !== undefined) {
         timeoutTimer[connectionId].refresh()

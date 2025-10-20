@@ -18,6 +18,7 @@ const MrimMessageCommands = {
   USER_STATUS: 0x100f,
   // Email (dummy)
   MAILBOX_STATUS: 0x1033,
+  MPOP_SESSION: 0x1024,
   // Messages
   MESSAGE: 0x1008,
   MESSAGE_ACK: 0x1009,
@@ -36,6 +37,11 @@ const MrimMessageCommands = {
   WP_REQUEST: 0x1029,
   // Games
   GAME: 0x1035,
+  // File Transfer & VoIP
+  FILE_TRANSFER: 0x1026,
+  FILE_TRANSFER_ACK: 0x1027,
+  CALL: 0x1049,
+  CALL_ACK: 0x1032,
   // Logout
   LOGOUT: 0x1013
 }

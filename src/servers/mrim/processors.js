@@ -39,6 +39,8 @@ const {
   MrimUserXStatusUpdate
 } = require('../../messages/mrim/status')
 const { MrimGameData } = require('../../messages/mrim/games')
+const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
+const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
 const {
   getUserIdViaCredentials,
   getContactGroups,
@@ -918,12 +920,7 @@ async function processModifyContact (
             .finish(),
           connectionId,
           logger,
-          {
-            ...state,
-            __NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true,
-            __ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: contactUserId,
-            __IGNORE_AUTH_SUCCESS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: true
-          },
+          state,
           variables
         )
       }
@@ -1092,6 +1089,200 @@ async function processGame(
   }
 }
 
+async function processFileTransfer(
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let packet = MrimFileTransfer.reader(packetData)
+
+  // так ну неплохо надо бы переправить данный пакет нужному получателю
+  const addresserClient = global.clients.find(
+    ({ username }) => username === packet.to_or_from.split('@')[0]
+  )
+  if (addresserClient !== undefined) {
+    // иииииииии мы тупо шлём тоже самое блять)
+    const dataToSend = MrimFileTransfer.writer({
+      to_or_from: state.username + '@mail.ru',
+      unique_id: packet.unique_id,
+      files_size: packet.files_size,
+      data: packet.data
+    })
+
+    addresserClient.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetOrder: 0x1337,
+            packetCommand: MrimMessageCommands.FILE_TRANSFER,
+            dataSize: dataToSend.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    )
+  } else {
+    return {
+      reply: 
+        MrimFileTransferAnswer.writer({
+        status: 2, // Unknown error
+        to_or_from: packet.to_or_from,
+        unique_id: packet.unique_id,
+        data: ""
+      })
+    }
+  }
+}
+
+async function processFileTransferAnswer(
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let packet = MrimFileTransferAnswer.reader(packetData)
+
+  const addresserClient = global.clients.find(
+    ({ username }) => username === packet.to_or_from.split('@')[0]
+  )
+  if (addresserClient !== undefined || packet.status !== 4) {
+    const dataToSend = MrimFileTransferAnswer.writer({
+      status: packet.status,
+      to_or_from: state.username + '@mail.ru',
+      unique_id: packet.unique_id,
+      data: packet.data
+    })
+
+    addresserClient.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetOrder: 0x1488,
+            packetCommand: MrimMessageCommands.FILE_TRANSFER_ACK,
+            dataSize: dataToSend.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    )
+  } else {
+    return {
+      reply: 
+        MrimFileTransferAnswer.writer({
+        status: 2, // Unknown error
+        to_or_from: packet.to_or_from,
+        unique_id: packet.unique_id,
+        data: ""
+      })
+    }
+  }
+}
+
+async function processCall(
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let packet = MrimCall.reader(packetData)
+
+  const addresserClient = global.clients.find(
+    ({ username }) => username === packet.to_or_from.split('@')[0]
+  )
+  if (addresserClient !== undefined || packet.status !== 4) {
+    const dataToSend = MrimCall.writer({
+      to_or_from: state.username + '@mail.ru',
+      unique_id: packet.unique_id,
+      data: packet.data
+    })
+
+    addresserClient.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetOrder: 0x228,
+            packetCommand: MrimMessageCommands.CALL,
+            dataSize: dataToSend.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    )
+  } else {
+    return {
+      reply: 
+        MrimCallAnswer.writer({
+          to_or_from: packet.to_or_from,
+          unique_id: packet.unique_id,
+          status: 0, // Unknown error
+      })
+    }
+  }
+}
+
+async function processCallAnswer(
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let packet = MrimCall.reader(packetData)
+
+  const addresserClient = global.clients.find(
+    ({ username }) => username === packet.to_or_from.split('@')[0]
+  )
+  if (addresserClient !== undefined) {
+    const dataToSend = MrimCall.writer({
+      status: packet.status,
+      to_or_from: state.username + '@mail.ru',
+      unique_id: packet.unique_id,
+    })
+
+    addresserClient.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetOrder: 0x265,
+            packetCommand: MrimMessageCommands.CALL_ACK,
+            dataSize: dataToSend.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    )
+  } else {
+    return {
+      reply: 
+        MrimCall.writer({
+        status: 2, // Unknown error
+        to_or_from: packet.to_or_from,
+        unique_id: packet.unique_id,
+      })
+    }
+  }
+}
+
 module.exports = {
   processHello,
   processLogin,
@@ -1101,5 +1292,9 @@ module.exports = {
   processModifyContact,
   processAuthorizeContact,
   processChangeStatus,
-  processGame
+  processGame,
+  processFileTransfer,
+  processFileTransferAnswer,
+  processCall,
+  processCallAnswer
 }
