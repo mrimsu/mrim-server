@@ -753,7 +753,7 @@ async function processSearch (
   logger.debug(
     `[${connectionId}] searchParameters -> ${JSON.stringify(searchParameters)}`
   )
-  const searchResults = await searchUsers(state.userId, searchParameters)
+  const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login ? true : false)
 
   const responseFields = {
     Username: 'login',

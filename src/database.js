@@ -114,14 +114,18 @@ async function getContactsFromGroups (userId) {
  *
  * @returns {Promise<Array>} Массив поиска
  */
-async function searchUsers (userId, searchParameters) {
+async function searchUsers (userId, searchParameters, searchMyself = false) {
   const connection = await pool.getConnection()
   let query =
     'SELECT `user`.`login`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
     '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex` ' +
-    'FROM `user` ' +
-    'WHERE `user`.`id` != ? AND '
-  const variables = [userId]
+    'FROM `user` WHERE ';
+  const variables = []
+
+  if (!searchMyself) {
+    query += '`user`.`id` != ? AND '
+    variables.push(userId)
+  }
 
   if (Object.hasOwn(searchParameters, 'login')) {
     query += '`user`.`login` LIKE ? AND '

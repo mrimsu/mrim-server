@@ -12,7 +12,7 @@ const config = require('../../../config')
 const ALLOWED_HOSTS = config?.obraz?.customHost
   ? [config.obraz.customHost, 'obraz.foto.mail.ru']
   : ['obraz.foto.mail.ru']
-const ALLOWED_DOMAINS = ['mail', 'internet', 'bk', 'corp.mail']
+const ALLOWED_DOMAINS = ['mail', 'internet', 'bk', 'corp.mail', 'mail.ru', 'internet.ru', 'bk.ru', 'corp.mail.ru']
 const ALLOWED_METHODS = ['GET', 'HEAD']
 const STATUS_CODES = {
   200: 'OK',
@@ -103,7 +103,9 @@ function connectionListener (socket) {
       return respond(version, 404, 'Not Found')
     }
 
-    const [domain, userLogin, avatarType] = pathname.split('/')
+    let [domain, userLogin, avatarType] = pathname.split('/')
+
+    avatarType = avatarType.split('?')[0];
 
     if (!ALLOWED_DOMAINS.includes(domain)) {
       return respond(version, 400, 'Bad Request')
