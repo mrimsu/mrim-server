@@ -10,13 +10,14 @@ const {
   FieldDataType
 } = require('../../constructors/message')
 const { MrimMessageCommands } = require('./globals')
-const { MrimLoginData, MrimNewerLoginData, MrimUserInfo } = require('../../messages/mrim/authorization')
+const { MrimLoginData, MrimNewerLoginData, MrimLoginThreeData, MrimUserInfo } = require('../../messages/mrim/authorization')
 const {
   MrimContactList,
   MrimContactGroup,
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,
+  MrimContactWithMicroblogNewer,
   MrimAddContactRequest,
   MrimAddContactResponse,
   MrimContactAuthorizeData,
@@ -57,6 +58,7 @@ const {
 } = require('../../database')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
+const { log } = require('winston')
 
 const MrimSearchRequestFields = {
   USER: 0,
@@ -112,7 +114,9 @@ async function generateContactList (containerHeader, userId) {
 
   let MRIM_CONTACT_FLAG;
   
-  if (containerHeader.protocolVersionMinor >= 20) {
+  if (containerHeader.protocolVersionMinor >= 21) {
+    MRIM_CONTACT_FLAG = 'uussuussssusuuusssssu'
+  } else if (containerHeader.protocolVersionMinor >= 20) {
     MRIM_CONTACT_FLAG = 'uussuussssusuuusss'
   } else if (containerHeader.protocolVersionMinor >= 15) {
     MRIM_CONTACT_FLAG = 'uussuussssus'
@@ -153,7 +157,25 @@ async function generateContactList (containerHeader, userId) {
           ({ userId }) => userId === contact.user_id
         )
 
-        if (containerHeader.protocolVersionMinor >= 20) {
+        if (containerHeader.protocolVersionMinor >= 21) {
+          return MrimContactWithMicroblogNewer.writer({
+            groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
+            email: `${contact.user_login}@mail.ru`,
+            login: contact.contact_nickname ??
+                contact.user_nickname ??
+                contact.user_login,
+            authorized: Number(!contact.is_auth_success),
+            status: contact.contact_flags !== 4 // "Я всегда невидим для..."
+              ? (connectedContact?.status ?? 0)
+              : 0, // STATUS_OFFLINE
+            phoneNumber: '',
+            xstatusType: connectedContact?.xstatus?.type ?? "",
+            xstatusTitle: connectedContact?.xstatus?.title ?? "",
+            xstatusDescription: connectedContact?.xstatus?.description ?? "",
+            features: connectedContact?.xstatus?.state ?? 767,
+            userAgent: connectedContact?.userAgent ?? ""
+          }, UTF16CAPABLE)
+        } else if (containerHeader.protocolVersionMinor >= 20) {
           return MrimContactWithMicroblog.writer({
             groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
             email: `${contact.user_login}@mail.ru`,
@@ -398,6 +420,161 @@ async function processLogin (
   }
 }
 
+async function processLoginThree (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  if (packetData.length === 0) {
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.LOGIN_REJ,
+            dataSize: 0,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .finish()
+    }
+  }
+
+  var loginData;
+
+  // TODO: MD5 check
+
+  // проверка на ютф16 не нужна, потому что LOGIN3 используется только в MRIM => 1.21, который и так поддерживает его
+  loginData = MrimLoginThreeData.reader(packetData, true)
+
+  logger.debug(`[${connectionId}] !! Вход в аккаунт !!`)
+  logger.debug(`[${connectionId}] Логин: ${loginData.login}`)
+  logger.debug(`[${connectionId}] Пароль: ${loginData.password}`)
+  logger.debug(`[${connectionId}] Юзерагент: ${loginData.userAgent}`)
+
+  try {
+    // в => MRIM 1.22 на кой то хуй используется MD5 пароль
+    if (containerHeader.protocolVersionMinor >= 22) {
+      let passwd =  new Iconv('UTF-8', 'CP1251').convert(loginData.password).toString('hex').toLowerCase();
+      state.userId = await getUserIdViaCredentials(
+        loginData.login.split('@')[0],
+        passwd,
+        true
+      )
+    } else {
+      state.userId = await getUserIdViaCredentials(
+        loginData.login.split('@')[0],
+        loginData.password
+      )
+    }
+    state.username = loginData.login.split('@')[0]
+    state.status = 1 // STATUS_ONLINE
+    state.protocolVersionMajor = containerHeader.protocolVersionMajor
+    state.protocolVersionMinor = containerHeader.protocolVersionMinor
+    state.connectionId = connectionId
+    state.userAgent = loginData.userAgent
+    state.protocolVersionMinor = containerHeader.protocolVersionMinor
+
+    // статус нам не передают, поэтому ставим дефолт
+    state.xstatus = {
+      "type": "STATUS_ONLINE",
+      "title": "",
+      "description": "",
+      "state": 0xFF03, // everything
+    }
+
+    // не проверяем, см. комментарий выше
+    state.utf16capable = true;
+
+    if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
+      logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
+    }
+
+    global.clients.push(state)
+  } catch {
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.LOGIN_REJ,
+            dataSize: 0,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .finish()
+    }
+  }
+
+  let statusData;
+
+  if (containerHeader.protocolVersionMinor >= 15) {
+    statusData = MrimChangeXStatusRequest.writer({
+      status: state.status,
+      xstatusType: "STATUS_ONLINE",
+      xstatusTitle: "",
+      xstatusDescription: "",
+      xstatusState: 0xFF03
+    }, state.utf16capable);
+  } else {
+    statusData = MrimChangeStatusRequest.writer({
+      status: state.status
+    });
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  const [contactList, _changeStatus] = await Promise.all([
+    generateContactList(containerHeader, state.userId),
+    processChangeStatus(
+      containerHeader,
+      statusData,
+      connectionId,
+      logger,
+      state,
+      variables
+    )
+  ])
+
+  const searchResults = await searchUsers(0, { login: state.username })
+
+  const userInfo = MrimUserInfo.writer({
+    nickname: searchResults[0].nick,
+    messagestotal: '0', // dummy
+    messagesunread: '0', // dummy
+    clientip: '127.0.0.1:' + state.socket.remotePort
+  }, state.utf16capable)
+
+  return {
+    reply: [
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.LOGIN_ACK,
+        dataSize: 0,
+        senderAddress: 0,
+        senderPort: 0
+      }),
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_INFO,
+            dataSize: userInfo.length,
+            senderAddress: 0,
+            senderPort: 0
+          })
+        )
+        .subbuffer(userInfo)
+        .finish(),
+      contactList
+    ]
+  }
+}
+
 function processMessage (
   containerHeader,
   packetData,
@@ -516,12 +693,17 @@ async function processSearch (
   const packetFields = {}
 
   while (packetData.length !== 0) {
+    try {
     const field = MrimSearchField.reader(packetData, state.utf16capable)
     packetFields[field.key] = field.value
 
     // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
     const offset = MrimSearchField.writer(field).length
     packetData = packetData.subarray(offset)
+    } catch (e) {
+      logger.error(`[${connectionId}] Ошибка, которая должна появляться только на MRIM 1.23: ${e.toString()}`)
+      break
+    }
   }
 
   logger.debug(`[${connectionId}] Клиент отправил запрос на поиск.`)
@@ -1289,6 +1471,7 @@ async function processCallAnswer(
 module.exports = {
   processHello,
   processLogin,
+  processLoginThree,
   processSearch,
   processMessage,
   processAddContact,

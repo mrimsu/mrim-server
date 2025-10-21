@@ -13,14 +13,16 @@ const pool = mysql2.createPool(config.database.connectionUri)
  *
  * @returns {Promise<number>} ID пользователя
  */
-async function getUserIdViaCredentials (login, password) {
+async function getUserIdViaCredentials (login, password, isMD5Already = false) {
   const connection = await pool.getConnection()
-
+  
+  if (!isMD5Already) {
   password = crypto
     .createHash('md5')
     .update(password)
     .digest('hex')
     .toLowerCase()
+  }
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(

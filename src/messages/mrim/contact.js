@@ -73,6 +73,31 @@ const MrimContactWithMicroblog = new MessageConstructor()
   .field('unknown4', FieldDataType.UNICODE_STRING)
   .finish()
 
+// MRIM >1.21
+const MrimContactWithMicroblogNewer = new MessageConstructor()
+  .field('magicHeader', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
+  .field('groupIndex', FieldDataType.UINT32)
+  .field('email', FieldDataType.UBIART_LIKE_STRING)
+  .field('login', FieldDataType.UNICODE_STRING)
+  .field('authorized', FieldDataType.UINT32)
+  .field('status', FieldDataType.UINT32)
+  .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusType', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusTitle', FieldDataType.UNICODE_STRING)
+  .field('xstatusDescription', FieldDataType.UNICODE_STRING)
+  .field('features', FieldDataType.UINT32)
+  .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
+  .field('unknown0', FieldDataType.UINT32)
+  .field('unknown1', FieldDataType.UINT32)
+  .field('unknown2', FieldDataType.UINT32)
+  .field('microblogLastMessage', FieldDataType.UNICODE_STRING)
+  .field('unknown3', FieldDataType.UNICODE_STRING)
+  .field('unknown4', FieldDataType.UNICODE_STRING)
+  .field('unknown5', FieldDataType.UNICODE_STRING)
+  .field('unknown6', FieldDataType.UNICODE_STRING)
+  .field('unknown7', FieldDataType.UINT32)
+  .finish()
+
 const MrimAddContactRequest = new MessageConstructor()
   .field('flags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -108,6 +133,7 @@ module.exports = {
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,
+  MrimContactWithMicroblogNewer,
   MrimAddContactRequest,
   MrimAddContactResponse,
   MrimContactAuthorizeData,

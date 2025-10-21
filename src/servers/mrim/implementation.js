@@ -10,6 +10,7 @@ const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   processHello,
   processLogin,
+  processLoginThree,
   processMessage,
   processSearch,
   processAddContact,
@@ -155,8 +156,19 @@ async function processPacket (
   switch (containerHeader.packetCommand) {
     case MrimMessageCommands.HELLO:
       return processHello(containerHeader, connectionId, logger)
+    // MRIM <= 1.20
     case MrimMessageCommands.LOGIN2:
       return processLogin(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    // MRIM >= 1.21
+    case MrimMessageCommands.LOGIN3:
+      return processLoginThree(
         containerHeader,
         packetData,
         connectionId,
