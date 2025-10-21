@@ -39,61 +39,97 @@ const timeoutTimer = []
 
 function onData (socket, connectionId, logger, state, variables) {
   return (data) => {
-    let header
+    let header;
+    let packetData;
+
+    if (!state.waitForData) {
+      try {
+        header = MrimContainerHeader.reader(data)
+      } catch {
+        return socket.end()
+      }
+
+      if (header.packetCommand !== MrimMessageCommands.PING) {
+        logger.debug(
+          `[${connectionId}] ===============================================`
+        )
+        logger.debug(
+          `[${connectionId}] Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`
+        )
+        logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
+        logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
+        logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
+        logger.debug(
+          `[${connectionId}] ===============================================`
+        )
+      }
+
+      packetData = data.subarray(
+        MRIM_HEADER_CONTAINER_SIZE,
+        MRIM_HEADER_CONTAINER_SIZE + header.dataSize
+      )
+
+      if (header.dataSize > 0 && header.dataSize !== packetData.length) {
+        state.waitForData = true;
+        state.lastHeader = header;
+        return;
+      }
+    } else {
+      header = state.lastHeader;
+      packetData = data;
+
+      // reset
+      state.waitForData = false;
+      state.lastHeader = null;
+
+      // debug
+      logger.debug(
+        `[${connectionId}] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+      )
+        logger.debug(`[${connectionId}] Фрагментированный пакет`)
+        logger.debug(`[${connectionId}] Данные в HEX: ${packetData.toString('hex')}`)
+      logger.debug(
+        `[${connectionId}] ===============================================`
+      )
+    }
 
     try {
-      header = MrimContainerHeader.reader(data)
-    } catch {
-      return socket.end()
-    }
-
-    if (header.packetCommand !== MrimMessageCommands.PING) {
-      logger.debug(
-        `[${connectionId}] ===============================================`
-      )
-      logger.debug(
-        `[${connectionId}] Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`
-      )
-      logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
-      logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
-      logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
-      logger.debug(
-        `[${connectionId}] ===============================================`
-      )
-    }
-
-    const packetData = data.subarray(
-      MRIM_HEADER_CONTAINER_SIZE,
-      MRIM_HEADER_CONTAINER_SIZE + header.dataSize
-    )
-
-    processPacket(header, packetData, connectionId, logger, state, variables).then(
-      (result) => {
-        if (result === undefined) {
-          return
-        }
-
-        if (result.end) {
-          if (result.reply) {
-            logger.debug(
-              `[${connectionId}] Ответ от сервера -> ${result.reply.toString('hex')}`
-            )
+      Promise.resolve(processPacket(header, packetData, connectionId, logger, state, variables))
+        .then((result) => {
+          if (result === undefined) {
+            return
           }
-          return socket.end(result.reply)
-        }
 
-        const data = Array.isArray(result.reply)
-          ? result.reply
-          : [result.reply]
+          if (result.end) {
+            if (result.reply) {
+              logger.debug(
+                `[${connectionId}] Ответ от сервера -> ${result.reply.toString('hex')}`
+              )
+            }
+            return socket.end(result.reply)
+          }
 
-        for (const reply of data) {
-          logger.debug(
-            `[${connectionId}] Ответ от сервера -> ${reply.toString('hex')}`
+          const replies = Array.isArray(result.reply)
+            ? result.reply
+            : [result.reply]
+
+          for (const reply of replies) {
+            logger.debug(
+              `[${connectionId}] Ответ от сервера -> ${reply.toString('hex')}`
+            )
+            socket.write(reply)
+          }
+        })
+        .catch((err) => {
+          logger.error(
+            `[${connectionId}] Ошибка обработки пакета: ${err && err.stack ? err.stack : err}`
           )
-          socket.write(reply)
-        }
-      }
-    )
+        })
+    } catch (err) {
+      logger.error(
+        `[${connectionId}] Ошибка обработки пакета: ${err.stack}`
+      )
+    }
   }
 }
 
