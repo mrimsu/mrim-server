@@ -3,7 +3,7 @@
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
-const { BinaryEndianness } = require('../../binary-reader')
+const { BinaryEndianness } = require('../binary-reader')
 
 class BinaryConstructor {
   constructor (endianness) {
