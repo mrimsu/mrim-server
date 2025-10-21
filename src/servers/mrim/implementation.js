@@ -54,9 +54,6 @@ function onData (socket, connectionId, logger, state, variables) {
       logger.debug(
         `[${connectionId}] Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`
       )
-      logger.debug(
-        `[${connectionId}] Последовательность пакета: ${header.packetOrder}`
-      )
       logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
       logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
       logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)

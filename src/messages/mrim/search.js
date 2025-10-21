@@ -10,7 +10,7 @@ const {
 
 const MrimSearchField = new MessageConstructor()
   .field('key', FieldDataType.UINT32)
-  .field('value', FieldDataType.SUBBUFFER)
+  .field('value', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
 const MrimAnketaHeader = new MessageConstructor()

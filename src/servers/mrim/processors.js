@@ -692,16 +692,16 @@ async function processSearch (
 
   const packetFields = {}
 
-  while (packetData.length !== 0) {
+  while (packetData.length >= 4) {
     try {
-    const field = MrimSearchField.reader(packetData, state.utf16capable)
-    packetFields[field.key] = field.value
+      const field = MrimSearchField.reader(packetData, false)
+      packetFields[field.key] = field.value
 
-    // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-    const offset = MrimSearchField.writer(field).length
-    packetData = packetData.subarray(offset)
+      // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+      const offset = MrimSearchField.writer(field).length
+      packetData = packetData.subarray(offset)
     } catch (e) {
-      logger.error(`[${connectionId}] Ошибка, которая должна появляться только на MRIM 1.23: ${e.toString()}`)
+      // вылезает OOB если неправильно сформирован запрос, скипаем
       break
     }
   }
@@ -721,13 +721,13 @@ async function processSearch (
         searchParameters.login = value
         break
       case MrimSearchRequestFields.NICKNAME:
-        searchParameters.nickname = value
+        searchParameters.nickname = new Iconv(state.utf16capable ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
         break
       case MrimSearchRequestFields.FIRSTNAME:
-        searchParameters.firstName = value
+        searchParameters.firstName = new Iconv(state.utf16capable ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
         break
       case MrimSearchRequestFields.LASTNAME:
-        searchParameters.lastName = value
+        searchParameters.lastName = new Iconv(state.utf16capable ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
         break
       case MrimSearchRequestFields.DATE_MIN:
         searchParameters.minimumAge = parseInt(value, 10)
@@ -780,7 +780,7 @@ async function processSearch (
 
   for (let key in responseFields) {
     // lol hardcode
-    key = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(key ?? 'unknown')
+    key = new Iconv('UTF-8', 'CP1251').convert(key ?? 'unknown')
     anketaInfo = anketaInfo.integer(key.length, 4).subbuffer(key)
   }
 
@@ -791,7 +791,7 @@ async function processSearch (
     user.domain = 'mail.ru'
 
     for (const key of Object.values(responseFields)) {
-      const value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(
+      const value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
@@ -1101,7 +1101,7 @@ async function processModifyContact (
             .integer(0, 4)
             .integer(0, 4)
             .integer(0, 4)
-            .integer(0, 4)
+            .integer(0xFF02, 4)
             .finish(),
           connectionId,
           logger,
@@ -1190,7 +1190,7 @@ async function processChangeStatus (
         xstatusType: status.xstatusType ?? '',
         xstatusTitle: status.xstatusTitle ?? '',
         xstatusDescription: status.xstatusDescription ?? '',
-        features: status.features ?? 0,
+        features: status.features ?? 0xFF02,
         userAgent: status.userAgent ?? '',
         contact: `${state.username}@mail.ru`
       }, client.utf16capable)

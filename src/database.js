@@ -167,19 +167,19 @@ async function searchUsers (userId, searchParameters) {
     variables.push(searchParameters.maximumAge)
   }
 
-  if (Object.hasOwn(searchParameters, 'zodiac')) {
+  if (Object.hasOwn(searchParameters, 'zodiac') && !Number.isNaN(Number(searchParameters.zodiac))) {
     query += '`user`.`zodiac` = ? AND '
-    variables.push(searchParameters.zodiac)
+    variables.push(Number(searchParameters.zodiac))
   }
 
-  if (Object.hasOwn(searchParameters, 'birthmonth')) {
+  if (Object.hasOwn(searchParameters, 'birthmonth') && !Number.isNaN(Number(searchParameters.birthmonth))) {
     query += 'MONTH(`user`.`birthday`) = ? AND '
-    variables.push(searchParameters.birthmonth)
+    variables.push(Number(searchParameters.birthmonth))
   }
 
-  if (Object.hasOwn(searchParameters, 'birthday')) {
+  if (Object.hasOwn(searchParameters, 'birthday') && !Number.isNaN(Number(searchParameters.birthday))) {
     query += 'DAY(`user`.`birthday`) = ? AND '
-    variables.push(searchParameters.birthday)
+    variables.push(Number(searchParameters.birthday))
   }
 
   if (Object.hasOwn(searchParameters, 'onlyOnline')) {
