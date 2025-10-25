@@ -276,6 +276,51 @@ async function createOrCompleteContact (
 }
 
 /**
+ * Упрощённый createOrCompleteContact для команды MESSAGE с флагом на добавление контакта
+ * 
+ * @param {number} requesterUserId ID добавящего пользователя
+ * @param {string} contactUserLogin Логин пользователя, записанного в контактах
+ */
+
+async function addContactMSG (requesterUserId, contactUserLogin) {
+  const connection = await pool.getConnection()
+  let result;
+
+  const contactUserResult = await Promise.all([
+    connection.query(
+      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
+      [contactUserLogin]
+    )
+  ])
+
+  await connection.query(
+    'SELECT `contact`.`id` FROM `contact` WHERE ' +
+    '`contact`.`adder_user_id` = ? AND ' +
+    '`contact`.`contact_user_id` = ?',
+    [contactUserResult.id, requesterUserId]
+  )
+
+  try {
+    const [{ id: existingContactId }] = existingContactResult
+    
+    await connection.execute(
+      'UPDATE `contact` SET ' +
+      '`contact`.`is_auth_success` = 1 ' +
+      'WHERE `contact`.`id` = ?',
+      [existingContactId]
+    )
+    result = true;
+  } catch (error) {
+    result = false;
+  }
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+
+  return result;
+}
+
+/**
  * Создание новой группы контактов
  *
  * @param {number} userId ID пользователя
@@ -450,95 +495,12 @@ async function deleteContact (adderUserId, contactLogin) {
     return null
   }
 
-  if (contact.is_auth_success === 1) {
-    const [contactDataResultsAsAdder, contactDataResultsAsContact] = await Promise.all([
-      connection.query(
-        'SELECT * FROM `contact` WHERE ' +
-        '`contact`.`adder_user_id` = ? AND ' +
-        '`contact`.`contact_user_id` = ?',
-        [adderUserId, contactUserId]
-      ),
-      connection.query(
-        'SELECT * FROM `contact` WHERE ' +
-        '`contact`.`adder_user_id` = ? AND ' +
-        '`contact`.`contact_user_id` = ?',
-        [contactUserId, adderUserId]
-      )
-    ])
-
-    let contactData
-
-    if (contactDataResultsAsAdder[0].length === 1 || contactDataResultsAsContact[0].length === 1) {
-      contactData = contact.requester_is_adder === 1
-        ? contactDataResultsAsAdder[0][0]
-        : contactDataResultsAsContact[0][0]
-    } else {
-      throw new Error('contact not found')
-    }
-
-    try {
-      await connection.execute(
-        // ебем сервер БД как можем
-        'UPDATE `contact` SET ' +
-        '`contact`.`adder_user_id` = ?, ' +
-        '`contact`.`contact_user_id` = ?, ' +
-        '`contact`.`adder_group_id` = ?, ' +
-        '`contact`.`contact_group_id` = ?, ' +
-        '`contact`.`is_auth_success` = 0, ' +
-        '`contact`.`adder_nickname` = ?, ' +
-        '`contact`.`contact_nickname` = ?, ' +
-        '`contact`.`adder_flags` = 0, ' +
-        '`contact`.`contact_flags` = ? ' +
-        'WHERE `contact`.`adder_user_id` = ? ' +
-        'AND `contact`.`contact_user_id` = ?',
-        [
-          ...(
-            contact.requester_is_adder === 1
-              ? [
-                  contactData.contact_user_id,
-                  contactData.adder_user_id,
-                  contactData.adder_group_id,
-                  contactData.contact_group_id,
-                  contactData.contact_nickname,
-                  contactData.adder_nickname,
-                  contactData.adder_flags
-                ]
-              : [
-                  contactData.adder_user_id,
-                  contactData.contact_user_id,
-                  contactData.contact_group_id,
-                  contactData.adder_group_id,
-                  contactData.adder_nickname,
-                  contactData.contact_nickname,
-                  contactData.contact_flags
-                ]
-          ),
-          adderUserId,
-          contactUserResults[0].id
-        ]
-      )
-    } catch (error) {
-      console.log(error)
-      if (error.errno === 1048) {
-        // удаляем контакт если ER_BAD_NULL_ERROR
-        await connection.execute(
-          'DELETE FROM `contact` WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',
-          contact.requester_is_adder === 1
-            ? [adderUserId, contactUserResults[0].id]
-            : [contactUserResults[0].id, adderUserId]
-        )
-      } else {
-        throw error
-      }
-    }
-  } else {
-    await connection.execute(
-      'DELETE FROM `contact` WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',
-      contact.requester_is_adder === 1
-        ? [adderUserId, contactUserResults[0].id]
-        : [contactUserResults[0].id, adderUserId]
-    )
-  }
+  await connection.execute(
+    'DELETE FROM `contact` WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',
+    contact.requester_is_adder === 1
+      ? [adderUserId, contactUserResults[0].id]
+      : [contactUserResults[0].id, adderUserId]
+  )
 
   await connection.commit()
   pool.releaseConnection(connection)
@@ -627,6 +589,7 @@ module.exports = {
   getContactGroups,
   getContactsFromGroups,
   createOrCompleteContact,
+  addContactMSG,
   createNewGroup,
   searchUsers,
   modifyGroupName,

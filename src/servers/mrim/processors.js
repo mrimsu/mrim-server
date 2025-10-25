@@ -47,6 +47,7 @@ const {
   getContactGroups,
   getContactsFromGroups,
   createOrCompleteContact,
+  addContactMSG,
   searchUsers,
   createNewGroup,
   modifyGroupName,
@@ -589,6 +590,16 @@ function processMessage (
     `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
   )
 
+  if (messageData.flags & 0x8) { // Запрос на авторизацию
+    logger.debug(
+      `[${connectionId}] Запрос на авторизацию от ${state.username} к ${messageData.addresser}`
+    )
+    addContactMSG(
+      state.userId,
+      messageData.addresser.split('@')[0]
+    )
+  }
+
   const addresserClient = global.clients.find(
     ({ username }) => username === messageData.addresser.split('@')[0]
   )
@@ -826,7 +837,7 @@ async function processAddContact (
   state,
   variables
 ) {
-  const request = MrimAddContactRequest.reader(packetData)
+  const request = MrimAddContactRequest.reader(packetData, state.utf16capable)
 
   let contactResponse
   let contactResult
@@ -901,7 +912,7 @@ async function processAddContact (
           addresser: state.username + '@mail.ru',
           message: packedMessage.message,
           messageRTF: ''
-        })
+        }, client.utf16capable)
 
         logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} добавляется к ${request.contact.split('@')[0] + '@mail.ru'}. Данные в HEX: ${messageData.toString('hex')}`)
 
