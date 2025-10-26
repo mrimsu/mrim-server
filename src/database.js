@@ -238,14 +238,14 @@ async function createOrCompleteContact (
 
   try { // дополнение контакта
     // eslint-disable-next-line no-unused-vars
-    const [existingContactResult, _existingContactFields] =
+    let [existingContactResult, _existingContactFields] =
       await connection.query(
         'SELECT `contact`.`id` FROM `contact` WHERE ' +
         '`contact`.`adder_user_id` = ? AND ' +
         '`contact`.`contact_user_id` = ?',
         [contactUserId, requesterUserId]
       )
-    const [{ id: existingContactId }] = existingContactResult
+    let [{ id: existingContactId }] = existingContactResult
 
     await connection.execute(
       'UPDATE `contact` SET ' +
@@ -256,17 +256,44 @@ async function createOrCompleteContact (
     )
 
     result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
-  } catch (error) { // создание контакта
-    const { insertId } = await connection.execute(
-      'INSERT INTO `contact`' +
-      '(`contact`.`adder_user_id`, `contact`.`contact_user_id`, ' +
-      ' `contact`.`adder_group_id`, `contact`.`contact_nickname`, ' +
-      ' `contact`.`contact_flags`)' +
-      'VALUES (?, ?, ?, ?, ?)',
-      [requesterUserId, contactUserId, groupId, contactNickname, contactFlags]
-    )
+  } catch (error) { 
+    // во бля попадос
+    // не проблема, просто наоборот сделаем
+    try {
+      if (existingContactId === undefined) {
+        [existingContactResult, _existingContactFields] =
+        await connection.query(
+          'SELECT `contact`.`id` FROM `contact` WHERE ' +
+          '`contact`.`adder_user_id` = ? AND ' +
+          '`contact`.`contact_user_id` = ?',
+          [requesterUserId, contactUserId]
+        )
 
-    result = { action: 'CREATE_NEW', contactId: insertId }
+        existingContactId = existingContactResult.id
+
+        await connection.execute(
+        'UPDATE `contact` SET ' +
+        '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
+        '`contact`.`adder_group_id` = ?, `contact`.`is_auth_success` = 1 ' +
+        'WHERE `contact`.`id` = ?',
+        [contactNickname, contactFlags, groupId, existingContactId]
+        )
+
+        result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
+      }
+    } catch (error) {
+      // ну ладно создадим контакта
+      const { insertId } = await connection.execute(
+        'INSERT INTO `contact`' +
+        '(`contact`.`adder_user_id`, `contact`.`contact_user_id`, ' +
+        ' `contact`.`adder_group_id`, `contact`.`contact_nickname`, ' +
+        ' `contact`.`contact_flags`)' +
+        'VALUES (?, ?, ?, ?, ?)',
+        [requesterUserId, contactUserId, groupId, contactNickname, contactFlags]
+      )
+      result = { action: 'CREATE_NEW', contactId: insertId }
+    }
+
   }
 
   await connection.commit()
