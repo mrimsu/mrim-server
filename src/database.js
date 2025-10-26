@@ -260,27 +260,25 @@ async function createOrCompleteContact (
     // во бля попадос
     // не проблема, просто наоборот сделаем
     try {
-      if (existingContactId === undefined) {
-        [existingContactResult, _existingContactFields] =
-        await connection.query(
-          'SELECT `contact`.`id` FROM `contact` WHERE ' +
-          '`contact`.`adder_user_id` = ? AND ' +
-          '`contact`.`contact_user_id` = ?',
-          [requesterUserId, contactUserId]
-        )
+      [existingContactResult, _existingContactFields] =
+      await connection.query(
+        'SELECT `contact`.`id` FROM `contact` WHERE ' +
+        '`contact`.`adder_user_id` = ? AND ' +
+        '`contact`.`contact_user_id` = ?',
+        [requesterUserId, contactUserId]
+      )
 
-        existingContactId = existingContactResult.id
+      existingContactId = existingContactResult.id
 
-        await connection.execute(
-        'UPDATE `contact` SET ' +
-        '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
-        '`contact`.`adder_group_id` = ?, `contact`.`is_auth_success` = 1 ' +
-        'WHERE `contact`.`id` = ?',
-        [contactNickname, contactFlags, groupId, existingContactId]
-        )
+      await connection.execute(
+      'UPDATE `contact` SET ' +
+      '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
+      '`contact`.`adder_group_id` = ?, `contact`.`is_auth_success` = 1 ' +
+      'WHERE `contact`.`id` = ?',
+      [contactNickname, contactFlags, groupId, existingContactId]
+      )
 
-        result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
-      }
+      result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
     } catch (error) {
       // ну ладно создадим контакта
       const { insertId } = await connection.execute(
