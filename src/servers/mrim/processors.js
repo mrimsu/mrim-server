@@ -10,7 +10,12 @@ const {
   FieldDataType
 } = require('../../constructors/message')
 const { MrimMessageCommands } = require('./globals')
-const { MrimLoginData, MrimNewerLoginData, MrimLoginThreeData, MrimUserInfo } = require('../../messages/mrim/authorization')
+const { 
+  MrimLoginData, 
+  MrimNewerLoginData, 
+  MrimLoginThreeData, 
+  MrimRejectLoginData,
+  MrimUserInfo } = require('../../messages/mrim/authorization')
 const {
   MrimContactList,
   MrimContactGroup,
@@ -341,18 +346,28 @@ async function processLogin (
     }
 
     global.clients.push(state)
-  } catch {
+  } catch (e) {
+    let dataToSend
+    if (e.fatal !== false) {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: "Invalid login"
+      });
+    } else {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: "Database error"
+      });
+    }
+
     return {
       reply: new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.LOGIN_REJ,
-            dataSize: 0,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
+        .subbuffer(dataToSend)
         .finish()
     }
   }
