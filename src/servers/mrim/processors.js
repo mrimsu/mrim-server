@@ -107,7 +107,7 @@ function processHello (containerHeader, connectionId, logger) {
   return {
     reply: new BinaryConstructor()
       .subbuffer(containerHeaderBinary)
-      .integer(config.mrim?.pingTimer ?? 5, 4)
+      .integer(config.mrim?.pingTimer ?? 10, 4)
       .finish()
   }
 }

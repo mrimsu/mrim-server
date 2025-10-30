@@ -329,6 +329,7 @@ async function processPacket (
         const PING_TIMER = (config?.mrim?.pingTimer ?? 5) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
           logger.debug(`[${connectionId}] Клиент ${state.username} улетел по таймауту`)
+          state.socket.end();
           disconnectClient(connectionId, logger, state)
         }, PING_TIMER + 3000, connectionId, state, logger)
         timeoutTimer[connectionId].unref()
