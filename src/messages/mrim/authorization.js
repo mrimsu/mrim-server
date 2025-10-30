@@ -29,6 +29,10 @@ const MrimNewerLoginData = new MessageConstructor()
   .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
+const MrimRejectLoginData = new MessageConstructor()
+  .field('reason', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
 // для MRIM 1.21 и выше
 const MrimLoginThreeData = new MessageConstructor()
   .field('login', FieldDataType.UBIART_LIKE_STRING)
@@ -53,4 +57,4 @@ const MrimUserInfo = new MessageConstructor()
   .field('clientip', FieldDataType.UNICODE_STRING)
   .finish()
 
-module.exports = { MrimLoginData, MrimNewerLoginData, MrimLoginThreeData, MrimUserInfo }
+module.exports = { MrimLoginData, MrimNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }
