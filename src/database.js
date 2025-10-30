@@ -268,7 +268,7 @@ async function createOrCompleteContact (
         [requesterUserId, contactUserId]
       )
 
-      existingContactId = existingContactResult.id
+      existingContactId = existingContactResult[0].id
 
       await connection.execute(
       'UPDATE `contact` SET ' +

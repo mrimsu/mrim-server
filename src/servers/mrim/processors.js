@@ -278,22 +278,6 @@ async function processLogin (
   state,
   variables
 ) {
-  if (packetData.length === 0) {
-    return {
-      reply: new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.LOGIN_REJ,
-            dataSize: 0,
-            senderAddress: 0,
-            senderPort: 0
-          })
-        )
-        .finish()
-    }
-  }
-
   var loginData;
 
   if (containerHeader.protocolVersionMinor >= 15) {
@@ -302,11 +286,7 @@ async function processLogin (
     loginData = MrimLoginData.reader(packetData)
   }
 
-  logger.debug(`[${connectionId}] !! Вход в аккаунт !!`)
-  logger.debug(`[${connectionId}] Логин: ${loginData.login}`)
-  logger.debug(`[${connectionId}] Пароль: ${loginData.password}`)
-  logger.debug(`[${connectionId}] Статус: ${loginData.status}`)
-  logger.debug(`[${connectionId}] Юзерагент: ${loginData.userAgent}`)
+  logger.debug(`[${connectionId}] Вход в аккаунт: ${loginData.login}`)
 
   try {
     state.userId = await getUserIdViaCredentials(
