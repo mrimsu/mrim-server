@@ -290,7 +290,7 @@ async function processLogin (
 
     global.clients.push(state)
   } catch (e) {
-    logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль');
+    logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + (e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль'));
 
     let dataToSend
     if (e.fatal !== false) {
