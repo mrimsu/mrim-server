@@ -242,9 +242,7 @@ async function generateContactList (containerHeader, userId) {
       MrimContainerHeader.writer({
         ...containerHeader,
         packetCommand: MrimMessageCommands.CONTACT_LIST2,
-        dataSize: contactList.length,
-        senderAddress: 0,
-        senderPort: 0
+        dataSize: contactList.length
       })
     )
     .subbuffer(contactList)
@@ -262,9 +260,7 @@ function _logoutPreviousClientIfNeeded (userId, containerHeader) {
       MrimContainerHeader.writer({
         ...containerHeader,
         packetCommand: MrimMessageCommands.LOGOUT,
-        dataSize: 4, // TODO mikhail хардкод нахуй
-        senderAddress: 0,
-        senderPort: 0
+        dataSize: 4
       })
     )
     .integer(0x10, 4) // LOGOUT_NO_RELOGIN_FLAG
@@ -291,7 +287,7 @@ async function processLogin (
     loginData = MrimLoginData.reader(packetData)
   }
 
-  logger.debug(`[${connectionId}] Вход в аккаунт: ${loginData.login}`)
+  logger.debug(`[${connectionId}] Вход в аккаунт через Login2: ${loginData.login}`)
 
   try {
     state.userId = await getUserIdViaCredentials(
@@ -325,8 +321,12 @@ async function processLogin (
       logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
     }
 
+    logger.debug(`[${connectionId}] Вход в ${loginData.login} удался, отправляем инфу и контакт-лист`);
+
     global.clients.push(state)
   } catch (e) {
+    logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль');
+
     let dataToSend
     if (e.fatal !== false) {
       dataToSend = MrimRejectLoginData.writer({
@@ -395,18 +395,14 @@ async function processLogin (
       MrimContainerHeader.writer({
         ...containerHeader,
         packetCommand: MrimMessageCommands.LOGIN_ACK,
-        dataSize: 0,
-        senderAddress: 0,
-        senderPort: 0
+        dataSize: 0
       }),
       new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.USER_INFO,
-            dataSize: userInfo.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: userInfo.length
           })
         )
         .subbuffer(userInfo)
@@ -424,22 +420,6 @@ async function processLoginThree (
   state,
   variables
 ) {
-  if (packetData.length === 0) {
-    return {
-      reply: new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.LOGIN_REJ,
-            dataSize: 0,
-            senderAddress: 0,
-            senderPort: 0
-          })
-        )
-        .finish()
-    }
-  }
-
   var loginData;
 
   // TODO: MD5 check
@@ -447,10 +427,7 @@ async function processLoginThree (
   // проверка на ютф16 не нужна, потому что LOGIN3 используется только в MRIM => 1.21, который и так поддерживает его
   loginData = MrimLoginThreeData.reader(packetData, true)
 
-  logger.debug(`[${connectionId}] !! Вход в аккаунт !!`)
-  logger.debug(`[${connectionId}] Логин: ${loginData.login}`)
-  logger.debug(`[${connectionId}] Пароль: ${loginData.password}`)
-  logger.debug(`[${connectionId}] Юзерагент: ${loginData.userAgent}`)
+  logger.debug(`[${connectionId}] Вход в аккаунт через Login3: ${loginData.login}`)
 
   try {
     // в => MRIM 1.22 на кой то хуй используется MD5 пароль
@@ -490,50 +467,40 @@ async function processLoginThree (
       logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
     }
 
+    logger.debug(`[${connectionId}] Вход в ${loginData.login} удался, отправляем инфу и контакт-лист`);
+
     global.clients.push(state)
   } catch {
+    logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль');
+
+    let dataToSend
+    if (e.fatal !== false) {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: "Invalid login"
+      });
+    } else {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: "Database error"
+      });
+    }
+
     return {
       reply: new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.LOGIN_REJ,
-            dataSize: 0,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
+        .subbuffer(dataToSend)
         .finish()
     }
   }
-
-  let statusData;
-
-  if (containerHeader.protocolVersionMinor >= 15) {
-    statusData = MrimChangeXStatusRequest.writer({
-      status: state.status,
-      xstatusType: "STATUS_ONLINE",
-      xstatusTitle: "",
-      xstatusDescription: "",
-      xstatusState: 0xFF03
-    }, state.utf16capable);
-  } else {
-    statusData = MrimChangeStatusRequest.writer({
-      status: state.status
-    });
-  }
-
+  
   // eslint-disable-next-line no-unused-vars
-  const [contactList, _changeStatus] = await Promise.all([
-    generateContactList(containerHeader, state.userId),
-    processChangeStatus(
-      containerHeader,
-      statusData,
-      connectionId,
-      logger,
-      state,
-      variables
-    )
+  const [contactList] = await Promise.all([
+    generateContactList(containerHeader, state.userId)
   ])
 
   const searchResults = await searchUsers(0, { login: state.username })
@@ -550,18 +517,14 @@ async function processLoginThree (
       MrimContainerHeader.writer({
         ...containerHeader,
         packetCommand: MrimMessageCommands.LOGIN_ACK,
-        dataSize: 0,
-        senderAddress: 0,
-        senderPort: 0
+        dataSize: 0
       }),
       new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.USER_INFO,
-            dataSize: userInfo.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: userInfo.length
           })
         )
         .subbuffer(userInfo)
@@ -582,12 +545,12 @@ function processMessage (
   const messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
 
   logger.debug(
-    `[${connectionId}] Получено сообщение -> кому: ${messageData.addresser}, текст: ${messageData.message}`
+    `[${connectionId}] Команда: сообщение от ${state.username} для ${messageData.addresser}`
   )
 
   if (messageData.flags & 0x8) { // Запрос на авторизацию
     logger.debug(
-      `[${connectionId}] Запрос на авторизацию от ${state.username} к ${messageData.addresser}`
+      `[${connectionId}] Запрос на авторизацию от ${state.username} для ${messageData.addresser}`
     )
     addContactMSG(
       state.userId,
@@ -614,9 +577,7 @@ function processMessage (
             ...containerHeader,
             packetOrder: 0x1337,
             packetCommand: MrimMessageCommands.MESSAGE_ACK,
-            dataSize: dataToSend.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
         .subbuffer(dataToSend)
@@ -631,9 +592,7 @@ function processMessage (
               ...containerHeader,
               packetOrder: containerHeader.packetOrder,
               packetCommand: MrimMessageCommands.MESSAGE_STATUS,
-              dataSize: 4,
-              senderAddress: 0,
-              senderPort: 0
+              dataSize: 4
             })
           )
           .integer(0, 4)
@@ -649,9 +608,7 @@ function processMessage (
               ...containerHeader,
               packetOrder: containerHeader.packetOrder,
               packetCommand: MrimMessageCommands.MESSAGE_STATUS,
-              dataSize: 4,
-              senderAddress: 0,
-              senderPort: 0
+              dataSize: 4
             })
           )
           .integer(0x8006, 4)
@@ -686,9 +643,7 @@ async function processSearch (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.ANKETA_INFO,
-            dataSize: 0x4,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: 0x4
           })
         )
         .integer(AnketaInfoStatus.RATELIMITER, 4)
@@ -707,7 +662,7 @@ async function processSearch (
       const offset = MrimSearchField.writer(field).length
       packetData = packetData.subarray(offset)
     } catch (e) {
-      // вылезает OOB если неправильно сформирован запрос, скипаем
+      // вылезает OOB если неправильно сформирован запрос или закончились строки, скипаем
       break
     }
   }
@@ -814,9 +769,7 @@ async function processSearch (
         MrimContainerHeader.writer({
           ...containerHeader,
           packetCommand: MrimMessageCommands.ANKETA_INFO,
-          dataSize: anketaInfo.length,
-          senderAddress: 0,
-          senderPort: 0
+          dataSize: anketaInfo.length
         })
       )
       .subbuffer(anketaInfo)
@@ -866,7 +819,6 @@ async function processAddContact (
 
     if (contactResult?.action === 'MODIFY_EXISTING' && client) {
       const authorizeData = MrimContactAuthorizeData.writer({
-        // TODO: закастомизировать это ЛИБО сделать выбор домена необязательным
         contact: state.username + '@mail.ru'
       })
       state.lastAuthorizedContact = request.contact.split('@')[0]
@@ -878,9 +830,7 @@ async function processAddContact (
               ...containerHeader,
               packetOrder: 0,
               packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
-              dataSize: authorizeData.length,
-              senderAddress: 0,
-              senderPort: 0
+              dataSize: authorizeData.length
             })
           )
           .subbuffer(authorizeData)
@@ -909,7 +859,7 @@ async function processAddContact (
           messageRTF: ''
         }, client.utf16capable)
 
-        logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} добавляется к ${request.contact.split('@')[0] + '@mail.ru'}. Данные в HEX: ${messageData.toString('hex')}`)
+        logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} добавляется к ${request.contact.split('@')[0] + '@mail.ru'}`)
 
         client.socket.write(
           new BinaryConstructor()
@@ -918,9 +868,7 @@ async function processAddContact (
                 ...containerHeader,
                 packetOrder: Math.floor(Math.random() * 0xffffffff),
                 packetCommand: MrimMessageCommands.MESSAGE_ACK,
-                dataSize: messageData.length,
-                senderAddress: 0,
-                senderPort: 0
+                dataSize: messageData.length
               })
             )
             .subbuffer(messageData)
@@ -937,9 +885,7 @@ async function processAddContact (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
-            dataSize: contactResponse.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: contactResponse.length
           })
         )
         .subbuffer(contactResponse)
@@ -978,9 +924,7 @@ async function processAuthorizeContact (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
-            dataSize: authorizeToAddresser.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: authorizeToAddresser.length
           })
         )
         .subbuffer(authorizeToAddresser)
@@ -1008,9 +952,7 @@ async function processAuthorizeContact (
             MrimContainerHeader.writer({
               ...containerHeader,
               packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
-              dataSize: authorizeReply.length,
-              senderAddress: 0,
-              senderPort: 0
+              dataSize: authorizeReply.length
             })
           )
           .subbuffer(authorizeReply)
@@ -1020,9 +962,7 @@ async function processAuthorizeContact (
             MrimContainerHeader.writer({
               ...containerHeader,
               packetCommand: MrimMessageCommands.CHANGE_STATUS,
-              dataSize: statusReply.length,
-              senderAddress: 0,
-              senderPort: 0
+              dataSize: statusReply.length
             })
           )
           .subbuffer(statusReply)
@@ -1052,9 +992,7 @@ async function processModifyContact (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
-            dataSize: contactResponse.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: contactResponse.length
           })
         )
         .subbuffer(contactResponse)
@@ -1070,9 +1008,7 @@ async function processModifyContact (
       MrimContainerHeader.writer({
         ...containerHeader,
         packetCommand: MrimMessageCommands.MODIFY_CONTACT_ACK,
-        dataSize: contactResponse.length,
-        senderAddress: 0,
-        senderPort: 0
+        dataSize: contactResponse.length
       })
     )
     .subbuffer(contactResponse)
@@ -1166,25 +1102,16 @@ async function processChangeStatus (
 
   const contacts = await getContactsFromGroups(state.userId)
 
-  // TODO mikhail костыль на костыле
-  const NO_DATABASE_EDIT = state.__NO_DATABASE_EDIT_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? false
-  const IGNORE_AUTH_SUCCESS = state.__IGNORE_AUTH_SUCCESS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? false
-  const ONLY_FOR = state.__ONLY_FOR_DO_NOT_USE_OR_YOU_WILL_BE_FIRED ?? null
-
-  /* if (!NO_DATABASE_EDIT) {
-    await modifyUserStatus(state.userId, status)
-  } */
-
   for (const contact of contacts) {
     const client = global.clients.find(
       ({ userId }) => userId === contact.user_id
     )
 
-    if (client === undefined || ONLY_FOR === client.userId) {
+    if (client === undefined) {
       continue
     }
 
-    if (!IGNORE_AUTH_SUCCESS && contact.is_auth_success === 0) {
+    if (contact.is_auth_success === 0) {
       continue
     }
 
@@ -1214,16 +1141,14 @@ async function processChangeStatus (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetCommand: MrimMessageCommands.USER_STATUS,
-            dataSize: userStatusUpdate.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: userStatusUpdate.length
           })
         )
         .subbuffer(userStatusUpdate)
         .finish()
     )
 
-    logger.debug(`[${connectionId}] Обновление статуса у ${state.username}@mail.ru для ${contact.user_login}@mail.ru. Данные в HEX: ${userStatusUpdate.toString('hex')}`)
+    logger.debug(`[${connectionId}] Передаётся изменённый статус у ${state.username}@mail.ru для контакта ${contact.user_login}@mail.ru`)
   }
 }
 
@@ -1258,9 +1183,7 @@ async function processGame(
             ...containerHeader,
             packetOrder: 0x1337,
             packetCommand: MrimMessageCommands.GAME,
-            dataSize: dataToSend.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
         .subbuffer(dataToSend)
@@ -1310,9 +1233,7 @@ async function processFileTransfer(
             ...containerHeader,
             packetOrder: 0x1337,
             packetCommand: MrimMessageCommands.FILE_TRANSFER,
-            dataSize: dataToSend.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
         .subbuffer(dataToSend)
@@ -1359,9 +1280,7 @@ async function processFileTransferAnswer(
             ...containerHeader,
             packetOrder: 0x1488,
             packetCommand: MrimMessageCommands.FILE_TRANSFER_ACK,
-            dataSize: dataToSend.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
         .subbuffer(dataToSend)
@@ -1407,9 +1326,7 @@ async function processCall(
             ...containerHeader,
             packetOrder: 0x228,
             packetCommand: MrimMessageCommands.CALL,
-            dataSize: dataToSend.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
         .subbuffer(dataToSend)
@@ -1454,9 +1371,7 @@ async function processCallAnswer(
             ...containerHeader,
             packetOrder: 0x265,
             packetCommand: MrimMessageCommands.CALL_ACK,
-            dataSize: dataToSend.length,
-            senderAddress: 0,
-            senderPort: 0
+            dataSize: dataToSend.length
           })
         )
         .subbuffer(dataToSend)
