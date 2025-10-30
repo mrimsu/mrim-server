@@ -163,74 +163,39 @@ async function generateContactList (containerHeader, userId) {
           ({ userId }) => userId === contact.user_id
         )
 
-        if (containerHeader.protocolVersionMinor >= 21) {
-          return MrimContactWithMicroblogNewer.writer({
-            groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
-            email: `${contact.user_login}@mail.ru`,
-            login: contact.contact_nickname ??
-                contact.user_nickname ??
-                contact.user_login,
-            authorized: Number(!contact.is_auth_success),
-            status: contact.contact_flags !== 4 // "Я всегда невидим для..."
-              ? (connectedContact?.status ?? 0)
-              : 0, // STATUS_OFFLINE
-            phoneNumber: '',
-            xstatusType: connectedContact?.xstatus?.type ?? "",
-            xstatusTitle: connectedContact?.xstatus?.title ?? "",
-            xstatusDescription: connectedContact?.xstatus?.description ?? "",
-            features: connectedContact?.xstatus?.state ?? 767,
-            userAgent: connectedContact?.userAgent ?? ""
-          }, UTF16CAPABLE)
-        } else if (containerHeader.protocolVersionMinor >= 20) {
-          return MrimContactWithMicroblog.writer({
-            groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
-            email: `${contact.user_login}@mail.ru`,
-            login: contact.contact_nickname ??
-                contact.user_nickname ??
-                contact.user_login,
-            authorized: Number(!contact.is_auth_success),
-            status: contact.contact_flags !== 4 // "Я всегда невидим для..."
-              ? (connectedContact?.status ?? 0)
-              : 0, // STATUS_OFFLINE
-            phoneNumber: '',
-            xstatusType: connectedContact?.xstatus?.type ?? "",
-            xstatusTitle: connectedContact?.xstatus?.title ?? "",
-            xstatusDescription: connectedContact?.xstatus?.description ?? "",
-            features: connectedContact?.xstatus?.state ?? 767,
-            userAgent: connectedContact?.userAgent ?? ""
-          }, UTF16CAPABLE)
-        } else if (containerHeader.protocolVersionMinor >= 15) {
-          return MrimContactNewer.writer({
-            groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
-            email: `${contact.user_login}@mail.ru`,
-            login: contact.contact_nickname ??
-                contact.user_nickname ??
-                contact.user_login,
-            authorized: Number(!contact.is_auth_success),
-            status: contact.contact_flags !== 4 // "Я всегда невидим для..."
-              ? (connectedContact?.status ?? 0)
-              : 0, // STATUS_OFFLINE
-            phoneNumber: '',
-            xstatusType: connectedContact?.xstatus?.type ?? "",
-            xstatusTitle: connectedContact?.xstatus?.title ?? "",
-            xstatusDescription: connectedContact?.xstatus?.description ?? "",
-            features: connectedContact?.xstatus?.state ?? 767,
-            userAgent: connectedContact?.userAgent ?? "",
-          }, UTF16CAPABLE)
-        } else {
-          return MrimContact.writer({
-            groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
-            email: `${contact.user_login}@mail.ru`,
-            login: contact.contact_nickname ??
-                contact.user_nickname ??
-                contact.user_login,
-            authorized: Number(!contact.is_auth_success),
-            status: contact.contact_flags !== 4 // "Я всегда невидим для..."
-              ? (connectedContact?.status ?? 0)
-              : 0, // STATUS_OFFLINE
-            phoneNumber: ''
-          })
+        let contactStructure = {
+          groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
+          email: `${contact.user_login}@mail.ru`,
+          login: contact.contact_nickname ??
+              contact.user_nickname ??
+              contact.user_login,
+          authorized: Number(!contact.is_auth_success),
+          status: contact.contact_flags !== 4 // "Я всегда невидим для..."
+            ? (connectedContact?.status ?? 0)
+            : 0, // STATUS_OFFLINE
+          phoneNumber: ''
+        };
 
+        // добавляем новые поля в структуру контакта в зависимости от версии протокола
+
+        if (containerHeader.protocolVersionMinor >= 15) {
+            contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ""
+            contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ""
+            contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ""
+            contactStructure.features = connectedContact?.xstatus?.state ?? 767
+            contactStructure.userAgent = connectedContact?.userAgent ?? ""
+        }
+
+        // и тут отправляем в нужной структуре
+
+        if (containerHeader.protocolVersionMinor >= 21) {
+          return MrimContactWithMicroblogNewer.writer(contactStructure, UTF16CAPABLE)
+        } else if (containerHeader.protocolVersionMinor >= 20) {
+          return MrimContactWithMicroblog.writer(contactStructure, UTF16CAPABLE)
+        } else if (containerHeader.protocolVersionMinor >= 15) {
+          return MrimContactNewer.writer(contactStructure, UTF16CAPABLE)
+        } else {
+          return MrimContact.writer(contactStructure)
         }
 
       })
