@@ -20,6 +20,7 @@ const MrimMessageCommands = {
   // Email (dummy)
   MAILBOX_STATUS: 0x1033,
   MPOP_SESSION: 0x1024,
+  NEW_MAIL: 0x1048,
   // Messages
   MESSAGE: 0x1008,
   MESSAGE_ACK: 0x1009,

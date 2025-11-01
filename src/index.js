@@ -11,11 +11,13 @@ const createSocksServer = require('./servers/socks')
 const createMrimServer = require('./servers/mrim')
 
 const obrazServer = require('./servers/obraz')
+const RESTserver = require('./servers/rest')
 
 const DEFAULT_MRIM_PORT = 2041
 const DEFAULT_REDIRECTOR_PORT = 2042
 const DEFAULT_SOCKS5_PORT = 8080
 const DEFAULT_OBRAZ_PORT = 8081
+const DEFAULT_REST_PORT = 1862
 
 const LOCALHOST = 'localhost' // пиздец
 
@@ -92,6 +94,21 @@ function main () {
         const { address, port } = listener.address()
         return logger.info(
           `Сервер образов запущен -> адрес: ${address}, порт: ${port}`
+        )
+      }
+    )
+  }
+
+  if (config.rest.enabled) {
+    servers.rest = RESTserver
+
+    const listener = servers.rest.listen(
+      config.rest?.serverPort ?? DEFAULT_REST_PORT,
+      config.rest?.serverHostname ?? LOCALHOST,
+      () => {
+        const { address, port } = listener.address()
+        return logger.info(
+          `REST API запущен -> адрес: ${address}, порт: ${port}`
         )
       }
     )

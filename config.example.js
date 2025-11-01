@@ -33,4 +33,19 @@ const obraz = {
   serverHostname: '0.0.0.0'
 }
 
-module.exports = { database, mrim, redirector, socks, obraz }
+// Настройки REST API
+const rest = {
+  enabled: true,
+  serverHostname: '127.0.0.1', // оставьте localhost для безопасности
+  serverPort: 1862
+}
+
+// Настройки профиля администратора
+const adminProfile = {
+  enabled: false,
+  username: 'admin',
+  nickname: 'Администрация',
+  defaultMessage: "Привет! \n\nЭто служебный аккаунт данного MRIM-сервера. Отсюда будут приходить тебе важные уведомления о технических работах или обновлениях сервера. Если у вас есть вопросы, пожалуйста, свяжитесь с администратором сервера.\n\nПриятного общения!",
+}
+
+module.exports = { database, mrim, redirector, socks, obraz, rest, adminProfile }

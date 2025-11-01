@@ -29,6 +29,20 @@ const MrimNewerLoginData = new MessageConstructor()
   .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
+// для MRIM 1.16 и выше
+const MrimMoreNewerLoginData = new MessageConstructor()
+  .field('login', FieldDataType.UBIART_LIKE_STRING)
+  .field('password', FieldDataType.UBIART_LIKE_STRING)
+  .field('status', FieldDataType.UINT32)
+  .field('xstatusType', FieldDataType.UBIART_LIKE_STRING)
+  .field('xstatusTitle', FieldDataType.UNICODE_STRING)
+  .field('xstatusDescription', FieldDataType.UNICODE_STRING)
+  .field('features', FieldDataType.UINT32)
+  .field('modernUserAgent', FieldDataType.UBIART_LIKE_STRING)
+  .field('locale', FieldDataType.UBIART_LIKE_STRING)
+  .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
 const MrimRejectLoginData = new MessageConstructor()
   .field('reason', FieldDataType.UBIART_LIKE_STRING)
   .finish()
@@ -57,4 +71,4 @@ const MrimUserInfo = new MessageConstructor()
   .field('clientip', FieldDataType.UNICODE_STRING)
   .finish()
 
-module.exports = { MrimLoginData, MrimNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }
+module.exports = { MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }

@@ -13,6 +13,7 @@ const { MrimMessageCommands } = require('./globals')
 const { 
   MrimLoginData, 
   MrimNewerLoginData, 
+  MrimMoreNewerLoginData,
   MrimLoginThreeData, 
   MrimRejectLoginData,
   MrimUserInfo } = require('../../messages/mrim/authorization')
@@ -137,6 +138,19 @@ async function generateContactList (containerHeader, userId) {
     UTF16CAPABLE = true;
   }
 
+  if (config.adminProfile?.enabled) {
+    contacts.push({
+      requester_is_adder: 1,
+      requester_is_contact: 1,
+      is_auth_success: 1,
+      adder_group_id: 0,
+      user_id: 0,
+      user_login: config.adminProfile.username,
+      user_nickname: config.adminProfile.nickname,
+      contact_flags: 0
+    })
+  }
+
   const contactList = MrimContactList.writer({
     groupCount: contactGroups.length,
     groupFlag: MRIM_GROUP_FLAG,
@@ -171,7 +185,7 @@ async function generateContactList (containerHeader, userId) {
               contact.user_login,
           authorized: Number(!contact.is_auth_success),
           status: contact.contact_flags !== 4 // "Я всегда невидим для..."
-            ? (connectedContact?.status ?? 0)
+            ? (connectedContact?.status ?? (config.adminProfile?.username == contact.user_login ? 1 : 0))
             : 0, // STATUS_OFFLINE
           phoneNumber: ''
         };
@@ -246,7 +260,9 @@ async function processLogin (
 ) {
   var loginData;
 
-  if (containerHeader.protocolVersionMinor >= 15) {
+  if (containerHeader.protocolVersionMinor >= 16) {
+    loginData = MrimMoreNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16 ? true : false)
+  } else if (containerHeader.protocolVersionMinor >= 15) {
     loginData = MrimNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16 ? true : false)
   } else {
     loginData = MrimLoginData.reader(packetData)
@@ -264,7 +280,7 @@ async function processLogin (
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
-    state.userAgent = loginData.userAgent
+    state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     if (containerHeader.protocolVersionMinor >= 15) {
       state.xstatus = {
@@ -414,7 +430,7 @@ async function processLoginThree (
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
-    state.userAgent = loginData.userAgent
+    state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
 
     // статус нам не передают, поэтому ставим дефолт
@@ -512,6 +528,46 @@ function processMessage (
   logger.debug(
     `[${connectionId}] Команда: сообщение от ${state.username} для ${messageData.addresser}`
   )
+
+  if (config.adminProfile?.enabled && messageData.addresser.split('@')[0] === config.adminProfile?.username && !(messageData.flags & 0x400)) {
+    logger.debug(`[${connectionId}] Юзер ${state.username} написал админу. Отправляем заготовленное письмо :)`)
+    
+    const dataToSend = MrimServerMessageData.writer({
+      id: 0x1337,
+      flags: 0x40, // system message
+      addresser: config.adminProfile?.username + '@mail.ru',
+      message: config.adminProfile.defaultMessage,
+      messageRTF: ''
+    }, state.utf16capable)
+
+    return {
+      reply: [
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetOrder: containerHeader.packetOrder,
+              packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+              dataSize: 4
+            })
+          )
+          .integer(0, 4)
+          .finish(),
+
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetOrder: containerHeader.packetOrder+1,
+              packetCommand: MrimMessageCommands.MESSAGE_ACK,
+              dataSize: dataToSend.length
+            })
+          )
+          .subbuffer(dataToSend)
+          .finish()
+      ]
+    }
+  }
 
   if (messageData.flags & 0x8) { // Запрос на авторизацию
     logger.debug(
@@ -947,10 +1003,11 @@ async function processModifyContact (
 ) {
   const request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
 
-  if (request.contact.length === 0 && state.lastAuthorizedContact === undefined) {
+  if ((request.contact.length === 0 && state.lastAuthorizedContact === undefined) || (config.adminProfile?.enabled && request.contact.split('@')[0] === config.adminProfile?.username)) {
     const contactResponse = MrimModifyContactResponse.writer({
       status: 0x00000004 // CONTACT_OPER_INVALID_INFO
     })
+    
     return {
       reply: new BinaryConstructor()
         .subbuffer(
