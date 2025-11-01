@@ -570,15 +570,29 @@ async function isContactAuthorized (user, contact) {
   const [{ id: contactUserId }] = contactUserResult[0]
 
   // eslint-disable-next-line no-unused-vars
-  const [results, _fields] =
+  let results, _fields;
+  try {
+    [results, _fields] =
     await connection.query(
       'SELECT `contact`.`contact_nickname` as `contact_nickname`, ' +
-        '`contact`.`is_auth_success`' +
-        'FROM `contact` ' +
-        'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
-        'WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 1',
+      '`contact`.`is_auth_success`' +
+      'FROM `contact` ' +
+      'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
+      'WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 1',
       [contactUserId, user]
     )
+  } catch (error) {
+    // ух ты а давай наоборот попробуем
+    [results, _fields] =
+    await connection.query(
+      'SELECT `contact`.`contact_nickname` as `contact_nickname`, ' +
+      '`contact`.`is_auth_success`' +
+      'FROM `contact` ' +
+      'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
+      'WHERE `contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ? AND `contact`.`is_auth_success` = 1',
+      [user, contactUserId]
+    )
+  }
 
   pool.releaseConnection(connection)
   return results.length > 0
