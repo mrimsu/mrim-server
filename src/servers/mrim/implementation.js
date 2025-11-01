@@ -42,7 +42,7 @@ function onData (socket, connectionId, logger, state, variables) {
     let header;
     let packetData;
 
-    if (!state.waitForData) {
+    if (!state.waitForData && !state.fragmented) {
       try {
         header = MrimContainerHeader.reader(data)
       } catch {
@@ -69,10 +69,41 @@ function onData (socket, connectionId, logger, state, variables) {
         MRIM_HEADER_CONTAINER_SIZE + header.dataSize
       )
 
-      if (header.dataSize > 0 && header.dataSize !== packetData.length) {
+      if (header.dataSize > 0 && packetData.length < header.dataSize) {
+        // incomplete packet, wait for more data
+        state.fragmented = true;
+        state.lastHeader = header;
+        state.lastData = packetData;
+        return;
+      } else if (header.dataSize > 0 && header.dataSize !== packetData.length) {
         state.waitForData = true;
         state.lastHeader = header;
         return;
+      }
+    } else if (state.fragmented) {
+      // fragmented packet, concatenate
+      header = state.lastHeader;
+      packetData = Buffer.concat([state.lastData, data]);
+
+      // debug
+      logger.debug(
+        `[${connectionId}] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+      )
+        logger.debug(`[${connectionId}] Фрагментированный пакет`)
+        logger.debug(`[${connectionId}] Данные в HEX: ${packetData.toString('hex')}`)
+      logger.debug(
+        `[${connectionId}] ===============================================`
+      )
+
+      if (packetData.length < header.dataSize) {
+        state.fragmented = true;
+        state.lastHeader = header;
+        state.lastData = packetData;
+      } else {
+        // reset
+        state.fragmented = false;
+        state.lastHeader = null;
+        state.lastData = null;
       }
     } else {
       header = state.lastHeader;

@@ -178,7 +178,7 @@ async function generateContactList (containerHeader, userId) {
         )
 
         let contactStructure = {
-          groupIndex: groupIndex !== -1 ? groupIndex : 0xffffffff,
+          groupIndex: groupIndex !== -1 ? groupIndex : 0,
           email: `${contact.user_login}@mail.ru`,
           login: contact.contact_nickname ??
               contact.user_nickname ??
@@ -747,7 +747,15 @@ async function processSearch (
     Birthday: 'birthday',
     Zodiac: 'zodiac',
     Phone: 'phone',
-    Sex: 'sex'
+    Sex: 'sex',
+    status_title: 'status_title',
+    status_desc: 'status_desc',
+    mrim_status: 'mrim_status',
+    status_uri: 'status_uri',
+    country_id: 'country_id',
+    city_id: 'city_id',
+    bmonth: 'bmonth',
+    bday: 'bday'
   }
 
   const anketaHeader = MrimAnketaHeader.writer({
@@ -773,9 +781,14 @@ async function processSearch (
     user.domain = 'mail.ru'
 
     for (const key of Object.values(responseFields)) {
-      const value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
+      let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
+
+      if (key === 'mrim_status') {
+        value = new Iconv('UTF-8', 'CP1251').convert("0")
+      }
+
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
     }
   }
