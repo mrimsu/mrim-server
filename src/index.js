@@ -99,7 +99,7 @@ function main () {
     )
   }
 
-  if (config.rest.enabled) {
+  if (config.rest?.enabled) {
     servers.rest = RESTserver
 
     const listener = servers.rest.listen(
