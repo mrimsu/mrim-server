@@ -326,7 +326,7 @@ async function processPacket (
       if (timeoutTimer[connectionId] !== undefined) {
         timeoutTimer[connectionId].refresh()
       } else {
-        const PING_TIMER = (config?.mrim?.pingTimer ?? 5) * 1000
+        const PING_TIMER = (config?.mrim?.pingTimer ?? 10) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
           logger.debug(`[${connectionId}] Клиент ${state.username} улетел по таймауту`)
           state.socket.end();
