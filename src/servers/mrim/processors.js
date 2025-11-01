@@ -945,7 +945,7 @@ async function processModifyContact (
   state,
   variables
 ) {
-  const request = MrimModifyContactRequest.reader(packetData)
+  const request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
 
   if (request.contact.length === 0 && state.lastAuthorizedContact === undefined) {
     const contactResponse = MrimModifyContactResponse.writer({
