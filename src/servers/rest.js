@@ -64,7 +64,7 @@ RESTserver.post('/users/announce', (req, res) => {
             MrimContainerHeader.writer({
                 protocolVersionMajor: client.protocolVersionMajor,
                 protocolVersionMinor: client.protocolVersionMinor,
-                packetOrder: 0,
+                packetOrder: Math.random() * 0xFFFFFFFF,
                 packetCommand: MrimMessageCommands.MESSAGE_ACK,
                 dataSize: messagePacket.length,
             }, client.utf16capable)

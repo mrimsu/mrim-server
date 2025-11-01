@@ -451,7 +451,7 @@ async function processLoginThree (
     logger.debug(`[${connectionId}] Вход в ${loginData.login} удался, отправляем инфу и контакт-лист`);
 
     global.clients.push(state)
-  } catch {
+  } catch (e) {
     logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль');
 
     let dataToSend
