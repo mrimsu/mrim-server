@@ -196,7 +196,7 @@ async function generateContactList (containerHeader, userId) {
             contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ""
             contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ""
             contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ""
-            contactStructure.features = connectedContact?.xstatus?.state ?? 767
+            contactStructure.features = connectedContact?.xstatus?.state ?? 0x02FF
             contactStructure.userAgent = connectedContact?.userAgent ?? ""
         }
 
@@ -341,7 +341,7 @@ async function processLogin (
       xstatusType: state.xstatus?.type ?? "",
       xstatusTitle: state.xstatus?.title ?? "",
       xstatusDescription: state.xstatus?.description ?? "",
-      xstatusState: state.xstatus?.state ?? 767 // 02 FF -- everything except videocalls
+      xstatusState: state.xstatus?.state ?? 0x02FF // everything except videocalls
     }, state.utf16capable);
   } else {
     statusData = MrimChangeStatusRequest.writer({
@@ -1129,11 +1129,13 @@ async function processChangeStatus (
 
   state.status = status.status;
 
-  if (status.status == 0x4) {
+  if (status.status == 0x4 || status.status != 0x80000001) {
     state.xstatus.type = status.xstatusType
     state.xstatus.title = status.xstatusTitle
     state.xstatus.description = status.xstatusDescription
   }
+
+  logger.debug(`[${connectionId}] Новый статус: ${status.status} / X-статус: ${status.xstatusTitle ?? ""} (${status.xstatusDescription ?? ""})`)
 
   const contacts = await getContactsFromGroups(state.userId)
 
@@ -1158,7 +1160,7 @@ async function processChangeStatus (
         xstatusType: status.xstatusType ?? '',
         xstatusTitle: status.xstatusTitle ?? '',
         xstatusDescription: status.xstatusDescription ?? '',
-        features: status.features ?? 0xFF02,
+        features: status.features ?? 0x02FF,
         userAgent: status.userAgent ?? '',
         contact: `${state.username}@mail.ru`
       }, client.utf16capable)
