@@ -4,6 +4,7 @@ const { MrimMessageCommands } = require('./mrim/globals')
 const { MrimNewEmail } = require('../messages/mrim/email')
 const { MrimServerMessageData } = require('../messages/mrim/messaging')
 const { MrimContainerHeader } = require('../messages/mrim/container');
+const { checkUser, registerUser, createNewGroup } = require('../database');
 
 const { adminProfile } = require('../../config');
 
@@ -19,7 +20,7 @@ RESTserver.get('/heartbeat', (req, res) => {
 // user interaction
 
 RESTserver.get('/users/rawOnline', (req, res) => {
-    res.json({ message: global.clients });
+    res.json({ users: global.clients });
 });
 
 RESTserver.get('/users/online', (req, res) => {
@@ -31,7 +32,8 @@ RESTserver.get('/users/online', (req, res) => {
         userId: client.userId,
         username: client.username,
         status: client.status,
-        userAgent: client.userAgent
+        userAgent: client.userAgent,
+        protocolVersion: client.protocolVersionMinor
     });
     }
 
@@ -110,7 +112,44 @@ RESTserver.post('/users/sendMailToAll', (req, res) => {
         client.socket.write(buffer)
     }
 
-  res.json({ status: 'ok', users: global.clients.length });
+    res.json({ status: 'ok', users: global.clients.length });
+});
+
+RESTserver.put('/users/register', async (req, res) => {
+    let { login, passwd, nick, f_name, l_name, location, birthday, sex, status } = req.body;
+
+    if (!login || !passwd || !nick || !f_name || !sex) {
+        return res.status(400).json({ error: 'Required fields: login, passwd, nick, f_name, sex' });
+    }
+
+    if (await checkUser(login) === true) {
+        return res.status(400).json({ error: 'User with this login already exists' });
+    }
+
+    sex = parseInt(sex);
+    if (sex !== 0 && sex !== 1) {
+        return res.status(400).json({ error: 'Field "sex" is incorrect: must be 0 or 1' });
+    }
+
+    const userId = await registerUser({
+        login,
+        passwd,
+        nick,
+        f_name,
+        l_name,
+        location,
+        birthday,
+        sex,
+        status
+    });
+
+    if (!userId) {
+        return res.status(500).json({ error: 'Internal error' });
+    }
+
+    await createNewGroup(userId, 'Основное')
+
+    res.json({ status: 'ok' });
 });
 
 module.exports = RESTserver;

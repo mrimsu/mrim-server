@@ -1129,7 +1129,7 @@ async function processChangeStatus (
 
   state.status = status.status;
 
-  if (status.status == 0x4 || status.status != 0x80000001) {
+  if (status.status == 0x4) {
     state.xstatus.type = status.xstatusType
     state.xstatus.title = status.xstatusTitle
     state.xstatus.description = status.xstatusDescription

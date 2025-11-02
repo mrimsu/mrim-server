@@ -201,6 +201,53 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
 }
 
 /**
+ * Проверить, существует ли пользователь под данным логином
+ * 
+ * @param {string} login Логин пользователя
+ * 
+ * @returns {boolean} Результат проверки
+ */
+async function checkUser(login) {
+  const connection = await pool.getConnection()
+  const result = await connection.query(
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
+    [login]
+  )
+
+  pool.releaseConnection(connection)
+  return result[0].length > 0;
+}
+
+/**
+ * Регистрация нового пользователя
+ *
+ * @param {number} userId ID пользователя
+ * @param {Object} userData Данные пользователя
+ *
+ * @returns {Promise<boolean>} Результат регистрации
+ */
+async function registerUser (userData) {
+  const connection = await pool.getConnection()
+  const query =
+    'INSERT INTO `user` (`login`, `passwd`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `sex`) ' +
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  const variables = [
+    userData.login,
+    crypto.createHash('md5').update(userData.passwd).digest('hex').toLowerCase(),
+    userData.nick,
+    userData.f_name,
+    userData.l_name,
+    userData.location,
+    userData.birthday,
+    userData.sex
+  ]
+
+  const [result] = await connection.query(query, variables)
+  pool.releaseConnection(connection)
+  return result.insertId;
+}
+
+/**
  * Добавление, либо дополнить контакта в групп контактов
  *
  * @param {number} requesterUserId ID добавящего пользователя
@@ -637,5 +684,7 @@ module.exports = {
   deleteContact,
   modifyUserStatus,
   isContactAuthorized,
-  getUserAvatar
+  getUserAvatar,
+  registerUser,
+  checkUser
 }
