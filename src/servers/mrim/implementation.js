@@ -179,8 +179,13 @@ async function disconnectClient(connectionId, logger, state) {
   const clientIndex = global.clients.findIndex(
     ({ connectionId }) => connectionId === state.connectionId
   )
+
+  const sameUserSessionsCount = global.clients.filter(
+    ({ username }) => username === state.username
+  ).length;
+
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  if (clientIndex) {
+  if (clientIndex && sameUserSessionsCount <= 1) {
     await processChangeStatus(
         {
           protocolVersionMajor: state.protocolVersionMajor,
