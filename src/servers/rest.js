@@ -127,8 +127,25 @@ RESTserver.put('/users/register', async (req, res) => {
     }
 
     sex = parseInt(sex);
-    if (sex !== 0 && sex !== 1) {
+    if (sex !== 2 && sex !== 1) {
         return res.status(400).json({ error: 'Field "sex" is incorrect: must be 0 or 1' });
+    }
+
+    if (birthday) {
+        const re = new RegExp(/([0-9]{4})\-([0-9]{2})\-([0-9]{2})/g, "i");
+        const regexResult = re.exec(birthday)
+
+        if (parseInt(regexResult[2]) > 12) {
+            return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid' });
+        }
+
+        if (parseInt(regexResult[3]) > 31) {
+            return res.status(400).json({ error: 'Field "birthday" is incorrect: day is invalid' });
+        }
+
+        if (!re.test(birthday)) {
+            return res.status(400).json({ error: 'Field "birthday" is incorrect: must be in format YYYY-MM-DD' });
+        }
     }
 
     const userId = await registerUser({
