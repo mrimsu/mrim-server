@@ -786,7 +786,7 @@ async function processSearch (
       )
 
       if (key === 'mrim_status') {
-        value = new Iconv('UTF-8', 'CP1251').convert("0")
+        value = new Iconv('UTF-8', 'CP1251').convert("3")
       }
 
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
