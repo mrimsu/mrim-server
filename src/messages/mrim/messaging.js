@@ -21,6 +21,9 @@ const MrimServerMessageData = new MessageConstructor()
   .field('addresser', FieldDataType.UBIART_LIKE_STRING)
   .field('message', FieldDataType.UNICODE_STRING)
   .field('messageRTF', FieldDataType.UBIART_LIKE_STRING)
+  .field('reserved0', FieldDataType.UINT32, 0)
+  .field('reserved1', FieldDataType.UINT32, 0)
+  .field('reserved2', FieldDataType.UINT32, 0)
   .finish()
 
 module.exports = { MrimClientMessageData, MrimServerMessageData }

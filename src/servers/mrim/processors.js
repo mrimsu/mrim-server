@@ -281,7 +281,6 @@ async function processLogin (
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
     state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
-    state.protocolVersionMinor = containerHeader.protocolVersionMinor
     if (containerHeader.protocolVersionMinor >= 15) {
       state.xstatus = {
         "type": loginData.xstatusType,
@@ -533,7 +532,7 @@ function processMessage (
     logger.debug(`[${connectionId}] Юзер ${state.username} написал админу. Отправляем заготовленное письмо :)`)
     
     const dataToSend = MrimServerMessageData.writer({
-      id: 0x1337,
+      id: containerHeader.packetOrder+1,
       flags: 0x40, // system message
       addresser: config.adminProfile?.username + '@mail.ru',
       message: config.adminProfile.defaultMessage,
@@ -584,11 +583,11 @@ function processMessage (
   )
   if (addresserClient !== undefined) {
     const dataToSend = MrimServerMessageData.writer({
-      id: 0x1337,
+      id: Math.random() * 0xFFFFFFFF,
       flags: messageData.flags,
       addresser: state.username + '@mail.ru',
-      message: messageData.message + ' ',
-      messageRTF: messageData.messageRTF + ' '
+      message: messageData.message ?? ' ',
+      messageRTF: messageData.messageRTF ?? ' '
     }, addresserClient.utf16capable)
 
     addresserClient.socket.write(
@@ -596,7 +595,8 @@ function processMessage (
         .subbuffer(
           MrimContainerHeader.writer({
             ...containerHeader,
-            packetOrder: 0x1337,
+            protocolVersionMinor: addresserClient.protocolVersionMinor,
+            packetOrder: Math.random() * 0xFFFFFFFF,
             packetCommand: MrimMessageCommands.MESSAGE_ACK,
             dataSize: dataToSend.length
           })
