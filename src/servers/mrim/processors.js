@@ -847,9 +847,17 @@ async function processAddContact (
   let contactResult
 
   try {
-    contactResult = request.flags & 0x00000002 // CONTACT_FLAG_GROUP
-      ? await createNewGroup(state.userId, request.contact)
-      : await createOrCompleteContact(
+    if (request.flags & 0x00000002) {
+      const groupName = request.contact === '' ? request.nickname : request.contact;
+
+      contactResult = await createNewGroup(state.userId, groupName)
+
+      contactResponse = MrimAddContactResponse.writer({
+        status: 0x00000000, // CONTACT_OPER_SUCCESS
+        contactId: contactResult
+      })
+    } else {
+      contactResult = await createOrCompleteContact(
         state.userId,
         request.contact.split('@')[0],
         request.nickname,
@@ -857,10 +865,13 @@ async function processAddContact (
         request.groupIndex
       )
 
-    contactResponse = MrimAddContactResponse.writer({
+      contactResponse = MrimAddContactResponse.writer({
       status: 0x00000000, // CONTACT_OPER_SUCCESS
       contactId: contactResult.contactId
     })
+    }
+
+    
   } catch {
     contactResponse = MrimAddContactResponse.writer({
       status: 0x00000001, // CONTACT_OPER_ERROR
