@@ -131,7 +131,6 @@ const MrimModifyContactResponse = new MessageConstructor()
 module.exports = {
   MrimContactList,
   MrimContactGroup,
-  MrimContactGroupNewMask,
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,
