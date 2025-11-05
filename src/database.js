@@ -69,6 +69,7 @@ async function getContactsFromGroups (userId) {
   const [resultsAsAdder, resultsAsContact] = await Promise.all([
     connection.query(
       'SELECT `contact`.`contact_nickname` as `contact_nickname`, ' +
+        '`contact`.`adder_flags`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, ' +
@@ -81,6 +82,7 @@ async function getContactsFromGroups (userId) {
     ),
     connection.query(
       'SELECT `contact`.`adder_nickname` as `contact_nickname`, ' +
+        '`contact`.`adder_flags`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, ' +

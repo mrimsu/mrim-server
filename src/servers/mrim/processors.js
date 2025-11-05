@@ -158,6 +158,7 @@ async function generateContactList (containerHeader, userId) {
     groups: Buffer.concat(
       contactGroups.map((contactGroup) =>
         MrimContactGroup.writer({
+          groupFlags: 0x02 + (UTF16CAPABLE ? 0x200 : 0), // CONTACT_FLAG_GROUP + CONTACT_FLAG_UNICODE_NAME
           name: contactGroup.name
         }, UTF16CAPABLE)
       )
@@ -177,7 +178,12 @@ async function generateContactList (containerHeader, userId) {
           ({ userId }) => userId === contact.user_id
         )
 
+        const contactFlags = contact.requester_is_adder
+            ? contact.adder_flags
+            : contact.contact_flags;
+
         let contactStructure = {
+          contactFlags: contactFlags + (UTF16CAPABLE ? 0x200 : 0),
           groupIndex: groupIndex !== -1 ? groupIndex : 0,
           email: `${contact.user_login}@mail.ru`,
           login: contact.contact_nickname ??

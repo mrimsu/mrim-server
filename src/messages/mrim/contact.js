@@ -9,7 +9,7 @@ const {
 } = require('../../constructors/message')
 
 const MRIM_GET_CONTACTS_OK = 0
-const MRIM_CONTACT_GROUP_MAGIC = 8 // what type of contact, actually
+const MRIM_CONTACT_GROUP_MAGIC = 0 // what type of contact, actually
 const MRIM_GROUP_MAGIC = 0x2 // should be a mask for groups
 
 const MrimContactList = new MessageConstructor()
@@ -22,12 +22,12 @@ const MrimContactList = new MessageConstructor()
   .finish()
 
 const MrimContactGroup = new MessageConstructor()
-  .field('magicHeader', FieldDataType.UINT32, MRIM_GROUP_MAGIC)
+  .field('groupFlags', FieldDataType.UINT32, MRIM_GROUP_MAGIC)
   .field('name', FieldDataType.UNICODE_STRING)
   .finish()
 
 const MrimContact = new MessageConstructor()
-  .field('magicHeader', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
+  .field('contactFlags', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
   .field('groupIndex', FieldDataType.UINT32)
   .field('email', FieldDataType.UBIART_LIKE_STRING)
   .field('login', FieldDataType.UBIART_LIKE_STRING)
