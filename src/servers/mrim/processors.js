@@ -156,9 +156,9 @@ async function generateContactList (containerHeader, userId, state = null) {
     groupFlag: MRIM_GROUP_FLAG,
     contactFlag: MRIM_CONTACT_FLAG,
     groups: Buffer.concat(
-      contactGroups.map((contactGroup) =>
+      contactGroups.map((contactGroup, index) =>
         MrimContactGroup.writer({
-          groupFlags: 0x02 + (UTF16CAPABLE ? 0x200 : 0), // CONTACT_FLAG_GROUP + CONTACT_FLAG_UNICODE_NAME
+          groupFlags: 0x02 + (UTF16CAPABLE ? 0x200 : 0) + (index * 0x1000000), // CONTACT_FLAG_GROUP + CONTACT_FLAG_UNICODE_NAME + index
           name: contactGroup.name
         }, UTF16CAPABLE)
       )
