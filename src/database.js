@@ -70,6 +70,7 @@ async function getContactsFromGroups (userId) {
     connection.query(
       'SELECT `contact`.`contact_nickname` as `contact_nickname`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
+        '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
         '`user`.`status` as `user_status`, 1 as `requester_is_adder`, ' +
@@ -81,6 +82,7 @@ async function getContactsFromGroups (userId) {
     connection.query(
       'SELECT `contact`.`adder_nickname` as `contact_nickname`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
+        '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
         '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
@@ -511,7 +513,7 @@ async function modifyContact (
     // eslint-disable-next-line no-unused-vars
     const [existingContactResult, _existingContactFields] =
       await connection.query(
-        'SELECT `contact`.`id` WHERE ' +
+        'SELECT `contact`.`id` FROM `contact` WHERE ' +
         '`contact`.`adder_user_id` = ? AND ' +
         '`contact`.`contact_user_id` = ?',
         [contactUserId, requesterUserId]
@@ -524,14 +526,34 @@ async function modifyContact (
         '`contact`.`contact_group_id` = ? WHERE `contact`.`id` = ?',
       [contactNickname, contactFlags, groupId, existingContactId]
     )
-  } catch { // обновление контакта как добавящий
-    await connection.execute(
-      'UPDATE `contact` SET ' +
-      '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
-      '`contact`.`adder_group_id` = ? WHERE ' +
-      '`contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',
-      [contactNickname, contactFlags, groupId, requesterUserId, contactUserId]
-    )
+  } catch { 
+    // попробуем наоборот
+    try {
+      const [existingContactResult, _existingContactFields] =
+        await connection.query(
+          'SELECT `contact`.`id` FROM `contact` WHERE ' +
+          '`contact`.`adder_user_id` = ? AND ' +
+          '`contact`.`contact_user_id` = ?',
+          [requesterUserId, contactUserId]
+        )
+      const [{ id: existingContactId }] = existingContactResult
+
+      await connection.execute(
+        'UPDATE `contact` SET ' +
+          '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
+          '`contact`.`adder_group_id` = ? WHERE `contact`.`id` = ?',
+        [contactNickname, contactFlags, groupId, existingContactId]
+      )
+    } catch {
+      // обновление контакта как добавящий
+      await connection.execute(
+        'UPDATE `contact` SET ' +
+        '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
+        '`contact`.`adder_group_id` = ? WHERE ' +
+        '`contact`.`adder_user_id` = ? AND `contact`.`contact_user_id` = ?',
+        [contactNickname, contactFlags, groupId, requesterUserId, contactUserId]
+      )
+    }
   }
 
   await connection.commit()

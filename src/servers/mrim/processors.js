@@ -91,8 +91,6 @@ const AnketaInfoStatus = {
   RATELIMITER: 3
 }
 
-const MRIM_GROUP_FLAG = 'us'
-
 function processHello (containerHeader, connectionId, logger) {
   logger.debug(`[${connectionId}] Приветствуем клиента...`)
 
@@ -132,6 +130,8 @@ async function generateContactList (containerHeader, userId) {
   } else {
     MRIM_CONTACT_FLAG = 'uussuu'
   }
+
+  const MRIM_GROUP_FLAG = 'us'
 
   let UTF16CAPABLE = false;
   if (containerHeader.protocolVersionMinor >= 16) {
