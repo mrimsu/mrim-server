@@ -111,7 +111,7 @@ function processHello (containerHeader, connectionId, logger) {
   }
 }
 
-async function generateContactList (containerHeader, userId) {
+async function generateContactList (containerHeader, userId, state = null) {
   const [contactGroups, contacts] = await Promise.all([
     getContactGroups(userId),
     getContactsFromGroups(userId)
@@ -134,7 +134,7 @@ async function generateContactList (containerHeader, userId) {
   const MRIM_GROUP_FLAG = 'us'
 
   let UTF16CAPABLE = false;
-  if (containerHeader.protocolVersionMinor >= 16) {
+  if (containerHeader.protocolVersionMinor >= 16 && state?.clientName !== "QIP Infium") {
     UTF16CAPABLE = true;
   }
 
@@ -287,6 +287,7 @@ async function processLogin (
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
     state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
+
     if (containerHeader.protocolVersionMinor >= 15) {
       state.xstatus = {
         "type": loginData.xstatusType,
@@ -297,7 +298,17 @@ async function processLogin (
 
       logger.debug(`[${connectionId}] Статус: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`);
     }
-    if (containerHeader.protocolVersionMinor >= 16) {
+
+    if (loginData.modernUserAgent) {
+      let agentRegex = RegExp("client=\"([A-Za-z0-9 ]+)\"").exec(loginData.modernUserAgent);
+
+      if(agentRegex.length > 1) {
+        state.clientName = agentRegex[1];
+      }
+    }
+
+    // софт из азербайджана писать не умеют хаха
+    if (containerHeader.protocolVersionMinor >= 16 && state.clientName !== "QIP Infium") {
       state.utf16capable = true;
     } else {
       state.utf16capable = false;
@@ -356,7 +367,7 @@ async function processLogin (
 
   // eslint-disable-next-line no-unused-vars
   const [contactList, _changeStatus] = await Promise.all([
-    generateContactList(containerHeader, state.userId),
+    generateContactList(containerHeader, state.userId, state),
     processChangeStatus(
       containerHeader,
       statusData,
@@ -528,7 +539,12 @@ function processMessage (
   state,
   variables
 ) {
-  const messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
+  let messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
+  
+  // фикс для азербайджанской разработки
+  if (state.clientName === "QIP Infium") {
+    messageData = MrimClientMessageData.reader(packetData, true)
+  }
 
   logger.debug(
     `[${connectionId}] Команда: сообщение от ${state.username} для ${messageData.addresser}`
@@ -1020,7 +1036,12 @@ async function processModifyContact (
   state,
   variables
 ) {
-  const request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
+  let request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
+
+  // я щас начну логунги армянские выкрикивать на разработчика блять
+  if (state.clientName === "QIP Infium") {
+    request = MrimModifyContactRequest.reader(packetData, true)
+  }
 
   if ((request.contact.length === 0 && state.lastAuthorizedContact === undefined) || (config.adminProfile?.enabled && request.contact.split('@')[0] === config.adminProfile?.username)) {
     const contactResponse = MrimModifyContactResponse.writer({
@@ -1123,7 +1144,12 @@ async function processChangeStatus (
   let status;
 
   if (containerHeader.protocolVersionMinor >= 15) {
-    status = MrimChangeXStatusRequest.reader(packetData, state.utf16capable)
+    // костыль для азербайджанской разработки
+    if (state.clientName === "QIP Infium") {
+      status = MrimChangeXStatusRequest.reader(packetData, true)
+    } else {
+      status = MrimChangeXStatusRequest.reader(packetData, state.utf16capable)
+    }
   } else {
     status = MrimChangeStatusRequest.reader(packetData)
   }
