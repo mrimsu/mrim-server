@@ -179,8 +179,20 @@ async function generateContactList (containerHeader, userId, state = null) {
         )
 
         const contactFlags = contact.requester_is_adder
+            ? contact.contact_flags
+            : contact.adder_flags;
+
+        const contactFlagsAsUser = contact.requester_is_adder
             ? contact.adder_flags
             : contact.contact_flags;
+
+        let status = connectedContact?.status ?? (config.adminProfile?.username == contact.user_login ? 1 : 0);
+
+        if (contactFlagsAsUser & 0x4 || contactFlagsAsUser & 0x10) {   // "Всегда невидим для" или "Игнорируемые"
+          status = 0
+        } else if (connectedContact?.status === 0x80000001 && contactFlagsAsUser & 0x8) { // Если Невидимка и "Я всегда видим для"
+          status = connectedContact?.status
+        }
 
         let contactStructure = {
           contactFlags: contactFlags + (UTF16CAPABLE ? 0x200 : 0),
@@ -190,9 +202,7 @@ async function generateContactList (containerHeader, userId, state = null) {
               contact.user_nickname ??
               contact.user_login,
           authorized: Number(!contact.is_auth_success),
-          status: contact.contact_flags !== 4 // "Я всегда невидим для..."
-            ? (connectedContact?.status ?? (config.adminProfile?.username == contact.user_login ? 1 : 0))
-            : 0, // STATUS_OFFLINE
+          status: status,
           phoneNumber: ''
         };
 
@@ -202,7 +212,7 @@ async function generateContactList (containerHeader, userId, state = null) {
             contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ""
             contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ""
             contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ""
-            contactStructure.features = connectedContact?.xstatus?.state ?? 0x02FF
+            contactStructure.features = connectedContact?.features ?? 0x02FF
             contactStructure.userAgent = connectedContact?.userAgent ?? ""
         }
 
@@ -287,13 +297,13 @@ async function processLogin (
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
     state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
+    state.features = loginData.features
 
     if (containerHeader.protocolVersionMinor >= 15) {
       state.xstatus = {
         "type": loginData.xstatusType,
         "title": loginData.xstatusTitle,
         "description": loginData.xstatusDescription,
-        "state": loginData.features,
       }
 
       logger.debug(`[${connectionId}] Статус: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`);
@@ -1165,11 +1175,6 @@ async function processChangeStatus (
     status = MrimChangeStatusRequest.reader(packetData)
   }
 
-  // пользователь хотит побыть невидимым
-  if (status.status === 0x80000001) {
-    status.status = 0 // STATUS_OFFLINE
-  }
-
   state.status = status.status;
 
   if (status.status == 0x4) {
@@ -1195,6 +1200,20 @@ async function processChangeStatus (
       continue
     }
 
+    // если статус невидимый
+    const contactFlags = contact.requester_is_adder
+        ? contact.contact_flags
+        : contact.adder_flags;
+    
+    if (status.status === 0x80000001 && (contactFlags & 0x4 || contactFlags & 0x10)) {   // "Всегда невидим для" или "Игнорируемые"
+      continue;
+    } else if (status.status === 0x80000001 && !(contactFlags & 0x8)) {
+      status.status = 0
+      status.xstatusType = ''
+      status.xstatusTitle = ''
+      status.xstatusDescription = ''
+    }
+
     let userStatusUpdate;
 
     if (client.protocolVersionMinor >= 15) {
@@ -1203,8 +1222,8 @@ async function processChangeStatus (
         xstatusType: status.xstatusType ?? '',
         xstatusTitle: status.xstatusTitle ?? '',
         xstatusDescription: status.xstatusDescription ?? '',
-        features: status.features ?? 0x02FF,
-        userAgent: status.userAgent ?? '',
+        features: state.features ?? 0x02FF,
+        userAgent: state.userAgent ?? '',
         contact: `${state.username}@mail.ru`
       }, client.utf16capable)
     } else {

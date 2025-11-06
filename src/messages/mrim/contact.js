@@ -38,7 +38,7 @@ const MrimContact = new MessageConstructor()
 
 // MRIM >1.14
 const MrimContactNewer = new MessageConstructor()
-  .field('magicHeader', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
+  .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
   .field('email', FieldDataType.UBIART_LIKE_STRING)
   .field('login', FieldDataType.UNICODE_STRING)
@@ -54,7 +54,7 @@ const MrimContactNewer = new MessageConstructor()
 
 // MRIM >1.20
 const MrimContactWithMicroblog = new MessageConstructor()
-  .field('magicHeader', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
+  .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
   .field('email', FieldDataType.UBIART_LIKE_STRING)
   .field('login', FieldDataType.UNICODE_STRING)
@@ -76,7 +76,7 @@ const MrimContactWithMicroblog = new MessageConstructor()
 
 // MRIM >1.21
 const MrimContactWithMicroblogNewer = new MessageConstructor()
-  .field('magicHeader', FieldDataType.UINT32, MRIM_CONTACT_GROUP_MAGIC)
+  .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
   .field('email', FieldDataType.UBIART_LIKE_STRING)
   .field('login', FieldDataType.UNICODE_STRING)
