@@ -895,7 +895,7 @@ async function processAddContact (
           addresser: state.username + '@mail.ru',
           message: request.authMessage,
           messageRTF: ' '
-        })
+        }, clientAddresser.utf16capable)
 
         clientAddresser.socket.write(
           new BinaryConstructor()
