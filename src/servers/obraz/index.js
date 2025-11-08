@@ -90,53 +90,57 @@ function connectionListener (socket) {
    * @param {Object} request Данные запроса
    */
   async function requestListener ({ method, pathname, version, headers }) {
-    if (!ALLOWED_HOSTS.includes(headers?.Host) || !ALLOWED_METHODS.includes(method)) {
-      return respond(version, 418, "I'm a teapot")
-    }
-
-    if (pathname.startsWith('http')) {
-      pathname = new URL(pathname).pathname
-    }
-    pathname = pathname.substring(1)
-
-    if (pathname.split('/').length !== 3) {
-      return respond(version, 404, 'Not Found')
-    }
-
-    let [domain, userLogin, avatarType] = pathname.split('/')
-
-    avatarType = avatarType.split('?')[0];
-
-    if (!ALLOWED_DOMAINS.includes(domain)) {
-      return respond(version, 400, 'Bad Request')
-    }
-
-    let avatarPath
-
     try {
-      avatarPath = await getUserAvatar(userLogin)
-    } catch {
-      return respond(version, 404, null, {
-        Date: new Date().toUTCString(),
-        'Content-Type': 'image/jpeg',
-        'Content-Length': '0',
-        'X-NoImage': '1'
-      })
-    }
+      if (!ALLOWED_METHODS.includes(method)) {
+        return respond(version, 418, "I'm a teapot")
+      }
 
-    try {
-      const avatar = await processAvatar(avatarPath, avatarType)
+      if (pathname.startsWith('http')) {
+        pathname = new URL(pathname).pathname
+      }
+      pathname = pathname.substring(1)
 
-      return respond(version, 200, method !== 'HEAD' ? avatar : null, {
-        Date: new Date().toUTCString(),
-        'Content-Type': 'image/jpeg',
-        'Content-Length': avatar.length,
-        'Cache-Control': 'max-age=604800',
-        'Last-Modified': new Date().toUTCString(),
-        Expires: new Date(Date.now() + 604_800_000).toUTCString()
-      })
+      if (pathname.split('/').length !== 3) {
+        return respond(version, 404, 'Not Found')
+      }
+
+      let [domain, userLogin, avatarType] = pathname.split('/')
+
+      avatarType = avatarType.split('?')[0];
+
+      if (!ALLOWED_DOMAINS.includes(domain)) {
+        return respond(version, 400, 'Bad Request')
+      }
+
+      let avatarPath
+
+      try {
+        avatarPath = await getUserAvatar(userLogin)
+      } catch {
+        return respond(version, 404, null, {
+          Date: new Date().toUTCString(),
+          'Content-Type': 'image/jpeg',
+          'Content-Length': '0',
+          'X-NoImage': '1'
+        })
+      }
+
+      try {
+        const avatar = await processAvatar(avatarPath, avatarType)
+
+        return respond(version, 200, method !== 'HEAD' ? avatar : null, {
+          Date: new Date().toUTCString(),
+          'Content-Type': 'image/jpeg',
+          'Content-Length': avatar.length,
+          'Cache-Control': 'max-age=604800',
+          'Last-Modified': new Date().toUTCString(),
+          Expires: new Date(Date.now() + 604_800_000).toUTCString()
+        })
+      } catch {
+        return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+      }
     } catch {
-      return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+      
     }
   }
 }
