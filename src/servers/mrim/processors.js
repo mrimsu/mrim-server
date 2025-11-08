@@ -92,7 +92,7 @@ const AnketaInfoStatus = {
 }
 
 function processHello (containerHeader, connectionId, logger) {
-  logger.debug(`[${connectionId}] Приветствуем клиента...`)
+  logger.debug(`[${connectionId}] hello, stranger!`)
 
   const containerHeaderBinary = MrimContainerHeader.writer({
     ...containerHeader,
@@ -284,7 +284,7 @@ async function processLogin (
     loginData = MrimLoginData.reader(packetData)
   }
 
-  logger.debug(`[${connectionId}] Вход в аккаунт через Login2: ${loginData.login}`)
+  logger.debug(`[${connectionId}] ${loginData.login} tries to login using Login2 method...`)
 
   try {
     state.userId = await getUserIdViaCredentials(
@@ -306,7 +306,7 @@ async function processLogin (
         "description": loginData.xstatusDescription,
       }
 
-      logger.debug(`[${connectionId}] Статус: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`);
+      logger.debug(`[${connectionId}] xstatus: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`);
     }
 
     if (loginData.modernUserAgent) {
@@ -325,14 +325,14 @@ async function processLogin (
     }
 
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
-      logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
+      logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] Вход в ${loginData.login} удался, отправляем инфу и контакт-лист`);
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`);
 
     global.clients.push(state)
   } catch (e) {
-    logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + (e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль'));
+    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`);
 
     let dataToSend
     if (e.fatal !== false) {
@@ -434,7 +434,7 @@ async function processLoginThree (
   // проверка на ютф16 не нужна, потому что LOGIN3 используется только в MRIM => 1.21, который и так поддерживает его
   loginData = MrimLoginThreeData.reader(packetData, true)
 
-  logger.debug(`[${connectionId}] Вход в аккаунт через Login3: ${loginData.login}`)
+  logger.debug(`[${connectionId}] tries to login using Login3 method ${loginData.login}`)
 
   try {
     // в => MRIM 1.22 на кой то хуй используется MD5 пароль
@@ -471,14 +471,14 @@ async function processLoginThree (
     state.utf16capable = true;
 
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
-      logger.info(`сервер послал НАХУЙ пользователя ${state.username} по первому клиенту`)
+      logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] Вход в ${loginData.login} удался, отправляем инфу и контакт-лист`);
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`);
 
     global.clients.push(state)
   } catch (e) {
-    logger.debug(`[${connectionId}] Вход в ${loginData.login} зафейлился: ` + e.fatal === false ? 'ошибка базы данных / внутренняя ошибка' : 'неверный логин/пароль');
+    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`);
 
     let dataToSend
     if (e.fatal !== false) {
@@ -557,11 +557,11 @@ function processMessage (
   }
 
   logger.debug(
-    `[${connectionId}] Команда: сообщение от ${state.username} для ${messageData.addresser}`
+    `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
   )
 
   if (config.adminProfile?.enabled && messageData.addresser.split('@')[0] === config.adminProfile?.username && !(messageData.flags & 0x400)) {
-    logger.debug(`[${connectionId}] Юзер ${state.username} написал админу. Отправляем заготовленное письмо :)`)
+    logger.debug(`[${connectionId}] user ${state.username} messaged to admin. 'll just send prepared message :)`)
     
     const dataToSend = MrimServerMessageData.writer({
       id: containerHeader.packetOrder+1,
@@ -602,7 +602,7 @@ function processMessage (
 
   if (messageData.flags & 0x8) { // Запрос на авторизацию
     logger.debug(
-      `[${connectionId}] Запрос на авторизацию от ${state.username} для ${messageData.addresser}`
+      `[${connectionId}] auth request via MRIM_CS_MESSAGE from ${state.username} to ${messageData.addresser}`
     )
     addContactMSG(
       state.userId,
@@ -720,7 +720,7 @@ async function processSearch (
     }
   }
 
-  logger.debug(`[${connectionId}] Клиент отправил запрос на поиск.`)
+  logger.debug(`[${connectionId}] ${state.username}@mail.ru tried to search smth...`)
   logger.debug(
     `[${connectionId}] packetFields -> ${JSON.stringify(packetFields)}`
   )
@@ -885,7 +885,7 @@ async function processAddContact (
       )
 
       if (contactResult.action == 'CREATE_NEW') {
-        logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} добавляется к ${request.contact}`)
+        logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} sent CONTACT_ADD to ${request.contact}`)
 
         const messageId = Math.floor(Math.random() + 0xFFFFFFFF);
         
@@ -911,6 +911,8 @@ async function processAddContact (
             .finish()
         )
       } else {
+        logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} authorized ${request.contact}, congrats!`)
+
         // for contact
 
         const authMessageForContact = MrimContactAuthorizeData.writer({
@@ -1296,7 +1298,7 @@ async function processChangeStatus (
     state.xstatus.description = status.xstatusDescription
   }
 
-  logger.debug(`[${connectionId}] Новый статус: ${status.status} / X-статус: ${status.xstatusTitle ?? ""} (${status.xstatusDescription ?? ""})`)
+  logger.debug(`[${connectionId}] new status for ${state.username}@mail.ru -> ${status.status} / X-status: ${status.xstatusTitle ?? ""} (${status.xstatusDescription ?? ""})`)
 
   const contacts = await getContactsFromGroups(state.userId)
 
@@ -1360,7 +1362,7 @@ async function processChangeStatus (
         .finish()
     )
 
-    logger.debug(`[${connectionId}] Передаётся изменённый статус у ${state.username}@mail.ru для контакта ${contact.user_login}@mail.ru`)
+    logger.debug(`[${connectionId}] 'll send ${state.username}@mail.ru's new status to ${contact.user_login}@mail.ru`)
   }
 }
 

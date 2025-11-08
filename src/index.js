@@ -48,7 +48,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `MRIM сервер запущен -> адрес: ${address}, порт: ${port}`
+          `MRIM server started -> address: ${address}, port: ${port}`
         )
       }
     )
@@ -63,7 +63,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `Перенаправляющий сервер запущен -> адрес: ${address}, порт: ${port}`
+          `balancer (redirector) server started -> address: ${address}, port: ${port}`
         )
       }
     )
@@ -78,7 +78,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `SOCKS сервер запущен -> адрес: ${address}, порт: ${port}`
+          `SOCKS server started -> address: ${address}, port: ${port}`
         )
       }
     )
@@ -93,7 +93,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `Сервер образов запущен -> адрес: ${address}, порт: ${port}`
+          `avatars (obraz) server started -> address: ${address}, port: ${port}`
         )
       }
     )
@@ -108,7 +108,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `REST API запущен -> адрес: ${address}, порт: ${port}`
+          `REST API started -> address: ${address}, port: ${port}`
         )
       }
     )

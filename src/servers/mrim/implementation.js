@@ -51,16 +51,9 @@ function onData (socket, connectionId, logger, state, variables) {
 
       if (header.packetCommand !== MrimMessageCommands.PING) {
         logger.debug(
-          `[${connectionId}] ===============================================`
-        )
-        logger.debug(
-          `[${connectionId}] Версия протокола: ${header.protocolVersionMajor}.${header.protocolVersionMinor}`
-        )
-        logger.debug(`[${connectionId}] Команда данных: ${header.packetCommand}`)
-        logger.debug(`[${connectionId}] Размер данных: ${header.dataSize}`)
-        logger.debug(`[${connectionId}] Данные в HEX: ${data.toString('hex')}`)
-        logger.debug(
-          `[${connectionId}] ===============================================`
+          `[${connectionId}] user: ${state.username ?? '@!unknown!@'}, proto ver: ${header.protocolVersionMajor}.${header.protocolVersionMinor}, ` +
+          `command: ${header.packetCommand}, data.length: ${header.dataSize}, ` +
+          `hex: ${data.toString('hex')}`
         )
       }
 
@@ -86,14 +79,7 @@ function onData (socket, connectionId, logger, state, variables) {
       packetData = Buffer.concat([state.lastData, data]);
 
       // debug
-      logger.debug(
-        `[${connectionId}] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
-      )
-        logger.debug(`[${connectionId}] Фрагментированный пакет`)
-        logger.debug(`[${connectionId}] Данные в HEX: ${packetData.toString('hex')}`)
-      logger.debug(
-        `[${connectionId}] ===============================================`
-      )
+      logger.debug(`[${connectionId}] continuing receiving data, hex: ${packetData.toString('hex')}`)
 
       if (packetData.length < header.dataSize) {
         state.fragmented = true;
@@ -114,14 +100,7 @@ function onData (socket, connectionId, logger, state, variables) {
       state.lastHeader = null;
 
       // debug
-      logger.debug(
-        `[${connectionId}] ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
-      )
-        logger.debug(`[${connectionId}] Фрагментированный пакет`)
-        logger.debug(`[${connectionId}] Данные в HEX: ${packetData.toString('hex')}`)
-      logger.debug(
-        `[${connectionId}] ===============================================`
-      )
+      logger.debug(`[${connectionId}] continuing receiving data, hex: ${packetData.toString('hex')}`)
     }
 
     try {
@@ -134,7 +113,7 @@ function onData (socket, connectionId, logger, state, variables) {
           if (result.end) {
             if (result.reply) {
               logger.debug(
-                `[${connectionId}] Ответ от сервера -> ${result.reply.toString('hex')}`
+                `[${connectionId}] reply from server in hex: ${result.reply.toString('hex')}`
               )
             }
             return socket.end(result.reply)
@@ -146,19 +125,19 @@ function onData (socket, connectionId, logger, state, variables) {
 
           for (const reply of replies) {
             logger.debug(
-              `[${connectionId}] Ответ от сервера -> ${reply.toString('hex')}`
+              `[${connectionId}] reply from server in hex: ${reply.toString('hex')}`
             )
             socket.write(reply)
           }
         })
         .catch((err) => {
           logger.error(
-            `[${connectionId}] Ошибка обработки пакета: ${err && err.stack ? err.stack : err}`
+            `[${connectionId}] whoopsy while processing data: ${err && err.stack ? err.stack : err}`
           )
         })
     } catch (err) {
       logger.error(
-        `[${connectionId}] Ошибка обработки пакета: ${err.stack}`
+        `[${connectionId}] whoopsy while processing data: ${err.stack}`
       )
     }
   }
@@ -169,7 +148,7 @@ function onClose (socket, connectionId, logger, state, variables) {
     if (global.clients.length > 0) {
       disconnectClient(connectionId, logger, state)
       logger.debug(
-        `[${connectionId}] !!! Закрыто соединение для ${state.username}`
+        `[${connectionId}] !!! connection closed for ${state.username}`
       )
     }
   }
@@ -364,7 +343,7 @@ async function processPacket (
       } else {
         const PING_TIMER = (config?.mrim?.pingTimer ?? 10) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
-          logger.debug(`[${connectionId}] Клиент ${state.username} улетел по таймауту`)
+          logger.debug(`[${connectionId}] user ${state.username} timed out (MRIM_CS_PING)`)
           state.socket.end();
           disconnectClient(connectionId, logger, state)
         }, PING_TIMER + 3000, connectionId, state, logger)

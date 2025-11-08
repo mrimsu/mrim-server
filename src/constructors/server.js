@@ -20,7 +20,7 @@ const ServerMessageHandler = {
 class ServerConstructor {
   constructor (options) {
     if (options.logger === undefined) {
-      throw new Error('необходим логгер')
+      throw new Error('gimme logger pls!')
     }
     this.logger = options.logger
 
@@ -29,7 +29,7 @@ class ServerConstructor {
       this.handlerType === ServerMessageHandler.SINGLE &&
       options.onConnection === undefined
     ) {
-      throw new Error('необходим реализация обработчика сообщений')
+      throw new Error('you need message handler pls!')
     }
     this.onConnection = this.generateConnectionHandler(options.onConnection)
 
@@ -45,7 +45,7 @@ class ServerConstructor {
    */
   step (handler) {
     if (this.handlerType !== ServerMessageHandler.STEP_BY_STEP) {
-      throw new Error('тип обработчика сообщений - одинокий')
+      throw new Error('message handler type - single')
     }
 
     this.steps.push(handler)
@@ -117,7 +117,7 @@ class ServerConstructor {
   generateConnectionHandler (onConnection) {
     return (socket) => {
       const connectionId = crypto.randomBytes(4).toString('hex')
-      this.logger.info(`Новое подключение -> ид подключения: ${connectionId}`)
+      this.logger.debug(`new connection! id: ${connectionId}`)
 
       switch (this.handlerType) {
         case ServerMessageHandler.SINGLE:
@@ -137,7 +137,7 @@ class ServerConstructor {
       }
 
       socket.on('error', (error) =>
-        this.logger.error(`[${connectionId}] Произошла ошибка: ${error.stack}`)
+        this.logger.error(`[${connectionId}] whoopsy: ${error.stack}`)
       )
     }
   }

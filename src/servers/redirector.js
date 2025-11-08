@@ -11,7 +11,7 @@ const LOCAL_IP_ADDRESS = '127.0.0.1:2041'
 
 function onConnection (socket, connectionId, logger, variables) {
   socket.end(variables.ipAddress)
-  logger.info(`[${connectionId}] Клиенту отправлен IP-адрес`)
+  logger.info(`[${connectionId}] ip address sent`)
 }
 
 function createRedirectorServer (options) {
