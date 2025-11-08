@@ -52,8 +52,8 @@ function onData (socket, connectionId, logger, state, variables) {
       if (header.packetCommand !== MrimMessageCommands.PING) {
         logger.debug(
           `[${connectionId}] user: ${state.username ?? '@!unknown!@'}, proto ver: ${header.protocolVersionMajor}.${header.protocolVersionMinor}, ` +
-          `command: ${header.packetCommand}, data.length: ${header.dataSize}, ` +
-          `hex: ${data.toString('hex')}`
+          `command: ${header.packetCommand} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` + 
+          `data.length: ${header.dataSize}, hex: ${data.toString('hex')}`
         )
       }
 
