@@ -104,6 +104,8 @@ const MrimAddContactRequest = new MessageConstructor()
   .field('groupIndex', FieldDataType.UINT32)
   .field('contact', FieldDataType.UBIART_LIKE_STRING)
   .field('nickname', FieldDataType.UNICODE_STRING)
+  .field('reserved', FieldDataType.UINT32)
+  .field('authMessage', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
 const MrimAddContactResponse = new MessageConstructor()
