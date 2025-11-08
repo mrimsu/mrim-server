@@ -126,7 +126,7 @@ function connectionListener (socket) {
       }
 
       try {
-        const avatar = await processAvatar(avatarPath, avatarType)
+        const avatar = await processAvatar(config.obraz.cdnPath ?? '' + avatarPath, avatarType)
 
         return respond(version, 200, method !== 'HEAD' ? avatar : null, {
           Date: new Date().toUTCString(),

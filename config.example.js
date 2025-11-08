@@ -30,7 +30,8 @@ const obraz = {
   enabled: true,
   customHost: 'localhost:8081', // опционально
   serverPort: 8081,
-  serverHostname: '0.0.0.0'
+  serverHostname: '0.0.0.0',
+  cdnPath: '', // путь на сервере до аватарок
 }
 
 // Настройки REST API
