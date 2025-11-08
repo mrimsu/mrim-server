@@ -142,12 +142,15 @@ function connectionListener (socket) {
         })
       } catch (e) {
         logger.error(
-          `[obraz] [${connectionId}] internal error for ${userLogin}, path: ${avatarPath}, stack: ${error.stack}`
+          `[obraz] [${connectionId}] internal error for ${userLogin}, path: ${avatarPath}, stack: ${e.stack}`
         )
         return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
       }
-    } catch {
-      
+    } catch (e) {
+      logger.error(
+        `[obraz] [${connectionId}] internal error for ${userLogin}, path: ${avatarPath}, stack: ${e.stack}`
+      )
+      return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
   }
 }
