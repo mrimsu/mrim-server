@@ -125,6 +125,10 @@ function connectionListener (socket) {
         })
       }
 
+      logger.debug(
+          `[obraz] [${connectionId}] got avatar path for ${userLogin}: ${avatarPath}`
+        )
+
       try {
         const avatar = await processAvatar(config.obraz.cdnPath ?? '' + avatarPath, avatarType)
 
@@ -136,7 +140,10 @@ function connectionListener (socket) {
           'Last-Modified': new Date().toUTCString(),
           Expires: new Date(Date.now() + 604_800_000).toUTCString()
         })
-      } catch {
+      } catch (e) {
+        logger.error(
+          `[obraz] [${connectionId}] internal error for ${userLogin}, path: ${avatarPath}, stack: ${error.stack}`
+        )
         return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
       }
     } catch {

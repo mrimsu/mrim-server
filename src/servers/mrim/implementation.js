@@ -49,7 +49,7 @@ function onData (socket, connectionId, logger, state, variables) {
         return socket.end()
       }
 
-      if (header.packetCommand !== MrimMessageCommands.PING) {
+      if (header.packetCommand !== MrimMessageCommands.PING || header.packetCommand !== MrimMessageCommands.MPOP_SESSION) {
         logger.debug(
           `[${connectionId}] user: ${state.username ?? '@!unknown!@'}, proto ver: ${header.protocolVersionMajor}.${header.protocolVersionMinor}, ` +
           `command: ${header.packetCommand} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` + 
