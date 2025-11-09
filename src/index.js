@@ -40,7 +40,7 @@ function main () {
   }
 
   if (config.mrim.enabled) {
-    servers.mrim = createMrimServer
+    servers.mrim = createMrimServer({ logger })
 
     const listener = servers.mrim.listen(
       config.mrim?.serverPort ?? DEFAULT_MRIM_PORT,
