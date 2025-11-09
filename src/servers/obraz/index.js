@@ -115,7 +115,7 @@ function connectionListener (socket) {
       let avatarPath
 
       try {
-        if (config.adminProfile?.avatarUrl !== null) {
+        if (userLogin == config.adminProfile?.username && config.adminProfile?.avatarUrl !== null) {
           avatarPath = config.adminProfile.avatarUrl
         } else {
           avatarPath = await getUserAvatar(userLogin)
