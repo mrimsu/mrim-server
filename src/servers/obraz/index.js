@@ -125,8 +125,8 @@ function connectionListener (socket) {
         })
       }
 
-      logger.debug(
-          `[obraz] [${connectionId}] got avatar path for ${userLogin}: ${avatarPath}`
+      console.log(
+          `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
         )
 
       try {
@@ -141,14 +141,14 @@ function connectionListener (socket) {
           Expires: new Date(Date.now() + 604_800_000).toUTCString()
         })
       } catch (e) {
-        logger.error(
-          `[obraz] [${connectionId}] internal error for ${userLogin}, path: ${avatarPath}, stack: ${e.stack}`
+        console.log(
+          `[obraz] internal error for ${userLogin}, path: ${avatarPath}, stack: ${e.stack}`
         )
         return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
       }
     } catch (e) {
-      logger.error(
-        `[obraz] [${connectionId}] internal error for ${userLogin}, path: ${avatarPath}, stack: ${e.stack}`
+      console.log(
+        `[obraz] internal error for ${userLogin}, path: ${avatarPath}, stack: ${e.stack}`
       )
       return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }

@@ -40,7 +40,7 @@ function main () {
   }
 
   if (config.mrim.enabled) {
-    servers.mrim = createMrimServer({ logger })
+    servers.mrim = createMrimServer
 
     const listener = servers.mrim.listen(
       config.mrim?.serverPort ?? DEFAULT_MRIM_PORT,
@@ -85,7 +85,7 @@ function main () {
   }
 
   if (config.obraz.enabled) {
-    servers.obraz = obrazServer
+    servers.obraz = obrazServer({ logger })
 
     const listener = servers.obraz.listen(
       config.obraz?.serverPort ?? DEFAULT_OBRAZ_PORT,
