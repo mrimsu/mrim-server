@@ -85,7 +85,7 @@ function main () {
   }
 
   if (config.obraz.enabled) {
-    servers.obraz = obrazServer({ logger })
+    servers.obraz = obrazServer
 
     const listener = servers.obraz.listen(
       config.obraz?.serverPort ?? DEFAULT_OBRAZ_PORT,
