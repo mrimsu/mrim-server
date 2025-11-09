@@ -115,7 +115,11 @@ function connectionListener (socket) {
       let avatarPath
 
       try {
-        avatarPath = await getUserAvatar(userLogin)
+        if (config.adminProfile?.avatarUrl !== null) {
+          avatarPath = config.adminProfile.avatarUrl
+        } else {
+          avatarPath = await getUserAvatar(userLogin)
+        }
       } catch {
         return respond(version, 404, null, {
           Date: new Date().toUTCString(),

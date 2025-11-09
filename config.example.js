@@ -47,6 +47,7 @@ const adminProfile = {
   username: 'admin',
   nickname: 'Администрация',
   defaultMessage: "Привет! \n\nЭто служебный аккаунт данного MRIM-сервера. Отсюда будут приходить тебе важные уведомления о технических работах или обновлениях сервера. Если у вас есть вопросы, пожалуйста, свяжитесь с администратором сервера.\n\nПриятного общения!",
+  avatarUrl: 'admin.jpg'
 }
 
 module.exports = { database, mrim, redirector, socks, obraz, rest, adminProfile }
