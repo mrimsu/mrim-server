@@ -83,7 +83,13 @@ function connectionListener (socket) {
       responseMessage = Buffer.concat([responseMessage, responseBody])
     }
 
-    return socket.end(responseMessage)
+    try {
+      return socket.end(responseMessage)
+    } catch (e) {
+      console.log(
+        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
+      )
+    }
   }
 
   /**
@@ -154,7 +160,6 @@ function connectionListener (socket) {
       console.log(
         `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
       )
-      return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
   }
 }
