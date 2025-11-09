@@ -130,7 +130,7 @@ function connectionListener (socket) {
         )
 
       try {
-        const avatar = await processAvatar(config.obraz.cdnPath ?? '' + avatarPath, avatarType)
+        const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
 
         return respond(version, 200, method !== 'HEAD' ? avatar : null, {
           Date: new Date().toUTCString(),
@@ -142,13 +142,13 @@ function connectionListener (socket) {
         })
       } catch (e) {
         console.log(
-          `[obraz] internal error for ${userLogin}, path: ${config.obraz.cdnPath ?? '' + avatarPath}, stack: ${e.stack}`
+          `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
         )
         return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
       }
     } catch (e) {
       console.log(
-        `[obraz] internal error for ${userLogin}, path: ${config.obraz.cdnPath ?? '' + avatarPath}, stack: ${e.stack}`
+        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
       )
       return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
