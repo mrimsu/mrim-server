@@ -685,12 +685,13 @@ async function getUserAvatar (userLogin) {
     'LIMIT 1',
     [userLogin]
   )
+  
+  pool.releaseConnection(connection)
 
   if (results.length === 0) {
     throw new Error('у пользователя нету аватара')
   }
 
-  pool.releaseConnection(connection)
   return results[0].avatar
 }
 
