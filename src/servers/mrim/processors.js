@@ -887,86 +887,90 @@ async function processAddContact (
       if (contactResult.action == 'CREATE_NEW') {
         logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} sent CONTACT_ADD to ${request.contact}`)
 
-        const messageId = Math.floor(Math.random() + 0xFFFFFFFF);
-        
-        const message = MrimServerMessageData.writer({
-          id: messageId,
-          flags: 0x04 + 0x08,
-          addresser: state.username + '@mail.ru',
-          message: request.authMessage,
-          messageRTF: ' '
-        }, clientAddresser.utf16capable)
+        if (clientAddresser !== undefined) {
+          const messageId = Math.floor(Math.random() + 0xFFFFFFFF);
+          
+          const message = MrimServerMessageData.writer({
+            id: messageId,
+            flags: 0x04 + 0x08,
+            addresser: state.username + '@mail.ru',
+            message: request.authMessage,
+            messageRTF: ' '
+          }, clientAddresser.utf16capable)
 
-        clientAddresser.socket.write(
-          new BinaryConstructor()
-            .subbuffer(
-              MrimContainerHeader.writer({
-                ...containerHeader,
-                packetOrder: messageId,
-                packetCommand: MrimMessageCommands.MESSAGE_ACK,
-                dataSize: message.length
-              })
-            )
-            .subbuffer(message)
-            .finish()
-        )
+          clientAddresser.socket.write(
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: messageId,
+                  packetCommand: MrimMessageCommands.MESSAGE_ACK,
+                  dataSize: message.length
+                })
+              )
+              .subbuffer(message)
+              .finish()
+          )
+        }
       } else {
         logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} authorized ${request.contact}, congrats!`)
 
         // for contact
 
-        const authMessageForContact = MrimContactAuthorizeData.writer({
-          contact: state.username + '@mail.ru'
-        })
-
-        let userStatusUpdateForContact;
-
-        if (clientAddresser.protocolVersionMinor >= 15) {
-          userStatusUpdateForContact = MrimUserXStatusUpdate.writer({
-            status: state.status,
-            xstatusType: state.xstatus.type ?? '',
-            xstatusTitle: state.xstatus.title ?? '',
-            xstatusDescription: state.xstatus.description ?? '',
-            features: state.features ?? 0x02FF,
-            userAgent: state.userAgent ?? '',
-            contact: `${state.username}@mail.ru`
-          }, clientAddresser.utf16capable)
-        } else {
-          userStatusUpdateForContact = MrimUserStatusUpdate.writer({
-            status: state.status !== 0x4 ? state.status : 0x1,
-            contact: `${state.username}@mail.ru`
+        if (clientAddresser !== undefined) {
+          const authMessageForContact = MrimContactAuthorizeData.writer({
+            contact: state.username + '@mail.ru'
           })
+
+          let userStatusUpdateForContact;
+
+          if (clientAddresser.protocolVersionMinor >= 15) {
+            userStatusUpdateForContact = MrimUserXStatusUpdate.writer({
+              status: state.status,
+              xstatusType: state.xstatus.type ?? '',
+              xstatusTitle: state.xstatus.title ?? '',
+              xstatusDescription: state.xstatus.description ?? '',
+              features: state.features ?? 0x02FF,
+              userAgent: state.userAgent ?? '',
+              contact: `${state.username}@mail.ru`
+            }, clientAddresser.utf16capable)
+          } else {
+            userStatusUpdateForContact = MrimUserStatusUpdate.writer({
+              status: state.status !== 0x4 ? state.status : 0x1,
+              contact: `${state.username}@mail.ru`
+            })
+          }
+
+          clientAddresser.socket.write(
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
+                  protocolVersionMinor: clientAddresser.protocolVersionMinor,
+                  packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+                  dataSize: authMessageForContact.length
+                })
+              )
+              .subbuffer(authMessageForContact)
+              .finish()
+          );
+
+          clientAddresser.socket.write(
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
+                  protocolVersionMinor: clientAddresser.protocolVersionMinor,
+                  packetCommand: MrimMessageCommands.USER_STATUS,
+                  dataSize: userStatusUpdateForContact.length
+                })
+              )
+              .subbuffer(userStatusUpdateForContact)
+              .finish(),
+          );
         }
-
-        clientAddresser.socket.write(
-          new BinaryConstructor()
-            .subbuffer(
-              MrimContainerHeader.writer({
-                ...containerHeader,
-                packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
-                protocolVersionMinor: clientAddresser.protocolVersionMinor,
-                packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
-                dataSize: authMessageForContact.length
-              })
-            )
-            .subbuffer(authMessageForContact)
-            .finish()
-        );
-
-        clientAddresser.socket.write(
-          new BinaryConstructor()
-            .subbuffer(
-              MrimContainerHeader.writer({
-                ...containerHeader,
-                packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
-                protocolVersionMinor: clientAddresser.protocolVersionMinor,
-                packetCommand: MrimMessageCommands.USER_STATUS,
-                dataSize: userStatusUpdateForContact.length
-              })
-            )
-            .subbuffer(userStatusUpdateForContact)
-            .finish(),
-        );
 
         // for user
 
@@ -974,23 +978,40 @@ async function processAddContact (
           contact: request.contact
         })
 
-        let userStatusUpdate;
+        let userStatusUpdate, userStatusPacket;
 
-        if (state.protocolVersionMinor >= 15) {
-          userStatusUpdate = MrimUserXStatusUpdate.writer({
-            status: clientAddresser.status,
-            xstatusType: clientAddresser.xstatus.type ?? '',
-            xstatusTitle: clientAddresser.xstatus.title ?? '',
-            xstatusDescription: clientAddresser.xstatus.description ?? '',
-            features: clientAddresser.features ?? 0x02FF,
-            userAgent: clientAddresser.userAgent ?? '',
-            contact: `${clientAddresser.username}@mail.ru`
-          }, state.utf16capable)
+        // if they're online
+        if (clientAddresser !== undefined) {
+          if (state.protocolVersionMinor >= 15) {
+            userStatusUpdate = MrimUserXStatusUpdate.writer({
+              status: clientAddresser.status ?? 0x0,
+              xstatusType: clientAddresser.xstatus?.type ?? '',
+              xstatusTitle: clientAddresser.xstatus?.title ?? '',
+              xstatusDescription: clientAddresser.xstatus?.description ?? '',
+              features: clientAddresser.features ?? 0x02FF,
+              userAgent: clientAddresser.userAgent ?? '',
+              contact: request.contact
+            }, state.utf16capable)
+          } else {
+            userStatusUpdate = MrimUserStatusUpdate.writer({
+              status: (clientAddresser.status !== 0x4 ? clientAddresser.status : 0x1) ?? 0x0,
+              contact: request.contact
+            })
+          }
+
+          userStatusPacket = new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
+                  packetCommand: MrimMessageCommands.USER_STATUS,
+                  dataSize: userStatusUpdate.length
+                })
+              )
+              .subbuffer(userStatusUpdate)
+              .finish()
         } else {
-          userStatusUpdate = MrimUserStatusUpdate.writer({
-            status: clientAddresser.status !== 0x4 ? clientAddresser.status : 0x1,
-            contact: `${clientAddresser.username}@mail.ru`
-          })
+          userStatusPacket = null
         }
 
         return {
@@ -1016,17 +1037,7 @@ async function processAddContact (
               )
               .subbuffer(authMessage)
               .finish(),
-            new BinaryConstructor()
-              .subbuffer(
-                MrimContainerHeader.writer({
-                  ...containerHeader,
-                  packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
-                  packetCommand: MrimMessageCommands.USER_STATUS,
-                  dataSize: userStatusUpdate.length
-                })
-              )
-              .subbuffer(userStatusUpdate)
-              .finish()
+            userStatusPacket
             ]
         }
       }
@@ -1034,7 +1045,7 @@ async function processAddContact (
 
     
   } catch (e) {
-    logger.error(`[${connectionId}] ${e}`)
+    logger.error(`[${connectionId}] ${e.stack}`)
     contactResponse = MrimAddContactResponse.writer({
       status: 0x00000001, // CONTACT_OPER_ERROR
       contactId: 0xffffffff
