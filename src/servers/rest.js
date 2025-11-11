@@ -116,13 +116,13 @@ RESTserver.post('/users/sendMailToAll', (req, res) => {
 });
 
 RESTserver.put('/users/register', async (req, res) => {
-    let { login, passwd, nick, f_name, l_name, location, birthday, sex, status } = req.body;
+    let { login, passwd, domain, nick, f_name, l_name, location, birthday, sex, status } = req.body;
 
-    if (!login || !passwd || !nick || !f_name || !sex) {
+    if (!login || !passwd || !domain || !nick || !f_name || !sex) {
         return res.status(400).json({ error: 'Required fields: login, passwd, nick, f_name, sex' });
     }
 
-    if (await checkUser(login) === true) {
+    if (await checkUser(login, domain) === true) {
         return res.status(400).json({ error: 'User with this login already exists' });
     }
 
@@ -151,6 +151,7 @@ RESTserver.put('/users/register', async (req, res) => {
     const userId = await registerUser({
         login,
         passwd,
+        domain,
         nick,
         f_name,
         l_name,
@@ -165,6 +166,9 @@ RESTserver.put('/users/register', async (req, res) => {
     }
 
     await createNewGroup(userId, 'Основное')
+    await createNewGroup(userId, 'Родные')
+    await createNewGroup(userId, 'Друзья')
+    await createNewGroup(userId, 'Коллеги')
 
     res.json({ status: 'ok' });
 });
