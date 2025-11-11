@@ -555,6 +555,8 @@ async function processLoginThree (
 
   const searchResults = await searchUsers(0, { login: state.username })
 
+  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state);
+
   const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
