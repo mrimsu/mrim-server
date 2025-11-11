@@ -205,6 +205,24 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
 }
 
 /**
+ * Получить айди через логин
+ * 
+ * @param {string} login Логин пользователя
+ * 
+ * @returns {number} ID пользователя
+ */
+async function getIdViaLogin(login) {
+  const connection = await pool.getConnection()
+  const result = await connection.query(
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
+    [login]
+  )
+
+  pool.releaseConnection(connection)
+  return result[0][0].id;
+}
+
+/**
  * Проверить, существует ли пользователь под данным логином
  * 
  * @param {string} login Логин пользователя
@@ -623,6 +641,71 @@ async function modifyUserStatus (userId, status) {
 }
 
 /**
+ * Получить оффлайн сообщения
+ *
+ * @param {number} userId ID пользователя
+ */
+async function getOfflineMessages(userId) {
+  const connection = await pool.getConnection()
+
+  const [offlineMessages, _offlineMessages] = await connection.execute(
+    'SELECT `date`, `message`, `user`.`id` as `user_id`, ' +
+    '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login` ' + 
+    'FROM `offline_messages` ' +
+    'INNER JOIN `user` ON `offline_messages`.`user_from` = `user`.`id` ' +
+      'WHERE `user_to` = ?',
+      
+    [userId]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+
+  return offlineMessages;
+}
+
+/**
+ * Отчистить оффлайн сообщения у пользователя
+ *
+ * @param {number} userId ID пользователя
+ */
+async function cleanupOfflineMessages(userId) {
+  const connection = await pool.getConnection()
+
+  const [offlineMessages, _offlineMessages] = await connection.execute(
+    'DELETE FROM `offline_messages` ' +
+      'WHERE `user_to` = ?',
+    [userId]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Отправить оффлайн сообщение пользователю
+ *
+ * @param {number} userIdFrom ID отправителя
+ * @param {number} userIdTo ID получателя
+ * @param {string} message Сообщение
+ */
+async function sendOfflineMessage(userIdFrom, userIdTo, message) {
+  const connection = await pool.getConnection()
+
+  const date = Math.floor(Date.now() / 1000);
+
+  await connection.execute(
+    'INSERT INTO `offline_messages` ' +
+    '(`user_from`, `user_to`, `date`, `message`)' +
+    'VALUES (?, ?, ?, ?)',
+    [userIdFrom, userIdTo, date, message]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+}
+
+/**
  * Проверяет, добавил ли его пользователь #2
  *
  * @param {number} user ID пользователя
@@ -703,12 +786,16 @@ module.exports = {
   addContactMSG,
   createNewGroup,
   searchUsers,
+  getIdViaLogin,
   modifyGroupName,
   deleteGroup,
   modifyContact,
   deleteContact,
   modifyUserStatus,
   isContactAuthorized,
+  getOfflineMessages,
+  cleanupOfflineMessages,
+  sendOfflineMessage,
   getUserAvatar,
   registerUser,
   checkUser

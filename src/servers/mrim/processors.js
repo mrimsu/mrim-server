@@ -55,12 +55,15 @@ const {
   createOrCompleteContact,
   addContactMSG,
   searchUsers,
+  getIdViaLogin,
   createNewGroup,
   modifyGroupName,
   deleteGroup,
   modifyContact,
   deleteContact,
-  modifyUserStatus,
+  getOfflineMessages,
+  cleanupOfflineMessages,
+  sendOfflineMessage,
   isContactAuthorized
 } = require('../../database')
 const config = require('../../../config')
@@ -266,6 +269,44 @@ function _logoutPreviousClientIfNeeded (userId, containerHeader) {
   return true
 }
 
+async function _processOfflineMessages(userId, containerHeader, logger, connectionId, state) {
+  logger.debug(`[${connectionId}] pulling offline messages for userid = ${userId}...`)
+
+  const offlineMessages = await getOfflineMessages(userId);
+
+  offlineMessages.forEach((message) => {
+    const messageId = Math.floor(Math.random() * 0xFFFFFFFF);
+    const date = new Date(message.date * 1000)
+
+    const messagePacket = MrimServerMessageData.writer({
+      id: messageId,
+      flags: 0x01, // offline message
+      addresser: `${message.user_login}@mail.ru`,
+      message:  `Offline Message from ${date.toISOString()} GMT:\n` +
+                `${message.message}`,
+      messageRTF: ' '
+    }, state.utf16capable)
+
+    const packet = new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            protocolVersionMinor: state.protocolVersionMinor,
+            packetOrder: messageId,
+            packetCommand: MrimMessageCommands.MESSAGE_ACK,
+            dataSize: messagePacket.length
+          })
+        )
+        .subbuffer(messagePacket)
+        .finish()
+    
+    state.socket.write(packet);
+  });
+
+  logger.debug(`[${connectionId}] found ${offlineMessages.length} offline messages for userid = ${userId}`)
+  cleanupOfflineMessages(userId)
+}
+
 async function processLogin (
   containerHeader,
   packetData,
@@ -396,6 +437,8 @@ async function processLogin (
     messagesunread: '0', // dummy
     clientip: '127.0.0.1:' + state.socket.remotePort
   }, state.utf16capable)
+
+  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state);
 
   return {
     reply: [
@@ -541,7 +584,7 @@ async function processLoginThree (
   }
 }
 
-function processMessage (
+async function processMessage (
   containerHeader,
   packetData,
   connectionId,
@@ -653,6 +696,21 @@ function processMessage (
       ]
     }
   } else {
+    let messageStatus = 0x0
+    const receiverId = await getIdViaLogin(messageData.addresser.split('@')[0])
+    const messages = await getOfflineMessages(receiverId);
+
+    if ([0x0, 0x80].includes(messageData.flags)) {
+      if (messages.length > (config.mrim.offlineMessagesLimit ?? 20)) {
+        messageStatus = 0x8004
+      } else {
+        sendOfflineMessage(state.userId, receiverId, messageData.message)
+        messageStatus = 0x0
+      }
+    } else {
+      messageStatus = 0x8006
+    }
+
     return {
       reply: [
         new BinaryConstructor()
@@ -664,7 +722,7 @@ function processMessage (
               dataSize: 4
             })
           )
-          .integer(0x8006, 4)
+          .integer(messageStatus, 4)
           .finish()
       ]
     }

@@ -7,7 +7,8 @@ const database = {
 const mrim = {
   enabled: true,
   serverHostname: '127.0.0.1',
-  serverPort: 2041
+  serverPort: 2041,
+  offlineMessagesLimit: 20
 }
 
 // Настройки сервера-перенаправлятора
