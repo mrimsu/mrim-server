@@ -322,7 +322,7 @@ async function processPacket (
         state,
         variables
       )
-    case MrimMessageCommands.MPOP_SESSION:
+    /* case MrimMessageCommands.MPOP_SESSION:
       return {
         reply: new BinaryConstructor()
         .subbuffer(
@@ -336,7 +336,7 @@ async function processPacket (
         .integer(5, 4)
         .subbuffer(Buffer.from(`testt`, 'utf8'))
         .finish()
-      }
+      } */
     case MrimMessageCommands.PING: {
       if (timeoutTimer[connectionId] !== undefined) {
         timeoutTimer[connectionId].refresh()
