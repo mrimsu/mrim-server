@@ -56,7 +56,7 @@ RESTserver.post('/users/announce', (req, res) => {
         const messagePacket = MrimServerMessageData.writer({
             id: Math.random() * 0xFFFFFFFF,
             flags: 0x00000040, // system message
-            addresser: adminProfile.username + "@" + adminProfile.domain,
+            addresser: `${adminProfile.username}@${adminProfile.domain}`,
             message: message,
             messageRTF: "",
         }, client.utf16capable);
@@ -88,7 +88,7 @@ RESTserver.post('/users/sendMailToAll', (req, res) => {
 
     const emailPacket = MrimNewEmail.writer({
         email_count: 1,
-        from: adminProfile.username + "@" + adminProfile.domain,
+        from: `${adminProfile.username}@${adminProfile.domain}`,
         title: message,
         unix_time: Math.floor(Date.now() / 1000)
     });
