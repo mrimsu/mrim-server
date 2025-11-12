@@ -883,7 +883,6 @@ async function processSearch (
     user.birthday = user.birthday
       ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
       : ''
-    user.domain = user.domain // ну да, рекурсия)))
 
     for (const key of Object.values(responseFields)) {
       let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
