@@ -40,6 +40,26 @@ RESTserver.get('/users/online', (req, res) => {
     res.json({ count: response.length, users: response });
 });
 
+RESTserver.get('/users/status', (req, res) => {
+ const { user } = req.query;  
+  if (!user) {
+        return res.status(400).json({ error: 'User parameter is required' });
+ }
+ 
+ const client = global.clients.find(client => client.username === user)
+if (!client) {
+  return res.status(404).json({ error: 'User is offine or not found' });
+ }
+ res.status(200).json({
+  username: client.username,
+  status: client.status,
+ });
+});
+  
+  else
+   res.json({ response });
+});
+
 RESTserver.post('/users/announce', (req, res) => {
     if (!adminProfile.enabled) {
         return res.status(400).json({ error: 'Admin profile is not enabled and/or configured' });
