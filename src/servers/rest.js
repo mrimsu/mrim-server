@@ -55,10 +55,6 @@ if (!client) {
   status: client.status,
  });
 });
-  
-  else
-   res.json({ response });
-});
 
 RESTserver.post('/users/announce', (req, res) => {
     if (!adminProfile.enabled) {
