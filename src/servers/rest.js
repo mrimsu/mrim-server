@@ -72,7 +72,7 @@ RESTserver.post('/users/announce', (req, res) => {
     const messagePacket = MrimServerMessageData.writer({
       id: Math.random() * 0xFFFFFFFF,
       flags: 0x00000040, // system message
-      addresser: adminProfile.username + '@mail.ru',
+      addresser: `${adminProfile.username}@${adminProfile.domain}`,
       message,
       messageRTF: ''
     }, client.utf16capable)
@@ -104,7 +104,7 @@ RESTserver.post('/users/sendMailToAll', (req, res) => {
 
   const emailPacket = MrimNewEmail.writer({
     email_count: 1,
-    from: 'admin@mrim.su',
+    from: `${adminProfile.username}@${adminProfile.domain}`,
     title: message,
     unix_time: Math.floor(Date.now() / 1000)
   })
@@ -132,7 +132,15 @@ RESTserver.post('/users/sendMailToAll', (req, res) => {
 })
 
 RESTserver.put('/users/register', async (req, res) => {
-  let { login, passwd, nick, f_name, l_name, location, birthday, sex, status } = req.body
+  let { login, passwd, domain, nick, f_name, l_name, location, birthday, sex, status } = req.body
+
+  if (!login || !passwd || !domain || !nick || !f_name || !sex) {
+    return res.status(400).json({ error: 'Required fields: login, passwd, nick, f_name, sex' })
+  }
+
+  if (await checkUser(login, domain) === true) {
+    return res.status(400).json({ error: 'User with this login already exists' })
+  }
 
   if (!login || !passwd || !nick || !f_name || !sex) {
     return res.status(400).json({ error: 'Required fields: login, passwd, nick, f_name, sex' })
@@ -154,19 +162,12 @@ RESTserver.put('/users/register', async (req, res) => {
     if (parseInt(regexResult[2]) > 12) {
       return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid' })
     }
-
-    if (parseInt(regexResult[3]) > 31) {
-      return res.status(400).json({ error: 'Field "birthday" is incorrect: day is invalid' })
-    }
-
-    if (!re.test(birthday)) {
-      return res.status(400).json({ error: 'Field "birthday" is incorrect: must be in format YYYY-MM-DD' })
-    }
   }
 
   const userId = await registerUser({
     login,
     passwd,
+    domain,
     nick,
     f_name,
     l_name,
@@ -181,6 +182,9 @@ RESTserver.put('/users/register', async (req, res) => {
   }
 
   await createNewGroup(userId, 'Основное')
+  await createNewGroup(userId, 'Родные')
+  await createNewGroup(userId, 'Друзья')
+  await createNewGroup(userId, 'Коллеги')
 
   res.json({ status: 'ok' })
 })
