@@ -29,7 +29,7 @@ RESTserver.get('/users/online', (req, res) => {
     const client = global.clients[clientId]
     response.push({
       userId: client.userId,
-      username: client.username,
+      username: `${client.username}@${client.domain}`,
       status: client.status,
       userAgent: client.userAgent,
       protocolVersion: client.protocolVersionMinor
@@ -46,11 +46,12 @@ RESTserver.get('/users/status', (req, res) => {
  }
  
  const client = global.clients.find(client => client.username === user)
-if (!client) {
-  return res.status(404).json({ error: 'User is offine or not found' });
+ const invisible = 0x8000001
+if (!client || client.status === invisible) {
+  return res.status(404).json({ error: 'User is offine or invisible (perhaps not even found)' });
  }
  res.status(200).json({
-  username: client.username,
+  username: `${client.username}@${client.domain}`,
   status: client.status,
  });
 });
