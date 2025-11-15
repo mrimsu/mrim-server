@@ -190,10 +190,12 @@ async function generateContactList (containerHeader, userId, state = null) {
           ? contact.adder_flags
           : contact.contact_flags
 
-        let status = connectedContact?.status ?? 
-          ((config.adminProfile?.username == contact.user_login
-            && config.adminProfile?.domain == contact.user_domain
-          ) ? 1 : 0);
+        let status = connectedContact?.status ??
+          ((config.adminProfile?.username == contact.user_login &&
+            config.adminProfile?.domain == contact.user_domain
+          )
+            ? 1
+            : 0)
 
         if (contactFlagsAsUser & 0x4 || contactFlagsAsUser & 0x10) { // "Всегда невидим для" или "Игнорируемые"
           status = 0
@@ -627,8 +629,8 @@ async function processMessage (
     }
   }
 
-  if (config.adminProfile?.enabled && !(messageData.flags & 0x400)
-    && messageData.addresser === `${config.adminProfile?.username}@${config.adminProfile?.domain}` ) {
+  if (config.adminProfile?.enabled && !(messageData.flags & 0x400) &&
+    messageData.addresser === `${config.adminProfile?.username}@${config.adminProfile?.domain}`) {
     logger.debug(`[${connectionId}] user ${state.username} messaged to admin. 'll just send prepared message :)`)
 
     const dataToSend = MrimServerMessageData.writer({
@@ -680,8 +682,8 @@ async function processMessage (
   }
 
   const addresserClient = global.clients.find(
-    ({ username, domain }) => username === messageData.addresser.split('@')[0]
-                  && domain === messageData.addresser.split('@')[1]
+    ({ username, domain }) => username === messageData.addresser.split('@')[0] &&
+                  domain === messageData.addresser.split('@')[1]
   )
 
   if (addresserClient !== undefined) {
@@ -1279,7 +1281,7 @@ async function processModifyContact (
     request = MrimModifyContactRequest.reader(packetData, true)
   }
 
-  if ((request.contact.length === 0 && state.lastAuthorizedContact === undefined) || (config.adminProfile?.enabled && 
+  if ((request.contact.length === 0 && state.lastAuthorizedContact === undefined) || (config.adminProfile?.enabled &&
     request.contact === `${config.adminProfile?.username}@${config.adminProfile?.domain}`)) {
     const contactResponse = MrimModifyContactResponse.writer({
       status: 0x00000004 // CONTACT_OPER_INVALID_INFO
@@ -1401,7 +1403,7 @@ async function processChangeStatus (
     state.xstatus.description = status.xstatusDescription
   }
 
-  logger.debug(`[${connectionId}] new status for ${state.username}@${state.domain} -> ${status.status} / X-status: ${status.xstatusTitle ?? ""} (${status.xstatusDescription ?? ""})`)
+  logger.debug(`[${connectionId}] new status for ${state.username}@${state.domain} -> ${status.status} / X-status: ${status.xstatusTitle ?? ''} (${status.xstatusDescription ?? ''})`)
 
   const contacts = await getContactsFromGroups(state.userId)
 
@@ -1635,7 +1637,7 @@ async function processCall (
     ({ username, domain }) => username === pakcet.to_or_from.split('@')[0] &&
                               domain === pakcet.to_or_from.split('@')[1]
   )
-  
+
   if (addresserClient !== undefined || packet.status !== 4) {
     const dataToSend = MrimCall.writer({
       to_or_from: `${state.username}@${state.domain}`,

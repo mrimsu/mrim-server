@@ -214,7 +214,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
  *
  * @param {string} login Логин пользователя
  * @param {string} domain Виртуальный домен пользователя
- * 
+ *
  * @returns {number} ID пользователя
  */
 async function getIdViaLogin (login, domain = 'mail.ru') {
@@ -223,7 +223,7 @@ async function getIdViaLogin (login, domain = 'mail.ru') {
     'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
     [login, domain]
   )
-  
+
   pool.releaseConnection(connection)
   return result[0][0].id ?? 0
 }
@@ -233,7 +233,7 @@ async function getIdViaLogin (login, domain = 'mail.ru') {
  *
  * @param {string} login Логин пользователя
  * @param {string} domain Виртуальный домен пользователя
- * 
+ *
  * @returns {boolean} Результат проверки
  */
 async function checkUser (login, domain = 'mail.ru') {
@@ -597,7 +597,7 @@ async function modifyContact (
  * @param {number} adderUserId ID пользователя добавящего
  * @param {string} contactLogin Логин пользователя контакта
  * @param {string} contactDomain Виртуальный домен пользователя контакта
- * 
+ *
  * @returns {number} ID пользователя контакта
  */
 async function deleteContact (adderUserId, contactLogin, contactDomain) {
@@ -661,8 +661,8 @@ async function getOfflineMessages (userId) {
 
   const [offlineMessages, _offlineMessages] = await connection.execute(
     'SELECT `date`, `message`, `user`.`id` as `user_id`, ' +
-    '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' + 
-    '`user`.`domain` as `user_domain` ' + 
+    '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
+    '`user`.`domain` as `user_domain` ' +
     'FROM `offline_messages` ' +
     'INNER JOIN `user` ON `offline_messages`.`user_from` = `user`.`id` ' +
       'WHERE `user_to` = ?',
@@ -770,7 +770,7 @@ async function isContactAuthorized (user, contact, contactDomain) {
  *
  * @param {string} userLogin Логин пользователя
  * @param {string} userDomain Логин пользователя
- * 
+ *
  * @returns {string} Путь к аватару пользователя
  */
 async function getUserAvatar (userLogin, userDomain) {
@@ -779,7 +779,7 @@ async function getUserAvatar (userLogin, userDomain) {
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
     'SELECT `user`.`avatar` FROM `user` ' +
-    'WHERE `user`.`login` = ? AND `user`.`domain` LIKE ? AND' + 
+    'WHERE `user`.`login` = ? AND `user`.`domain` LIKE ? AND' +
     '`user`.`avatar` IS NOT NULL ' +
     'LIMIT 1',
     [userLogin, `${userDomain}%`]

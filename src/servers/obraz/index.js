@@ -113,8 +113,8 @@ function connectionListener (socket) {
       let avatarPath
 
       try {
-        if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain)
-          && config.adminProfile?.avatarUrl !== null) {
+        if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain) &&
+          config.adminProfile?.avatarUrl !== null) {
           avatarPath = config.adminProfile.avatarUrl
         } else {
           avatarPath = await getUserAvatar(userLogin, domain)
