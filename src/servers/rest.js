@@ -29,7 +29,7 @@ RESTserver.get('/users/online', (req, res) => {
     const client = global.clients[clientId]
     response.push({
       userId: client.userId,
-      username: client.username,
+      username: `${client.username}@${client.domain}`,
       status: client.status,
       userAgent: client.userAgent,
       protocolVersion: client.protocolVersionMinor
@@ -38,6 +38,23 @@ RESTserver.get('/users/online', (req, res) => {
 
   res.json({ count: response.length, users: response })
 })
+
+RESTserver.get('/users/status', (req, res) => {
+ const { user } = req.query;  
+  if (!user) {
+        return res.status(400).json({ error: 'User parameter is required' });
+ }
+ 
+ const client = global.clients.find(client => client.username === user)
+ const invisible = 0x8000001
+if (!client || client.status === invisible) {
+  return res.status(404).json({ error: 'User is offine or invisible (perhaps not even found)' });
+ }
+ res.status(200).json({
+  username: `${client.username}@${client.domain}`,
+  status: client.status,
+ });
+});
 
 RESTserver.post('/users/announce', (req, res) => {
   if (!adminProfile.enabled) {
