@@ -39,8 +39,8 @@ const timeoutTimer = []
 
 function onData (socket, connectionId, logger, state, variables) {
   return (data) => {
-    let header;
-    let packetData;
+    let header
+    let packetData
 
     if (!state.waitForData && !state.fragmented) {
       try {
@@ -52,7 +52,7 @@ function onData (socket, connectionId, logger, state, variables) {
       if (header.packetCommand !== MrimMessageCommands.PING && header.packetCommand !== MrimMessageCommands.MPOP_SESSION) {
         logger.debug(
           `[${connectionId}] user: ${state.username ?? '@!unknown!@'}, proto ver: ${header.protocolVersionMajor}.${header.protocolVersionMinor}, ` +
-          `command: ${header.packetCommand} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` + 
+          `command: ${header.packetCommand} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` +
           `data.length: ${header.dataSize}, hex: ${data.toString('hex')}`
         )
       }
@@ -64,40 +64,40 @@ function onData (socket, connectionId, logger, state, variables) {
 
       if (header.dataSize > 0 && packetData.length < header.dataSize) {
         // incomplete packet, wait for more data
-        state.fragmented = true;
-        state.lastHeader = header;
-        state.lastData = packetData;
-        return;
+        state.fragmented = true
+        state.lastHeader = header
+        state.lastData = packetData
+        return
       } else if (header.dataSize > 0 && header.dataSize !== packetData.length) {
-        state.waitForData = true;
-        state.lastHeader = header;
-        return;
+        state.waitForData = true
+        state.lastHeader = header
+        return
       }
     } else if (state.fragmented) {
       // fragmented packet, concatenate
-      header = state.lastHeader;
-      packetData = Buffer.concat([state.lastData, data]);
+      header = state.lastHeader
+      packetData = Buffer.concat([state.lastData, data])
 
       // debug
       logger.debug(`[${connectionId}] continuing receiving data, hex: ${packetData.toString('hex')}`)
 
       if (packetData.length < header.dataSize) {
-        state.fragmented = true;
-        state.lastHeader = header;
-        state.lastData = packetData;
+        state.fragmented = true
+        state.lastHeader = header
+        state.lastData = packetData
       } else {
         // reset
-        state.fragmented = false;
-        state.lastHeader = null;
-        state.lastData = null;
+        state.fragmented = false
+        state.lastHeader = null
+        state.lastData = null
       }
     } else {
-      header = state.lastHeader;
-      packetData = data;
+      header = state.lastHeader
+      packetData = data
 
       // reset
-      state.waitForData = false;
-      state.lastHeader = null;
+      state.waitForData = false
+      state.lastHeader = null
 
       // debug
       logger.debug(`[${connectionId}] continuing receiving data, hex: ${packetData.toString('hex')}`)
@@ -154,39 +154,39 @@ function onClose (socket, connectionId, logger, state, variables) {
   }
 }
 
-async function disconnectClient(connectionId, logger, state) {
+async function disconnectClient (connectionId, logger, state) {
   const clientIndex = global.clients.findIndex(
     ({ connectionId }) => connectionId === state.connectionId
   )
 
   const sameUserSessionsCount = global.clients.filter(
     ({ username }) => username === state.username
-  ).length;
+  ).length
 
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
   if (clientIndex && sameUserSessionsCount <= 1) {
     await processChangeStatus(
-        {
-          protocolVersionMajor: state.protocolVersionMajor,
-          protocolVersionMinor: state.protocolVersionMinor,
-          packetOrder: 0
+      {
+        protocolVersionMajor: state.protocolVersionMajor,
+        protocolVersionMinor: state.protocolVersionMinor,
+        packetOrder: 0
       },
       new BinaryConstructor()
-      .integer(0, 4)
-      .integer(0, 4)
-      .integer(0, 4)
-      .integer(0, 4)
-      .integer(0, 4)
-      .finish(),
+        .integer(0, 4)
+        .integer(0, 4)
+        .integer(0, 4)
+        .integer(0, 4)
+        .integer(0, 4)
+        .finish(),
       connectionId,
       logger,
       state,
       null
     )
-    
+
     if (clientIndex !== -1) {
       global.clients.splice(clientIndex, 1)
-    } 
+    }
 
     clearTimeout(timeoutTimer[connectionId])
     delete timeoutTimer[connectionId]
@@ -344,7 +344,7 @@ async function processPacket (
         const PING_TIMER = (config?.mrim?.pingTimer ?? 10) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
           logger.debug(`[${connectionId}] user ${state.username} timed out (MRIM_CS_PING)`)
-          state.socket.end();
+          state.socket.end()
           disconnectClient(connectionId, logger, state)
         }, PING_TIMER + 3000, connectionId, state, logger)
         timeoutTimer[connectionId].unref()

@@ -12,7 +12,7 @@ const AVATAR_METADATAS = {
   _mrimavatar128: { size: 128, format: 'jpeg', quality: 90 },
   _mrimavatar60: { size: 60, format: 'jpeg', quality: 90 },
   _mrimavatar32: { size: 32, format: 'jpeg', quality: 90 },
-  _mrimavatar22: { size: 22, format: 'jpeg', quality: 90 },
+  _mrimavatar22: { size: 22, format: 'jpeg', quality: 90 }
 }
 
 /**

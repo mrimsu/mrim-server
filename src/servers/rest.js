@@ -1,44 +1,43 @@
-
 const BinaryConstructor = require('../constructors/binary')
 const { MrimMessageCommands } = require('./mrim/globals')
 const { MrimNewEmail } = require('../messages/mrim/email')
 const { MrimServerMessageData } = require('../messages/mrim/messaging')
-const { MrimContainerHeader } = require('../messages/mrim/container');
-const { checkUser, registerUser, createNewGroup } = require('../database');
+const { MrimContainerHeader } = require('../messages/mrim/container')
+const { checkUser, registerUser, createNewGroup } = require('../database')
 
-const { adminProfile } = require('../../config');
+const { adminProfile } = require('../../config')
 
-const express = require('express');
+const express = require('express')
 
-const RESTserver = express();
-RESTserver.use(express.json());
+const RESTserver = express()
+RESTserver.use(express.json())
 
 RESTserver.get('/heartbeat', (req, res) => {
-    res.json({ status: 'ok', timestamp: Date.now() });
-});
+  res.json({ status: 'ok', timestamp: Date.now() })
+})
 
 // user interaction
 
 RESTserver.get('/users/rawOnline', (req, res) => {
-    res.json({ users: global.clients });
-});
+  res.json({ users: global.clients })
+})
 
 RESTserver.get('/users/online', (req, res) => {
-    let response = [];
+  const response = []
 
-    for (const clientId in global.clients) {
-    const client = global.clients[clientId];
+  for (const clientId in global.clients) {
+    const client = global.clients[clientId]
     response.push({
-        userId: client.userId,
-        username: client.username,
-        status: client.status,
-        userAgent: client.userAgent,
-        protocolVersion: client.protocolVersionMinor
-    });
-    }
+      userId: client.userId,
+      username: client.username,
+      status: client.status,
+      userAgent: client.userAgent,
+      protocolVersion: client.protocolVersionMinor
+    })
+  }
 
-    res.json({ count: response.length, users: response });
-});
+  res.json({ count: response.length, users: response })
+})
 
 RESTserver.post('/users/announce', (req, res) => {
     if (!adminProfile.enabled) {
@@ -126,26 +125,25 @@ RESTserver.put('/users/register', async (req, res) => {
         return res.status(400).json({ error: 'User with this login already exists' });
     }
 
-    sex = parseInt(sex);
-    if (sex !== 2 && sex !== 1) {
-        return res.status(400).json({ error: 'Field "sex" is incorrect: must be 0 or 1' });
-    }
+  if (!login || !passwd || !nick || !f_name || !sex) {
+    return res.status(400).json({ error: 'Required fields: login, passwd, nick, f_name, sex' })
+  }
 
-    if (birthday) {
-        const re = new RegExp(/([0-9]{4})\-([0-9]{2})\-([0-9]{2})/g, "i");
-        const regexResult = re.exec(birthday)
+  if (await checkUser(login) === true) {
+    return res.status(400).json({ error: 'User with this login already exists' })
+  }
 
-        if (parseInt(regexResult[2]) > 12) {
-            return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid' });
-        }
+  sex = parseInt(sex)
+  if (sex !== 2 && sex !== 1) {
+    return res.status(400).json({ error: 'Field "sex" is incorrect: must be 0 or 1' })
+  }
 
-        if (parseInt(regexResult[3]) > 31) {
-            return res.status(400).json({ error: 'Field "birthday" is incorrect: day is invalid' });
-        }
+  if (birthday) {
+    const re = new RegExp(/([0-9]{4})\-([0-9]{2})\-([0-9]{2})/g, 'i')
+    const regexResult = re.exec(birthday)
 
-        if (!re.test(birthday)) {
-            return res.status(400).json({ error: 'Field "birthday" is incorrect: must be in format YYYY-MM-DD' });
-        }
+    if (parseInt(regexResult[2]) > 12) {
+      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid' })
     }
 
     const userId = await registerUser({

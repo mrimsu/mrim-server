@@ -9,9 +9,6 @@ const { processAvatar } = require('./processor')
 const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
 
-const ALLOWED_HOSTS = config?.obraz?.customHost
-  ? [config.obraz.customHost, 'obraz.foto.mail.ru']
-  : ['obraz.foto.mail.ru']
 const ALLOWED_METHODS = ['GET', 'HEAD']
 const STATUS_CODES = {
   200: 'OK',
@@ -86,7 +83,7 @@ function connectionListener (socket) {
       return socket.end(responseMessage)
     } catch (e) {
       console.log(
-        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
+        `[obraz] internal error, stack: ${e.stack}`
       )
     }
   }
@@ -111,12 +108,12 @@ function connectionListener (socket) {
 
       let [domain, userLogin, avatarType] = pathname.split('/')
 
-      avatarType = avatarType.split('?')[0];
+      avatarType = avatarType.split('?')[0]
 
       let avatarPath
 
       try {
-        if (userLogin == config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain)
+        if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain)
           && config.adminProfile?.avatarUrl !== null) {
           avatarPath = config.adminProfile.avatarUrl
         } else {
@@ -133,7 +130,7 @@ function connectionListener (socket) {
 
       console.log(
           `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
-        )
+      )
 
       try {
         const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
