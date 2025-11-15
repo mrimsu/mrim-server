@@ -247,7 +247,7 @@ class MessageConstructor {
             const length = binaryReader.readUint32()
 
             if (length > 0) {
-              if (length % 2 != 0) {
+              if (length % 2 !== 0) {
                 // fallback to CP1251
                 utf16required = false
               }

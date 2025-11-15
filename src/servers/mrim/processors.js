@@ -10,13 +10,14 @@ const {
   FieldDataType
 } = require('../../constructors/message')
 const { MrimMessageCommands } = require('./globals')
-const { 
-  MrimLoginData, 
-  MrimNewerLoginData, 
+const {
+  MrimLoginData,
+  MrimNewerLoginData,
   MrimMoreNewerLoginData,
-  MrimLoginThreeData, 
+  MrimLoginThreeData,
   MrimRejectLoginData,
-  MrimUserInfo } = require('../../messages/mrim/authorization')
+  MrimUserInfo
+} = require('../../messages/mrim/authorization')
 const {
   MrimContactList,
   MrimContactGroup,
@@ -39,8 +40,8 @@ const {
   MrimSearchField,
   MrimAnketaHeader
 } = require('../../messages/mrim/search')
-const { 
-  MrimChangeStatusRequest, 
+const {
+  MrimChangeStatusRequest,
   MrimChangeXStatusRequest,
   MrimUserStatusUpdate,
   MrimUserXStatusUpdate
@@ -68,7 +69,6 @@ const {
 } = require('../../database')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
-const { log } = require('winston')
 
 const MrimSearchRequestFields = {
   USER: 0,
@@ -120,8 +120,8 @@ async function generateContactList (containerHeader, userId, state = null) {
     getContactsFromGroups(userId)
   ])
 
-  let MRIM_CONTACT_FLAG;
-  
+  let MRIM_CONTACT_FLAG
+
   if (containerHeader.protocolVersionMinor >= 21) {
     MRIM_CONTACT_FLAG = 'uussuussssusuuusssssu'
   } else if (containerHeader.protocolVersionMinor >= 20) {
@@ -136,9 +136,9 @@ async function generateContactList (containerHeader, userId, state = null) {
 
   const MRIM_GROUP_FLAG = 'us'
 
-  let UTF16CAPABLE = false;
-  if (containerHeader.protocolVersionMinor >= 16 && state?.clientName !== "QIP Infium") {
-    UTF16CAPABLE = true;
+  let UTF16CAPABLE = false
+  if (containerHeader.protocolVersionMinor >= 16 && state?.clientName !== 'QIP Infium') {
+    UTF16CAPABLE = true
   }
 
   if (config.adminProfile?.enabled) {
@@ -182,22 +182,22 @@ async function generateContactList (containerHeader, userId, state = null) {
         )
 
         const contactFlags = contact.requester_is_adder
-            ? contact.contact_flags
-            : contact.adder_flags;
+          ? contact.contact_flags
+          : contact.adder_flags
 
         const contactFlagsAsUser = contact.requester_is_adder
-            ? contact.adder_flags
-            : contact.contact_flags;
+          ? contact.adder_flags
+          : contact.contact_flags
 
-        let status = connectedContact?.status ?? (config.adminProfile?.username == contact.user_login ? 1 : 0);
+        let status = connectedContact?.status ?? (config.adminProfile?.username === contact.user_login ? 1 : 0)
 
-        if (contactFlagsAsUser & 0x4 || contactFlagsAsUser & 0x10) {   // "Всегда невидим для" или "Игнорируемые"
+        if (contactFlagsAsUser & 0x4 || contactFlagsAsUser & 0x10) { // "Всегда невидим для" или "Игнорируемые"
           status = 0
         } else if (connectedContact?.status === 0x80000001 && contactFlagsAsUser & 0x8) { // Если Невидимка и "Я всегда видим для"
           status = connectedContact?.status
         }
 
-        let contactStructure = {
+        const contactStructure = {
           contactFlags: contactFlags + (UTF16CAPABLE ? 0x200 : 0),
           groupIndex: groupIndex !== -1 ? groupIndex : 0,
           email: `${contact.user_login}@mail.ru`,
@@ -205,18 +205,18 @@ async function generateContactList (containerHeader, userId, state = null) {
               contact.user_nickname ??
               contact.user_login,
           authorized: Number(!contact.is_auth_success),
-          status: status,
+          status,
           phoneNumber: ''
-        };
+        }
 
         // добавляем новые поля в структуру контакта в зависимости от версии протокола
 
         if (containerHeader.protocolVersionMinor >= 15) {
-            contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ""
-            contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ""
-            contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ""
-            contactStructure.features = connectedContact?.features ?? 0x02FF
-            contactStructure.userAgent = connectedContact?.userAgent ?? ""
+          contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ''
+          contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ''
+          contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ''
+          contactStructure.features = connectedContact?.features ?? 0x02FF
+          contactStructure.userAgent = connectedContact?.userAgent ?? ''
         }
 
         // и тут отправляем в нужной структуре
@@ -230,7 +230,6 @@ async function generateContactList (containerHeader, userId, state = null) {
         } else {
           return MrimContact.writer(contactStructure)
         }
-
       })
     )
   }, UTF16CAPABLE)
@@ -269,39 +268,39 @@ function _logoutPreviousClientIfNeeded (userId, containerHeader) {
   return true
 }
 
-async function _processOfflineMessages(userId, containerHeader, logger, connectionId, state) {
+async function _processOfflineMessages (userId, containerHeader, logger, connectionId, state) {
   logger.debug(`[${connectionId}] pulling offline messages for userid = ${userId}...`)
 
-  const offlineMessages = await getOfflineMessages(userId);
+  const offlineMessages = await getOfflineMessages(userId)
 
   offlineMessages.forEach((message) => {
-    const messageId = Math.floor(Math.random() * 0xFFFFFFFF);
+    const messageId = Math.floor(Math.random() * 0xFFFFFFFF)
     const date = new Date(message.date * 1000)
 
     const messagePacket = MrimServerMessageData.writer({
       id: messageId,
       flags: 0x01, // offline message
       addresser: `${message.user_login}@mail.ru`,
-      message:  `Offline Message from ${date.toISOString()} GMT:\n` +
+      message: `Offline Message from ${date.toISOString()} GMT:\n` +
                 `${message.message}`,
       messageRTF: ' '
     }, state.utf16capable)
 
     const packet = new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            protocolVersionMinor: state.protocolVersionMinor,
-            packetOrder: messageId,
-            packetCommand: MrimMessageCommands.MESSAGE_ACK,
-            dataSize: messagePacket.length
-          })
-        )
-        .subbuffer(messagePacket)
-        .finish()
-    
-    state.socket.write(packet);
-  });
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetOrder: messageId,
+          packetCommand: MrimMessageCommands.MESSAGE_ACK,
+          dataSize: messagePacket.length
+        })
+      )
+      .subbuffer(messagePacket)
+      .finish()
+
+    state.socket.write(packet)
+  })
 
   logger.debug(`[${connectionId}] found ${offlineMessages.length} offline messages for userid = ${userId}`)
   cleanupOfflineMessages(userId)
@@ -315,12 +314,12 @@ async function processLogin (
   state,
   variables
 ) {
-  var loginData;
+  let loginData
 
   if (containerHeader.protocolVersionMinor >= 16) {
-    loginData = MrimMoreNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16 ? true : false)
+    loginData = MrimMoreNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16)
   } else if (containerHeader.protocolVersionMinor >= 15) {
-    loginData = MrimNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16 ? true : false)
+    loginData = MrimNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16)
   } else {
     loginData = MrimLoginData.reader(packetData)
   }
@@ -342,48 +341,48 @@ async function processLogin (
 
     if (containerHeader.protocolVersionMinor >= 15) {
       state.xstatus = {
-        "type": loginData.xstatusType,
-        "title": loginData.xstatusTitle,
-        "description": loginData.xstatusDescription,
+        type: loginData.xstatusType,
+        title: loginData.xstatusTitle,
+        description: loginData.xstatusDescription
       }
 
-      logger.debug(`[${connectionId}] xstatus: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`);
+      logger.debug(`[${connectionId}] xstatus: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`)
     }
 
     if (loginData.modernUserAgent) {
-      let agentRegex = RegExp("client=\"([A-Za-z0-9 ]+)\"").exec(loginData.modernUserAgent);
+      const agentRegex = RegExp('client="([A-Za-z0-9 ]+)"').exec(loginData.modernUserAgent)
 
-      if(agentRegex.length > 1) {
-        state.clientName = agentRegex[1];
+      if (agentRegex.length > 1) {
+        state.clientName = agentRegex[1]
       }
     }
 
     // софт из азербайджана писать не умеют хаха
-    if (containerHeader.protocolVersionMinor >= 16 && state.clientName !== "QIP Infium") {
-      state.utf16capable = true;
+    if (containerHeader.protocolVersionMinor >= 16 && state.clientName !== 'QIP Infium') {
+      state.utf16capable = true
     } else {
-      state.utf16capable = false;
+      state.utf16capable = false
     }
 
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`);
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
 
     global.clients.push(state)
   } catch (e) {
-    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`);
+    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`)
 
     let dataToSend
     if (e.fatal !== false) {
       dataToSend = MrimRejectLoginData.writer({
-        reason: "Invalid login"
-      });
+        reason: 'Invalid login'
+      })
     } else {
       dataToSend = MrimRejectLoginData.writer({
-        reason: "Database error"
-      });
+        reason: 'Database error'
+      })
     }
 
     return {
@@ -400,20 +399,20 @@ async function processLogin (
     }
   }
 
-  let statusData;
+  let statusData
 
   if (containerHeader.protocolVersionMinor >= 15) {
     statusData = MrimChangeXStatusRequest.writer({
       status: state.status,
-      xstatusType: state.xstatus?.type ?? "",
-      xstatusTitle: state.xstatus?.title ?? "",
-      xstatusDescription: state.xstatus?.description ?? "",
+      xstatusType: state.xstatus?.type ?? '',
+      xstatusTitle: state.xstatus?.title ?? '',
+      xstatusDescription: state.xstatus?.description ?? '',
       xstatusState: state.xstatus?.state ?? 0x02FF // everything except videocalls
-    }, state.utf16capable);
+    }, state.utf16capable)
   } else {
     statusData = MrimChangeStatusRequest.writer({
       status: state.status
-    });
+    })
   }
 
   // eslint-disable-next-line no-unused-vars
@@ -438,7 +437,7 @@ async function processLogin (
     clientip: '127.0.0.1:' + state.socket.remotePort
   }, state.utf16capable)
 
-  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state);
+  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
 
   return {
     reply: [
@@ -470,19 +469,15 @@ async function processLoginThree (
   state,
   variables
 ) {
-  var loginData;
-
-  // TODO: MD5 check
-
   // проверка на ютф16 не нужна, потому что LOGIN3 используется только в MRIM => 1.21, который и так поддерживает его
-  loginData = MrimLoginThreeData.reader(packetData, true)
+  const loginData = MrimLoginThreeData.reader(packetData, true)
 
   logger.debug(`[${connectionId}] tries to login using Login3 method ${loginData.login}`)
 
   try {
     // в => MRIM 1.22 на кой то хуй используется MD5 пароль
     if (containerHeader.protocolVersionMinor >= 22) {
-      let passwd =  new Iconv('UTF-8', 'CP1251').convert(loginData.password).toString('hex').toLowerCase();
+      const passwd = new Iconv('UTF-8', 'CP1251').convert(loginData.password).toString('hex').toLowerCase()
       state.userId = await getUserIdViaCredentials(
         loginData.login.split('@')[0],
         passwd,
@@ -504,34 +499,34 @@ async function processLoginThree (
 
     // статус нам не передают, поэтому ставим дефолт
     state.xstatus = {
-      "type": "STATUS_ONLINE",
-      "title": "",
-      "description": "",
-      "state": 0xFF03, // everything
+      type: 'STATUS_ONLINE',
+      title: '',
+      description: '',
+      state: 0xFF03 // everything
     }
 
     // не проверяем, см. комментарий выше
-    state.utf16capable = true;
+    state.utf16capable = true
 
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`);
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
 
     global.clients.push(state)
   } catch (e) {
-    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`);
+    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`)
 
     let dataToSend
     if (e.fatal !== false) {
       dataToSend = MrimRejectLoginData.writer({
-        reason: "Invalid login"
-      });
+        reason: 'Invalid login'
+      })
     } else {
       dataToSend = MrimRejectLoginData.writer({
-        reason: "Database error"
-      });
+        reason: 'Database error'
+      })
     }
 
     return {
@@ -547,7 +542,7 @@ async function processLoginThree (
         .finish()
     }
   }
-  
+
   // eslint-disable-next-line no-unused-vars
   const [contactList] = await Promise.all([
     generateContactList(containerHeader, state.userId)
@@ -555,7 +550,7 @@ async function processLoginThree (
 
   const searchResults = await searchUsers(0, { login: state.username })
 
-  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state);
+  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
 
   const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
@@ -595,9 +590,9 @@ async function processMessage (
   variables
 ) {
   let messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
-  
+
   // фикс для азербайджанской разработки
-  if (state.clientName === "QIP Infium") {
+  if (state.clientName === 'QIP Infium') {
     messageData = MrimClientMessageData.reader(packetData, true)
   }
 
@@ -605,7 +600,7 @@ async function processMessage (
     `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
   )
 
-  if (messageData.message.length < 5000) {
+  if (messageData.message.length > 5000) {
     return {
       reply: [
         new BinaryConstructor()
@@ -625,9 +620,9 @@ async function processMessage (
 
   if (config.adminProfile?.enabled && messageData.addresser.split('@')[0] === config.adminProfile?.username && !(messageData.flags & 0x400)) {
     logger.debug(`[${connectionId}] user ${state.username} messaged to admin. 'll just send prepared message :)`)
-    
+
     const dataToSend = MrimServerMessageData.writer({
-      id: containerHeader.packetOrder+1,
+      id: containerHeader.packetOrder + 1,
       flags: 0x40, // system message
       addresser: config.adminProfile?.username + '@mail.ru',
       message: config.adminProfile.defaultMessage,
@@ -652,7 +647,7 @@ async function processMessage (
           .subbuffer(
             MrimContainerHeader.writer({
               ...containerHeader,
-              packetOrder: containerHeader.packetOrder+1,
+              packetOrder: containerHeader.packetOrder + 1,
               packetCommand: MrimMessageCommands.MESSAGE_ACK,
               dataSize: dataToSend.length
             })
@@ -719,7 +714,7 @@ async function processMessage (
   } else {
     let messageStatus = 0x0
     const receiverId = await getIdViaLogin(messageData.addresser.split('@')[0])
-    const messages = await getOfflineMessages(receiverId);
+    const messages = await getOfflineMessages(receiverId)
 
     if ([0x0, 0x80].includes(messageData.flags)) {
       if (messages.length > (config.mrim.offlineMessagesLimit ?? 20)) {
@@ -846,7 +841,7 @@ async function processSearch (
   logger.debug(
     `[${connectionId}] searchParameters -> ${JSON.stringify(searchParameters)}`
   )
-  const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login ? true : false)
+  const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login)
 
   const responseFields = {
     Username: 'login',
@@ -897,7 +892,7 @@ async function processSearch (
       )
 
       if (key === 'mrim_status') {
-        value = new Iconv('UTF-8', 'CP1251').convert("3")
+        value = new Iconv('UTF-8', 'CP1251').convert('3')
       }
 
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
@@ -937,7 +932,7 @@ async function processAddContact (
 
   try {
     if (request.flags & 0x00000002) {
-      const groupName = request.contact === '' ? request.nickname : request.contact;
+      const groupName = request.contact === '' ? request.nickname : request.contact
 
       contactResult = await createNewGroup(state.userId, groupName)
 
@@ -960,15 +955,15 @@ async function processAddContact (
       })
 
       const clientAddresser = global.clients.find(
-        ({ username }) => username === request.contact.split("@")[0]
+        ({ username }) => username === request.contact.split('@')[0]
       )
 
-      if (contactResult.action == 'CREATE_NEW') {
+      if (contactResult.action === 'CREATE_NEW') {
         logger.debug(`[${connectionId}] ${state.username + '@mail.ru'} sent CONTACT_ADD to ${request.contact}`)
 
         if (clientAddresser !== undefined) {
-          const messageId = Math.floor(Math.random() + 0xFFFFFFFF);
-          
+          const messageId = Math.floor(Math.random() + 0xFFFFFFFF)
+
           const message = MrimServerMessageData.writer({
             id: messageId,
             flags: 0x04 + 0x08,
@@ -1001,7 +996,7 @@ async function processAddContact (
             contact: state.username + '@mail.ru'
           })
 
-          let userStatusUpdateForContact;
+          let userStatusUpdateForContact
 
           if (clientAddresser.protocolVersionMinor >= 15) {
             userStatusUpdateForContact = MrimUserXStatusUpdate.writer({
@@ -1033,7 +1028,7 @@ async function processAddContact (
               )
               .subbuffer(authMessageForContact)
               .finish()
-          );
+          )
 
           clientAddresser.socket.write(
             new BinaryConstructor()
@@ -1047,8 +1042,8 @@ async function processAddContact (
                 })
               )
               .subbuffer(userStatusUpdateForContact)
-              .finish(),
-          );
+              .finish()
+          )
         }
 
         // for user
@@ -1057,7 +1052,7 @@ async function processAddContact (
           contact: request.contact
         })
 
-        let userStatusUpdate, userStatusPacket;
+        let userStatusUpdate, userStatusPacket
 
         // if they're online
         if (clientAddresser !== undefined) {
@@ -1079,16 +1074,16 @@ async function processAddContact (
           }
 
           userStatusPacket = new BinaryConstructor()
-              .subbuffer(
-                MrimContainerHeader.writer({
-                  ...containerHeader,
-                  packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
-                  packetCommand: MrimMessageCommands.USER_STATUS,
-                  dataSize: userStatusUpdate.length
-                })
-              )
-              .subbuffer(userStatusUpdate)
-              .finish()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: Math.floor(Math.random() + 0xFFFFFFFF),
+                packetCommand: MrimMessageCommands.USER_STATUS,
+                dataSize: userStatusUpdate.length
+              })
+            )
+            .subbuffer(userStatusUpdate)
+            .finish()
         } else {
           userStatusPacket = null
         }
@@ -1117,12 +1112,10 @@ async function processAddContact (
               .subbuffer(authMessage)
               .finish(),
             userStatusPacket
-            ]
+          ]
         }
       }
     }
-
-    
   } catch (e) {
     logger.error(`[${connectionId}] ${e.stack}`)
     contactResponse = MrimAddContactResponse.writer({
@@ -1196,7 +1189,7 @@ async function processAuthorizeContact (
     // ну
 
     // всё, соси хуй небритой обезьяны
-    
+
     // терь жди пока тебя не примут через MRIM_CS_MESSAGE с флагом MESSAGE_FLAG_AUTHORIZE
   }
 
@@ -1208,7 +1201,7 @@ async function processAuthorizeContact (
       addresser: authorizePacket.addresser
     })
 
-    let statusReply;
+    let statusReply
 
     if (state.protocolVersionMinor >= 15) {
       statusReply = MrimUserXStatusUpdate.writer({
@@ -1218,7 +1211,7 @@ async function processAuthorizeContact (
         xstatusTitle: clientAddresser.xstatus?.title ?? '',
         xstatusDescription: clientAddresser.xstatus?.description ?? '',
         features: clientAddresser.features ?? 0x02FF,
-        userAgent: clientAddresser.userAgent ?? '',
+        userAgent: clientAddresser.userAgent ?? ''
       })
     } else {
       statusReply = MrimUserStatusUpdate.writer({
@@ -1265,7 +1258,7 @@ async function processModifyContact (
   let request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
 
   // я щас начну логунги армянские выкрикивать на разработчика блять
-  if (state.clientName === "QIP Infium") {
+  if (state.clientName === 'QIP Infium') {
     request = MrimModifyContactRequest.reader(packetData, true)
   }
 
@@ -1273,7 +1266,7 @@ async function processModifyContact (
     const contactResponse = MrimModifyContactResponse.writer({
       status: 0x00000004 // CONTACT_OPER_INVALID_INFO
     })
-    
+
     return {
       reply: new BinaryConstructor()
         .subbuffer(
@@ -1367,11 +1360,11 @@ async function processChangeStatus (
   state,
   variables
 ) {
-  let status;
+  let status
 
   if (containerHeader.protocolVersionMinor >= 15) {
     // костыль для азербайджанской разработки
-    if (state.clientName === "QIP Infium") {
+    if (state.clientName === 'QIP Infium') {
       status = MrimChangeXStatusRequest.reader(packetData, true)
     } else {
       status = MrimChangeXStatusRequest.reader(packetData, state.utf16capable)
@@ -1380,15 +1373,15 @@ async function processChangeStatus (
     status = MrimChangeStatusRequest.reader(packetData)
   }
 
-  state.status = status.status;
+  state.status = status.status
 
-  if (status.status == 0x4) {
+  if (status.status === 0x4) {
     state.xstatus.type = status.xstatusType
     state.xstatus.title = status.xstatusTitle
     state.xstatus.description = status.xstatusDescription
   }
 
-  logger.debug(`[${connectionId}] new status for ${state.username}@mail.ru -> ${status.status} / X-status: ${status.xstatusTitle ?? ""} (${status.xstatusDescription ?? ""})`)
+  logger.debug(`[${connectionId}] new status for ${state.username}@mail.ru -> ${status.status} / X-status: ${status.xstatusTitle ?? ''} (${status.xstatusDescription ?? ''})`)
 
   const contacts = await getContactsFromGroups(state.userId)
 
@@ -1407,11 +1400,11 @@ async function processChangeStatus (
 
     // если статус невидимый
     const contactFlags = contact.requester_is_adder
-        ? contact.contact_flags
-        : contact.adder_flags;
-    
-    if (status.status === 0x80000001 && (contactFlags & 0x4 || contactFlags & 0x10)) {   // "Всегда невидим для" или "Игнорируемые"
-      continue;
+      ? contact.contact_flags
+      : contact.adder_flags
+
+    if (status.status === 0x80000001 && (contactFlags & 0x4 || contactFlags & 0x10)) { // "Всегда невидим для" или "Игнорируемые"
+      continue
     } else if (status.status === 0x80000001 && !(contactFlags & 0x8)) {
       status.status = 0
       status.xstatusType = ''
@@ -1419,7 +1412,7 @@ async function processChangeStatus (
       status.xstatusDescription = ''
     }
 
-    let userStatusUpdate;
+    let userStatusUpdate
 
     if (client.protocolVersionMinor >= 15) {
       userStatusUpdate = MrimUserXStatusUpdate.writer({
@@ -1438,7 +1431,6 @@ async function processChangeStatus (
       })
     }
 
-
     client.socket.write(
       new BinaryConstructor()
         .subbuffer(
@@ -1456,7 +1448,7 @@ async function processChangeStatus (
   }
 }
 
-async function processGame(
+async function processGame (
   containerHeader,
   packetData,
   connectionId,
@@ -1464,7 +1456,7 @@ async function processGame(
   state,
   variables
 ) {
-  let pakcet = MrimGameData.reader(packetData)
+  const pakcet = MrimGameData.reader(packetData)
 
   // так ну неплохо надо бы переправить данный пакет нужному получателю
   const addresserClient = global.clients.find(
@@ -1495,19 +1487,19 @@ async function processGame(
     )
   } else {
     return {
-      reply: 
+      reply:
         MrimGameData.writer({
-        addresser_or_receiver: pakcet.addresser_or_receiver,
-        session: pakcet.session,
-        internal_msg: 10, // means no user found bruv
-        message_id: pakcet.message_id,
-        data: ""
-      })
+          addresser_or_receiver: pakcet.addresser_or_receiver,
+          session: pakcet.session,
+          internal_msg: 10, // means no user found bruv
+          message_id: pakcet.message_id,
+          data: ''
+        })
     }
   }
 }
 
-async function processFileTransfer(
+async function processFileTransfer (
   containerHeader,
   packetData,
   connectionId,
@@ -1515,7 +1507,7 @@ async function processFileTransfer(
   state,
   variables
 ) {
-  let packet = MrimFileTransfer.reader(packetData)
+  const packet = MrimFileTransfer.reader(packetData)
 
   // так ну неплохо надо бы переправить данный пакет нужному получателю
   const addresserClient = global.clients.find(
@@ -1545,18 +1537,18 @@ async function processFileTransfer(
     )
   } else {
     return {
-      reply: 
+      reply:
         MrimFileTransferAnswer.writer({
-        status: 2, // Unknown error
-        to_or_from: packet.to_or_from,
-        unique_id: packet.unique_id,
-        data: ""
-      })
+          status: 2, // Unknown error
+          to_or_from: packet.to_or_from,
+          unique_id: packet.unique_id,
+          data: ''
+        })
     }
   }
 }
 
-async function processFileTransferAnswer(
+async function processFileTransferAnswer (
   containerHeader,
   packetData,
   connectionId,
@@ -1564,7 +1556,7 @@ async function processFileTransferAnswer(
   state,
   variables
 ) {
-  let packet = MrimFileTransferAnswer.reader(packetData)
+  const packet = MrimFileTransferAnswer.reader(packetData)
 
   const addresserClient = global.clients.find(
     ({ username }) => username === packet.to_or_from.split('@')[0]
@@ -1592,18 +1584,18 @@ async function processFileTransferAnswer(
     )
   } else {
     return {
-      reply: 
+      reply:
         MrimFileTransferAnswer.writer({
-        status: 2, // Unknown error
-        to_or_from: packet.to_or_from,
-        unique_id: packet.unique_id,
-        data: ""
-      })
+          status: 2, // Unknown error
+          to_or_from: packet.to_or_from,
+          unique_id: packet.unique_id,
+          data: ''
+        })
     }
   }
 }
 
-async function processCall(
+async function processCall (
   containerHeader,
   packetData,
   connectionId,
@@ -1611,7 +1603,7 @@ async function processCall(
   state,
   variables
 ) {
-  let packet = MrimCall.reader(packetData)
+  const packet = MrimCall.reader(packetData)
 
   const addresserClient = global.clients.find(
     ({ username }) => username === packet.to_or_from.split('@')[0]
@@ -1638,17 +1630,17 @@ async function processCall(
     )
   } else {
     return {
-      reply: 
+      reply:
         MrimCallAnswer.writer({
           to_or_from: packet.to_or_from,
           unique_id: packet.unique_id,
-          status: 0, // Unknown error
-      })
+          status: 0 // Unknown error
+        })
     }
   }
 }
 
-async function processCallAnswer(
+async function processCallAnswer (
   containerHeader,
   packetData,
   connectionId,
@@ -1656,7 +1648,7 @@ async function processCallAnswer(
   state,
   variables
 ) {
-  let packet = MrimCall.reader(packetData)
+  const packet = MrimCall.reader(packetData)
 
   const addresserClient = global.clients.find(
     ({ username }) => username === packet.to_or_from.split('@')[0]
@@ -1665,7 +1657,7 @@ async function processCallAnswer(
     const dataToSend = MrimCall.writer({
       status: packet.status,
       to_or_from: state.username + '@mail.ru',
-      unique_id: packet.unique_id,
+      unique_id: packet.unique_id
     })
 
     addresserClient.socket.write(
@@ -1683,12 +1675,12 @@ async function processCallAnswer(
     )
   } else {
     return {
-      reply: 
+      reply:
         MrimCall.writer({
-        status: 2, // Unknown error
-        to_or_from: packet.to_or_from,
-        unique_id: packet.unique_id,
-      })
+          status: 2, // Unknown error
+          to_or_from: packet.to_or_from,
+          unique_id: packet.unique_id
+        })
     }
   }
 }
