@@ -219,7 +219,7 @@ async function getIdViaLogin (login) {
   )
 
   pool.releaseConnection(connection)
-  return result[0][0].id
+  return result[0][0].id ?? 0
 }
 
 /**
