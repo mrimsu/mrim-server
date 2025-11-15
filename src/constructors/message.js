@@ -39,11 +39,12 @@ class MessageConstructor {
    * @param {FieldDataType} dataType Тип данных поля.
    * @param {any?} constantValue Константное значение
    * @param {number?} subbufferSize Размер суббуфера
+   * @param {number?} maxSize Максимальный размер строки (только для UBIART_LIKE_STRING и UNICODE_STRING)
    *
    * @returns {MessageConstructor} Возвращает себя
    */
-  field (key, dataType, constantValue, subbufferSize) {
-    this.fields.push({ key, dataType, constantValue, subbufferSize })
+  field (key, dataType, constantValue, subbufferSize, maxSize) {
+    this.fields.push({ key, dataType, constantValue, subbufferSize, maxSize })
     return this
   }
 
@@ -257,6 +258,7 @@ class MessageConstructor {
                   )
                 )
                 .toString('utf-8')
+                .slice(0, field.maxSize ?? 5000)
             } else {
               // Пустая строка
               result[field.key] = ''

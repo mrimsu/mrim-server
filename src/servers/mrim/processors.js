@@ -605,6 +605,24 @@ async function processMessage (
     `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
   )
 
+  if (messageData.message.length < 5000) {
+    return {
+      reply: [
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetOrder: containerHeader.packetOrder,
+              packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+              dataSize: 4
+            })
+          )
+          .integer(0x8005, 4)
+          .finish()
+      ]
+    }
+  }
+
   if (config.adminProfile?.enabled && messageData.addresser.split('@')[0] === config.adminProfile?.username && !(messageData.flags & 0x400)) {
     logger.debug(`[${connectionId}] user ${state.username} messaged to admin. 'll just send prepared message :)`)
     
@@ -658,6 +676,7 @@ async function processMessage (
   const addresserClient = global.clients.find(
     ({ username }) => username === messageData.addresser.split('@')[0]
   )
+
   if (addresserClient !== undefined) {
     const dataToSend = MrimServerMessageData.writer({
       id: Math.random() * 0xFFFFFFFF,
