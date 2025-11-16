@@ -48,4 +48,50 @@ const MrimMessageCommands = {
   LOGOUT: 0x1013
 }
 
-module.exports = { MrimMessageCommands }
+const MrimStatus = {
+  OFFLINE: 0x0,
+  ONLINE: 0x1,
+  AWAY: 0x2,
+  XSTATUS: 0x4,
+  INVISIBLE: 0x80000001
+}
+
+const MrimContactFlags = {
+  // Type of contacts
+  GROUP: 0x02,
+  CHAT: 0x80,
+  PHONE_CONTACT: 0x100000,
+
+  // Groups
+  NEVER_VISIBLE: 0x04,
+  ALWAYS_VISIBLE: 0x08,
+  IGNORED: 0x10,
+
+  // Technical info
+  UNICODE_NICKNAME: 0x200
+}
+
+const MrimMessageFlags = {
+  OFFLINE: 0x1, // received message when user was offline (s->c only)
+  BROADCAST: 0x2,
+  NORECV: 0x4,
+  AUTHORIZE: 0x8,
+  URL: 0x20,
+  SYSTEM: 0x40,
+  RTF: 0x80,
+  CONTACT: 0x200,
+  NOTIFY: 0x400,
+  SMS: 0x800,
+  MULTICAST: 0x1000,
+  WAKEUP: 0x4000,
+  FLASH: 0x8000,
+}
+
+const MrimMessageErrors = {
+  SUCCESS: 0x0,
+  OFFLINE_LIMIT: 0x8004,
+  TOO_MUCH: 0x8005,
+  OFFLINE_DISABLED: 0x8006
+}
+
+module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors }

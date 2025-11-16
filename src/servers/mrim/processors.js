@@ -9,7 +9,13 @@ const {
   MessageConstructor,
   FieldDataType
 } = require('../../constructors/message')
-const { MrimMessageCommands } = require('./globals')
+const { 
+  MrimMessageCommands,
+  MrimStatus,
+  MrimContactFlags,
+  MrimMessageFlags,
+  MrimMessageErrors
+} = require('./globals')
 const {
   MrimLoginData,
   MrimNewerLoginData,
@@ -120,21 +126,21 @@ async function generateContactList (containerHeader, userId, state = null) {
     getContactsFromGroups(userId)
   ])
 
-  let MRIM_CONTACT_FLAG
+  let MRIM_CONTACT_MASK
 
   if (containerHeader.protocolVersionMinor >= 21) {
-    MRIM_CONTACT_FLAG = 'uussuussssusuuusssssu'
+    MRIM_CONTACT_MASK = 'uussuussssusuuusssssu'
   } else if (containerHeader.protocolVersionMinor >= 20) {
-    MRIM_CONTACT_FLAG = 'uussuussssusuuusss'
+    MRIM_CONTACT_MASK = 'uussuussssusuuusss'
   } else if (containerHeader.protocolVersionMinor >= 15) {
-    MRIM_CONTACT_FLAG = 'uussuussssus'
+    MRIM_CONTACT_MASK = 'uussuussssus'
   } else if (containerHeader.protocolVersionMinor >= 8) {
-    MRIM_CONTACT_FLAG = 'uussuus'
+    MRIM_CONTACT_MASK = 'uussuus'
   } else {
-    MRIM_CONTACT_FLAG = 'uussuu'
+    MRIM_CONTACT_MASK = 'uussuu'
   }
 
-  const MRIM_GROUP_FLAG = 'us'
+  const MRIM_GROUP_MASK = 'us'
 
   let UTF16CAPABLE = false
   if (containerHeader.protocolVersionMinor >= 16 && state?.clientName !== 'QIP Infium') {
@@ -157,12 +163,13 @@ async function generateContactList (containerHeader, userId, state = null) {
 
   const contactList = MrimContactList.writer({
     groupCount: contactGroups.length,
-    groupFlag: MRIM_GROUP_FLAG,
-    contactFlag: MRIM_CONTACT_FLAG,
+    groupFlag: MRIM_GROUP_MASK,
+    contactFlag: MRIM_CONTACT_MASK,
     groups: Buffer.concat(
       contactGroups.map((contactGroup, index) =>
         MrimContactGroup.writer({
-          groupFlags: 0x02 + (UTF16CAPABLE ? 0x200 : 0) + (index * 0x1000000), // CONTACT_FLAG_GROUP + CONTACT_FLAG_UNICODE_NAME + index
+          groupFlags: MrimContactFlags.GROUP + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0) 
+                      + (index * 0x1000000),
           name: contactGroup.name
         }, UTF16CAPABLE)
       )
@@ -197,14 +204,14 @@ async function generateContactList (containerHeader, userId, state = null) {
             ? 1
             : 0)
 
-        if (contactFlagsAsUser & 0x4 || contactFlagsAsUser & 0x10) { // "Всегда невидим для" или "Игнорируемые"
+        if (contactFlagsAsUser & MrimContactFlags.NEVER_VISIBLE || contactFlagsAsUser & MrimContactFlags.IGNORED) {
           status = 0
-        } else if (connectedContact?.status === 0x80000001 && contactFlagsAsUser & 0x8) { // Если Невидимка и "Я всегда видим для"
+        } else if (connectedContact?.status === MrimStatus.INVISIBLE && contactFlagsAsUser & MrimContactFlags.ALWAYS_VISIBLE) { // Если Невидимка и "Я всегда видим для"
           status = connectedContact?.status
         }
 
         const contactStructure = {
-          contactFlags: contactFlags + (UTF16CAPABLE ? 0x200 : 0),
+          contactFlags: contactFlags + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0),
           groupIndex: groupIndex !== -1 ? groupIndex : 0,
           email: `${contact.user_login}@${contact.user_domain}`,
           login: contact.contact_nickname ??
@@ -285,7 +292,7 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
 
     const messagePacket = MrimServerMessageData.writer({
       id: messageId,
-      flags: 0x01, // offline message
+      flags: MrimMessageFlags.OFFLINE,
       addresser: `${message.user_login}@${message.user_domain}`,
       message: `Offline Message from ${date.toISOString()} GMT:\n` +
                `${message.message}`,
@@ -501,7 +508,7 @@ async function processLoginThree (
     }
     state.username = loginData.login.split('@')[0]
     state.domain = loginData.login.split('@')[1]
-    state.status = 1 // STATUS_ONLINE
+    state.status = MrimStatus.ONLINE
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
@@ -623,7 +630,7 @@ async function processMessage (
               dataSize: 4
             })
           )
-          .integer(0x8005, 4)
+          .integer(MrimMessageErrors.TOO_MUCH, 4)
           .finish()
       ]
     }
@@ -635,7 +642,7 @@ async function processMessage (
 
     const dataToSend = MrimServerMessageData.writer({
       id: containerHeader.packetOrder + 1,
-      flags: 0x40, // system message
+      flags: MrimMessageFlags.SYSTEM,
       addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
       message: config.adminProfile.defaultMessage,
       messageRTF: ''
@@ -652,7 +659,7 @@ async function processMessage (
               dataSize: 4
             })
           )
-          .integer(0, 4)
+          .integer(MrimMessageErrors.SUCCESS, 4)
           .finish(),
 
         new BinaryConstructor()
@@ -670,7 +677,7 @@ async function processMessage (
     }
   }
 
-  if (messageData.flags & 0x8) { // Запрос на авторизацию
+  if (messageData.flags & MrimMessageFlags.AUTHORIZE) {
     logger.debug(
       `[${connectionId}] auth request via MRIM_CS_MESSAGE from ${state.username}@${state.domain} to ${messageData.addresser}`
     )
@@ -721,24 +728,24 @@ async function processMessage (
               dataSize: 4
             })
           )
-          .integer(0, 4)
+          .integer(MrimMessageErrors.SUCCESS, 4)
           .finish()
       ]
     }
   } else {
-    let messageStatus = 0x0
+    let messageStatus = MrimMessageErrors.SUCCESS
     const receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
     const messages = await getOfflineMessages(receiverId)
 
     if ([0x0, 0x80].includes(messageData.flags)) {
       if (messages.length > (config.mrim.offlineMessagesLimit ?? 20)) {
-        messageStatus = 0x8004
+        messageStatus = MrimMessageErrors.OFFLINE_LIMIT
       } else {
         sendOfflineMessage(state.userId, receiverId, messageData.message)
-        messageStatus = 0x0
+        messageStatus = MrimMessageErrors.SUCCESS
       }
     } else {
-      messageStatus = 0x8006
+      messageStatus = MrimMessageErrors.OFFLINE_DISABLED
     }
 
     return {
@@ -947,13 +954,13 @@ async function processAddContact (
   let contactResult
 
   try {
-    if (request.flags & 0x00000002) {
+    if (request.flags & MrimContactFlags.GROUP) {
       const groupName = request.contact === '' ? request.nickname : request.contact
 
       contactResult = await createNewGroup(state.userId, groupName)
 
       contactResponse = MrimAddContactResponse.writer({
-        status: 0x00000000, // CONTACT_OPER_SUCCESS
+        status: 0x0, // CONTACT_OPER_SUCCESS
         contactId: contactResult
       })
     } else {
@@ -967,7 +974,7 @@ async function processAddContact (
       )
 
       contactResponse = MrimAddContactResponse.writer({
-        status: 0x00000000, // CONTACT_OPER_SUCCESS
+        status: 0x0, // CONTACT_OPER_SUCCESS
         contactId: contactResult.contactId
       })
 
@@ -983,7 +990,7 @@ async function processAddContact (
 
           const message = MrimServerMessageData.writer({
             id: messageId,
-            flags: 0x04 + 0x08,
+            flags: MrimMessageFlags.NORECV + MrimMessageFlags.AUTHORIZE,
             addresser: `${state.username}@${state.domain}`,
             message: request.authMessage,
             messageRTF: ' '
@@ -1085,7 +1092,9 @@ async function processAddContact (
             }, state.utf16capable)
           } else {
             userStatusUpdate = MrimUserStatusUpdate.writer({
-              status: (clientAddresser.status !== 0x4 ? clientAddresser.status : 0x1) ?? 0x0,
+              status: (clientAddresser.status !== MrimStatus.XSTATUS ? 
+                clientAddresser.status : MrimStatus.ONLINE) ?? 
+                MrimStatus.OFFLINE,
               contact: request.contact
             })
           }
@@ -1141,7 +1150,7 @@ async function processAddContact (
     })
   }
 
-  if (contactResult !== undefined && !(request.flags & 0x00000002)) {
+  if (contactResult !== undefined && !(request.flags & MrimContactFlags.GROUP)) {
     const client = global.clients.find(
       ({ username, domain }) => username === request.contact.split('@')[0] &&
                                 domain === request.contact.split('@')[1]
@@ -1425,9 +1434,10 @@ async function processChangeStatus (
       ? contact.contact_flags
       : contact.adder_flags
 
-    if (status.status === 0x80000001 && (contactFlags & 0x4 || contactFlags & 0x10)) { // "Всегда невидим для" или "Игнорируемые"
+    if (status.status === MrimStatus.INVISIBLE && 
+      (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED)) { 
       continue
-    } else if (status.status === 0x80000001 && !(contactFlags & 0x8)) {
+    } else if (status.status === MrimStatus.INVISIBLE && !(contactFlags & MrimContactFlags.ALWAYS_VISIBLE)) {
       status.status = 0
       status.xstatusType = ''
       status.xstatusTitle = ''
@@ -1448,7 +1458,7 @@ async function processChangeStatus (
       }, client.utf16capable)
     } else {
       userStatusUpdate = MrimUserStatusUpdate.writer({
-        status: status.status !== 0x4 ? status.status : 0x1,
+        status: status.status !== MrimStatus.XSTATUS ? status.status : MrimStatus.ONLINE,
         contact: `${state.username}@${state.domain}`
       })
     }
