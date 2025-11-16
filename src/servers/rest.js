@@ -50,9 +50,9 @@ RESTserver.get('/users/status', (req, res) => {
 if (client.status === invisible) {
   return res.status(200).json({ 
     username: `${client.username}@${client.domain}`,
-    status: '0' //вприницпе логично
+    status: 0 //в принципе логично
   });
- }
+ } else {
  res.status(200).json({
   username: `${client.username}@${client.domain}`,
   status: client.status,
