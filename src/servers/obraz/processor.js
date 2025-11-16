@@ -28,8 +28,8 @@ async function resizeImage (image, imageWidth, imageHeight) {
   const resizeOptions = {
     width: imageWidth,
     height: imageHeight,
-    fit: "outside"
-  } 
+    fit: 'outside'
+  }
 
   return await image.resize(resizeOptions)
 }
