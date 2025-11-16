@@ -9,10 +9,6 @@ const { processAvatar } = require('./processor')
 const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
 
-const ALLOWED_HOSTS = config?.obraz?.customHost
-  ? [config.obraz.customHost, 'obraz.foto.mail.ru']
-  : ['obraz.foto.mail.ru']
-const ALLOWED_DOMAINS = ['mail', 'internet', 'bk', 'corp.mail', 'mail.ru', 'internet.ru', 'bk.ru', 'corp.mail.ru']
 const ALLOWED_METHODS = ['GET', 'HEAD']
 const STATUS_CODES = {
   200: 'OK',
@@ -87,7 +83,7 @@ function connectionListener (socket) {
       return socket.end(responseMessage)
     } catch (e) {
       console.log(
-        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
+        `[obraz] internal error, stack: ${e.stack}`
       )
     }
   }
@@ -112,19 +108,16 @@ function connectionListener (socket) {
 
       let [domain, userLogin, avatarType] = pathname.split('/')
 
-      avatarType = avatarType.split('?')[0];
-
-      if (!ALLOWED_DOMAINS.includes(domain)) {
-        return respond(version, 400, 'Bad Request')
-      }
+      avatarType = avatarType.split('?')[0]
 
       let avatarPath
 
       try {
-        if (userLogin == config.adminProfile?.username && config.adminProfile?.avatarUrl !== null) {
+        if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain) &&
+          config.adminProfile?.avatarUrl !== null) {
           avatarPath = config.adminProfile.avatarUrl
         } else {
-          avatarPath = await getUserAvatar(userLogin)
+          avatarPath = await getUserAvatar(userLogin, domain)
         }
       } catch {
         return respond(version, 404, null, {
@@ -137,7 +130,7 @@ function connectionListener (socket) {
 
       console.log(
           `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
-        )
+      )
 
       try {
         const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)

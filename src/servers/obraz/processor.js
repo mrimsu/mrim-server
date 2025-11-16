@@ -12,7 +12,7 @@ const AVATAR_METADATAS = {
   _mrimavatar128: { size: 128, format: 'jpeg', quality: 90 },
   _mrimavatar60: { size: 60, format: 'jpeg', quality: 90 },
   _mrimavatar32: { size: 32, format: 'jpeg', quality: 90 },
-  _mrimavatar22: { size: 22, format: 'jpeg', quality: 90 },
+  _mrimavatar22: { size: 22, format: 'jpeg', quality: 90 }
 }
 
 /**
@@ -24,18 +24,14 @@ const AVATAR_METADATAS = {
  *
  * @returns {Promise<sharp.Sharp>} Квадратное изображение
  */
-async function cropImageToSquare (image, imageWidth, imageHeight) {
-  const imageSize = imageWidth > imageHeight
-    ? { width: imageHeight, height: imageHeight }
-    : { width: imageWidth, height: imageWidth }
+async function resizeImage (image, imageWidth, imageHeight) {
+  const resizeOptions = {
+    width: imageWidth,
+    height: imageHeight,
+    fit: 'outside'
+  }
 
-  const imageOffset = Math.round((imageWidth - imageHeight) / 2)
-
-  const cropOptions = imageWidth > imageHeight
-    ? { ...imageSize, left: imageOffset, top: 0 }
-    : { ...imageSize, left: 0, top: imageOffset }
-
-  return await image.extract(cropOptions)
+  return await image.resize(resizeOptions)
 }
 
 /**
@@ -58,7 +54,7 @@ async function processAvatar (absolutePath, outputType) {
   } = await avatar.metadata()
 
   if (avatarWidth !== avatarHeight) {
-    avatar = await cropImageToSquare(avatar, avatarWidth, avatarHeight)
+    avatar = await resizeImage(avatar, avatarWidth, avatarHeight)
   }
 
   return await avatar

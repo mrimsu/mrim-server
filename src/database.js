@@ -13,22 +13,22 @@ const pool = mysql2.createPool(config.database.connectionUri)
  *
  * @returns {Promise<number>} ID пользователя
  */
-async function getUserIdViaCredentials (login, password, isMD5Already = false) {
+async function getUserIdViaCredentials (login, domain, password, isMD5Already = false) {
   const connection = await pool.getConnection()
-  
+
   if (!isMD5Already) {
-  password = crypto
-    .createHash('md5')
-    .update(password)
-    .digest('hex')
-    .toLowerCase()
+    password = crypto
+      .createHash('md5')
+      .update(password)
+      .digest('hex')
+      .toLowerCase()
   }
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
     'SELECT `user`.`id`, `user`.`passwd` FROM `user` ' +
-      'WHERE `user`.`login` = ? AND `user`.`passwd` = ?',
-    [login, password]
+      'WHERE `user`.`login` = ? AND `user`.`domain` = ? AND `user`.`passwd` = ?',
+    [login, domain, password]
   )
 
   pool.releaseConnection(connection)
@@ -72,7 +72,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`adder_flags`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
-        '`user`.`id` as `user_id`, ' +
+        '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
         '`user`.`status` as `user_status`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
@@ -85,7 +85,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`adder_flags`, ' +
         '`contact`.`contact_flags`, `contact`.`is_auth_success`, ' +
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
-        '`user`.`id` as `user_id`, ' +
+        '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
         '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
@@ -121,9 +121,9 @@ async function getContactsFromGroups (userId) {
 async function searchUsers (userId, searchParameters, searchMyself = false) {
   const connection = await pool.getConnection()
   let query =
-    'SELECT `user`.`login`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
+    'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
     '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex` ' +
-    'FROM `user` WHERE ';
+    'FROM `user` WHERE '
   const variables = []
 
   if (!searchMyself) {
@@ -134,6 +134,11 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
   if (Object.hasOwn(searchParameters, 'login')) {
     query += '`user`.`login` LIKE ? AND '
     variables.push(`%${searchParameters.login}%`)
+  }
+
+  if (Object.hasOwn(searchParameters, 'domain')) {
+    query += '`user`.`domain` LIKE ? AND '
+    variables.push(`%${searchParameters.domain}%`)
   }
 
   if (Object.hasOwn(searchParameters, 'nickname')) {
@@ -205,21 +210,41 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
 }
 
 /**
- * Проверить, существует ли пользователь под данным логином
- * 
+ * Получить айди через логин
+ *
  * @param {string} login Логин пользователя
- * 
- * @returns {boolean} Результат проверки
+ * @param {string} domain Виртуальный домен пользователя
+ *
+ * @returns {number} ID пользователя
  */
-async function checkUser(login) {
+async function getIdViaLogin (login, domain = 'mail.ru') {
   const connection = await pool.getConnection()
   const result = await connection.query(
-    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
-    [login]
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+    [login, domain]
   )
 
   pool.releaseConnection(connection)
-  return result[0].length > 0;
+  return result[0][0].id ?? 0
+}
+
+/**
+ * Проверить, существует ли пользователь под данным логином
+ *
+ * @param {string} login Логин пользователя
+ * @param {string} domain Виртуальный домен пользователя
+ *
+ * @returns {boolean} Результат проверки
+ */
+async function checkUser (login, domain = 'mail.ru') {
+  const connection = await pool.getConnection()
+  const result = await connection.query(
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+    [login, domain]
+  )
+
+  pool.releaseConnection(connection)
+  return result[0].length > 0
 }
 
 /**
@@ -233,11 +258,12 @@ async function checkUser(login) {
 async function registerUser (userData) {
   const connection = await pool.getConnection()
   const query =
-    'INSERT INTO `user` (`login`, `passwd`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `sex`) ' +
+    'INSERT INTO `user` (`login`, `passwd`, `domain`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `sex`) ' +
     'VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   const variables = [
     userData.login,
     crypto.createHash('md5').update(userData.passwd).digest('hex').toLowerCase(),
+    userData.domain,
     userData.nick,
     userData.f_name,
     userData.l_name,
@@ -248,7 +274,7 @@ async function registerUser (userData) {
 
   const [result] = await connection.query(query, variables)
   pool.releaseConnection(connection)
-  return result.insertId;
+  return result.insertId
 }
 
 /**
@@ -256,6 +282,7 @@ async function registerUser (userData) {
  *
  * @param {number} requesterUserId ID добавящего пользователя
  * @param {string} contactUserLogin Логин пользователя, записанного в контактах
+ * @param {string} contactDomain Виртуальный домен пользователя, записанного в контактах
  * @param {string} contactNickname Никнейм будущего контакта
  * @param {number} contactFlags Флаги будущего контакта
  * @param {number} groupIndex Индекс группы контактов
@@ -265,6 +292,7 @@ async function registerUser (userData) {
 async function createOrCompleteContact (
   requesterUserId,
   contactUserLogin,
+  contactDomain,
   contactNickname,
   contactFlags,
   groupIndex
@@ -274,8 +302,8 @@ async function createOrCompleteContact (
 
   const [contactUserResult, groupResult] = await Promise.all([
     connection.query(
-      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
-      [contactUserLogin]
+      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+      [contactUserLogin, contactDomain]
     ),
     connection.query(
       'SELECT `contact_group`.`id` FROM `contact_group` WHERE ' +
@@ -289,14 +317,14 @@ async function createOrCompleteContact (
 
   try { // дополнение контакта
     // eslint-disable-next-line no-unused-vars
-    let [existingContactResult, _existingContactFields] =
+    const [existingContactResult, _existingContactFields] =
       await connection.query(
         'SELECT `contact`.`id` FROM `contact` WHERE ' +
         '`contact`.`adder_user_id` = ? AND ' +
         '`contact`.`contact_user_id` = ?',
         [contactUserId, requesterUserId]
       )
-    let [{ id: existingContactId }] = existingContactResult
+    const [{ id: existingContactId }] = existingContactResult
 
     await connection.execute(
       'UPDATE `contact` SET ' +
@@ -307,11 +335,11 @@ async function createOrCompleteContact (
     )
 
     result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
-  } catch (error) { 
+  } catch (error) {
     // во бля попадос
     // не проблема, просто наоборот сделаем
     try {
-      [existingContactResult, _existingContactFields] =
+      const [existingContactResult, _existingContactFields] =
       await connection.query(
         'SELECT `contact`.`id` FROM `contact` WHERE ' +
         '`contact`.`adder_user_id` = ? AND ' +
@@ -319,14 +347,14 @@ async function createOrCompleteContact (
         [requesterUserId, contactUserId]
       )
 
-      existingContactId = existingContactResult[0].id
+      const [{ id: existingContactId }] = existingContactResult
 
       await connection.execute(
-      'UPDATE `contact` SET ' +
+        'UPDATE `contact` SET ' +
       '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
       '`contact`.`adder_group_id` = ?, `contact`.`is_auth_success` = 1 ' +
       'WHERE `contact`.`id` = ?',
-      [contactNickname, contactFlags, groupId, existingContactId]
+        [contactNickname, contactFlags, groupId, existingContactId]
       )
 
       result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
@@ -342,7 +370,6 @@ async function createOrCompleteContact (
       )
       result = { action: 'CREATE_NEW', contactId: insertId }
     }
-
   }
 
   await connection.commit()
@@ -353,14 +380,15 @@ async function createOrCompleteContact (
 
 /**
  * Упрощённый createOrCompleteContact для команды MESSAGE с флагом на добавление контакта
- * 
+ *
  * @param {number} requesterUserId ID добавящего пользователя
  * @param {string} contactUserLogin Логин пользователя, записанного в контактах
+ * @param {string} contactDomain Виртуальный домен пользователя, записанного в контактах
  */
 
-async function addContactMSG (requesterUserId, contactUserLogin) {
+async function addContactMSG (requesterUserId, contactUserLogin, contactDomain) {
   const connection = await pool.getConnection()
-  let result;
+  let result
 
   const contactUserResult = await Promise.all([
     connection.query(
@@ -369,7 +397,7 @@ async function addContactMSG (requesterUserId, contactUserLogin) {
     )
   ])
 
-  await connection.query(
+  const existingContactResult = await connection.query(
     'SELECT `contact`.`id` FROM `contact` WHERE ' +
     '`contact`.`adder_user_id` = ? AND ' +
     '`contact`.`contact_user_id` = ?',
@@ -377,23 +405,23 @@ async function addContactMSG (requesterUserId, contactUserLogin) {
   )
 
   try {
-    const [{ id: existingContactId }] = existingContactResult
-    
+    const [{ id: existingContactId }] = existingContactResult[0]
+
     await connection.execute(
       'UPDATE `contact` SET ' +
       '`contact`.`is_auth_success` = 1 ' +
       'WHERE `contact`.`id` = ?',
       [existingContactId]
     )
-    result = true;
+    result = true
   } catch (error) {
-    result = false;
+    result = false
   }
 
   await connection.commit()
   pool.releaseConnection(connection)
 
-  return result;
+  return result
 }
 
 /**
@@ -481,6 +509,7 @@ async function deleteGroup (userId, groupIndex, request) {
  *
  * @param {number} requesterUserId ID добавящего пользователя
  * @param {string} contactUserLogin Логин пользователя, записанного в контактах
+ * @param {string} contactDomain Виртуальный домен пользователя, записанного в контактах
  * @param {string} contactNickname Новый никнейм контакта
  * @param {number} contactFlags Новые флаги контакта
  * @param {number} groupIndex Новый индекс группы контактов
@@ -496,8 +525,8 @@ async function modifyContact (
 
   const [contactUserResult, groupResult] = await Promise.all([
     connection.query(
-      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
-      [contactUserLogin]
+      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+      [contactUserLogin, contactDomain]
     ),
     connection.query(
       'SELECT `contact_group`.`id` FROM `contact_group` WHERE ' +
@@ -528,7 +557,7 @@ async function modifyContact (
         '`contact`.`contact_group_id` = ? WHERE `contact`.`id` = ?',
       [contactNickname, contactFlags, groupId, existingContactId]
     )
-  } catch { 
+  } catch {
     // попробуем наоборот
     try {
       const [existingContactResult, _existingContactFields] =
@@ -567,25 +596,25 @@ async function modifyContact (
  *
  * @param {number} adderUserId ID пользователя добавящего
  * @param {string} contactLogin Логин пользователя контакта
+ * @param {string} contactDomain Виртуальный домен пользователя контакта
+ *
  * @returns {number} ID пользователя контакта
  */
-async function deleteContact (adderUserId, contactLogin) {
+async function deleteContact (adderUserId, contactLogin, contactDomain) {
   const contacts = await getContactsFromGroups(adderUserId)
-  const contact = contacts.find((contact) => contact.user_login === contactLogin)
+  const contact = contacts.find((contact) => contact.user_login === contactLogin && contact.user_domain === contactDomain)
 
   const connection = await pool.getConnection()
 
   // eslint-disable-next-line no-unused-vars
   const [contactUserResults, _contactUserFields] = await connection.query(
-    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? LIMIT 1',
-    [contactLogin]
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ? LIMIT 1',
+    [contactLogin, contactDomain]
   )
 
   if (contactUserResults.length !== 1) {
     throw new Error('contact user not found')
   }
-
-  const [{ id: contactUserId }] = contactUserResults
 
   if (contact === undefined) {
     return null
@@ -623,25 +652,92 @@ async function modifyUserStatus (userId, status) {
 }
 
 /**
+ * Получить оффлайн сообщения
+ *
+ * @param {number} userId ID пользователя
+ */
+async function getOfflineMessages (userId) {
+  const connection = await pool.getConnection()
+
+  const [offlineMessages, _offlineMessages] = await connection.execute(
+    'SELECT `date`, `message`, `user`.`id` as `user_id`, ' +
+    '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
+    '`user`.`domain` as `user_domain` ' +
+    'FROM `offline_messages` ' +
+    'INNER JOIN `user` ON `offline_messages`.`user_from` = `user`.`id` ' +
+      'WHERE `user_to` = ?',
+
+    [userId]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+
+  return offlineMessages
+}
+
+/**
+ * Отчистить оффлайн сообщения у пользователя
+ *
+ * @param {number} userId ID пользователя
+ */
+async function cleanupOfflineMessages (userId) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'DELETE FROM `offline_messages` ' +
+      'WHERE `user_to` = ?',
+    [userId]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Отправить оффлайн сообщение пользователю
+ *
+ * @param {number} userIdFrom ID отправителя
+ * @param {number} userIdTo ID получателя
+ * @param {string} message Сообщение
+ */
+async function sendOfflineMessage (userIdFrom, userIdTo, message) {
+  const connection = await pool.getConnection()
+
+  const date = Math.floor(Date.now() / 1000)
+
+  await connection.execute(
+    'INSERT INTO `offline_messages` ' +
+    '(`user_from`, `user_to`, `date`, `message`)' +
+    'VALUES (?, ?, ?, ?)',
+    [userIdFrom, userIdTo, date, message]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+}
+
+/**
  * Проверяет, добавил ли его пользователь #2
  *
  * @param {number} user ID пользователя
  * @param {string} contact Username пользователя #2
+ * @param {string} contactDomain Виртуальный домен пользователя #2
  * @returns {Promise<Boolean>}
  **/
-async function isContactAuthorized (user, contact) {
+async function isContactAuthorized (user, contact, contactDomain) {
   const connection = await pool.getConnection()
 
   const contactUserResult =
     await connection.query(
-      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ?',
-      [contact]
+      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+      [contact, contactDomain]
     )
 
   const [{ id: contactUserId }] = contactUserResult[0]
 
   // eslint-disable-next-line no-unused-vars
-  let results, _fields;
+  let results, _fields
   try {
     [results, _fields] =
     await connection.query(
@@ -673,23 +769,26 @@ async function isContactAuthorized (user, contact) {
  * Получение пути к аватару пользователя
  *
  * @param {string} userLogin Логин пользователя
+ * @param {string} userDomain Логин пользователя
+ *
  * @returns {string} Путь к аватару пользователя
  */
-async function getUserAvatar (userLogin) {
+async function getUserAvatar (userLogin, userDomain) {
   const connection = await pool.getConnection()
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(
     'SELECT `user`.`avatar` FROM `user` ' +
-    'WHERE `user`.`login` = ? AND `user`.`avatar` IS NOT NULL ' +
+    'WHERE `user`.`login` = ? AND `user`.`domain` LIKE ? AND' +
+    '`user`.`avatar` IS NOT NULL ' +
     'LIMIT 1',
-    [userLogin]
+    [userLogin, `${userDomain}%`]
   )
-  
+
   pool.releaseConnection(connection)
 
   if (results.length === 0) {
-    throw new Error('у пользователя нету аватара')
+    throw new Error('no avatar found')
   }
 
   return results[0].avatar
@@ -703,12 +802,16 @@ module.exports = {
   addContactMSG,
   createNewGroup,
   searchUsers,
+  getIdViaLogin,
   modifyGroupName,
   deleteGroup,
   modifyContact,
   deleteContact,
   modifyUserStatus,
   isContactAuthorized,
+  getOfflineMessages,
+  cleanupOfflineMessages,
+  sendOfflineMessage,
   getUserAvatar,
   registerUser,
   checkUser
