@@ -1025,9 +1025,9 @@ async function processAddContact (
           if (clientAddresser.protocolVersionMinor >= 15) {
             userStatusUpdateForContact = MrimUserXStatusUpdate.writer({
               status: state.status,
-              xstatusType: state.xstatus.type ?? '',
-              xstatusTitle: state.xstatus.title ?? '',
-              xstatusDescription: state.xstatus.description ?? '',
+              xstatusType: state.xstatus?.type ?? '',
+              xstatusTitle: state.xstatus?.title ?? '',
+              xstatusDescription: state.xstatus?.description ?? '',
               features: state.features ?? 0x02FF,
               userAgent: state.userAgent ?? '',
               contact: `${state.username}@${state.domain}`
@@ -1644,8 +1644,8 @@ async function processCall (
   const packet = MrimCall.reader(packetData)
 
   const addresserClient = global.clients.find(
-    ({ username, domain }) => username === pakcet.to_or_from.split('@')[0] &&
-                              domain === pakcet.to_or_from.split('@')[1]
+    ({ username, domain }) => username === packet.to_or_from.split('@')[0] &&
+                              domain === packet.to_or_from.split('@')[1]
   )
 
   if (addresserClient !== undefined || packet.status !== 4) {
@@ -1688,18 +1688,19 @@ async function processCallAnswer (
   state,
   variables
 ) {
-  const packet = MrimCall.reader(packetData)
+  const packet = MrimCallAnswer.reader(packetData)
 
   const addresserClient = global.clients.find(
-    ({ username, domain }) => username === pakcet.to_or_from.split('@')[0] &&
-                              domain === pakcet.to_or_from.split('@')[1]
+    ({ username, domain }) => username === packet.to_or_from.split('@')[0] &&
+                              domain === packet.to_or_from.split('@')[1]
   )
 
   if (addresserClient !== undefined) {
-    const dataToSend = MrimCall.writer({
+    const dataToSend = MrimCallAnswer.writer({
       status: packet.status,
       to_or_from: `${state.username}@${state.domain}`,
-      unique_id: packet.unique_id
+      unique_id: packet.unique_id,
+      data: packet.data
     })
 
     addresserClient.socket.write(
