@@ -1595,8 +1595,8 @@ async function processFileTransferAnswer (
   const packet = MrimFileTransferAnswer.reader(packetData)
 
   const addresserClient = global.clients.find(
-    ({ username, domain }) => username === pakcet.to_or_from.split('@')[0] &&
-                              domain === pakcet.to_or_from.split('@')[1]
+    ({ username, domain }) => username === packet.to_or_from.split('@')[0] &&
+                              domain === packet.to_or_from.split('@')[1]
   )
 
   if (addresserClient !== undefined || packet.status !== 4) {

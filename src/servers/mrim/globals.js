@@ -94,4 +94,10 @@ const MrimMessageErrors = {
   OFFLINE_DISABLED: 0x8006
 }
 
+const MrimCallStatus = {
+  DENY: 0x0,
+  ACCEPT: 0x1,
+  PROXY: 0x4,
+}
+
 module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors }
