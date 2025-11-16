@@ -46,9 +46,12 @@ RESTserver.get('/users/status', (req, res) => {
  }
  
  const client = global.clients.find(client => client.username === user)
- const invisible = 0x8000001
-if (!client || client.status === invisible) {
-  return res.status(404).json({ error: 'User is offine or invisible (perhaps not even found)' });
+ const invisible = 0x8000001 //оно же так работает? если нет то я вообще в шокэ буду
+if (client.status === invisible) {
+  return res.status(200).json({ 
+    username: `${client.username}@${client.domain}`,
+    status: '0' //вприницпе логично
+  });
  }
  res.status(200).json({
   username: `${client.username}@${client.domain}`,
