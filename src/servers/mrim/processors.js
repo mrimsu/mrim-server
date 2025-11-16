@@ -1545,8 +1545,8 @@ async function processFileTransfer (
 
   // так ну неплохо надо бы переправить данный пакет нужному получателю
   const addresserClient = global.clients.find(
-    ({ username, domain }) => username === pakcet.to_or_from.split('@')[0] &&
-                              domain === pakcet.to_or_from.split('@')[1]
+    ({ username, domain }) => username === packet.to_or_from.split('@')[0] &&
+                              domain === packet.to_or_from.split('@')[1]
   )
 
   if (addresserClient !== undefined) {
