@@ -39,24 +39,39 @@ RESTserver.get('/users/online', (req, res) => {
   res.json({ count: response.length, users: response })
 })
 
-RESTserver.get('/users/status', (req, res) => {
+RESTserver.get('/users/status', async (req, res) => {
   const { user } = req.query
+
   if (!user) {
     return res.status(400).json({ error: 'User parameter is required' })
   }
 
-  const client = global.clients.find(client => client.username === user)
-  const invisible = 0x80000001 // оно же так работает? если нет то я вообще в шокэ буду
-  if (client.status === invisible) {
-    return res.status(200).json({
-      username: `${client.username}@${client.domain}`,
-      status: 0 // в принципе логично
-    })
+  let userEmail
+  
+  try {
+    userEmail = user.split('@')
+  } catch {
+    return res.status(400).json({ error: 'User parameter is incorrect: should be email' })
+  }
+
+  if (await checkUser(userEmail[0], userEmail[1])) {
+    const client = global.clients.find(client => client.username === userEmail[0] &&
+                                                 client.domain === userEmail[1]
+    )
+
+    if (!client || client.status === 0x80000001) { // if invisible
+      return res.status(200).json({
+        username: user,
+        status: 0
+      })
+    } else {
+      res.status(200).json({
+        username: user,
+        status: client.status
+      })
+    }
   } else {
-    res.status(200).json({
-      username: `${client.username}@${client.domain}`,
-      status: client.status
-    })
+    return res.status(400).json({ error: 'User does not exist' })
   }
 })
 
