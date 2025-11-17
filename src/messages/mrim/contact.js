@@ -106,9 +106,21 @@ const MrimAddContactRequest = new MessageConstructor()
   .field('authMessage', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
+const MrimNewConferenceRequest = new MessageConstructor()
+  .field('flags', FieldDataType.UINT32)
+  .field('groupIndex', FieldDataType.UINT32)
+  .field('reserved0', FieldDataType.UINT32)
+  .field('name', FieldDataType.UNICODE_STRING)
+  .field('reserved1', FieldDataType.UINT32)
+  .field('authMessage', FieldDataType.UBIART_LIKE_STRING)
+  .field('conferenceOptions', FieldDataType.UINT32)
+  .field('conferenceMembers', FieldDataType.UBIART_LIKE_STRING)
+  .finish()  
+
 const MrimAddContactResponse = new MessageConstructor()
   .field('status', FieldDataType.UINT32)
   .field('contactId', FieldDataType.UINT32)
+  .field('conferenceMail', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
 const MrimContactAuthorizeData = new MessageConstructor()
@@ -137,6 +149,7 @@ module.exports = {
   MrimContactWithMicroblogNewer,
   MrimAddContactRequest,
   MrimAddContactResponse,
+  MrimNewConferenceRequest,
   MrimContactAuthorizeData,
   MrimModifyContactRequest,
   MrimModifyContactResponse

@@ -100,4 +100,17 @@ const MrimCallStatus = {
   PROXY: 0x4,
 }
 
+const MrimConferenceStatus = {
+  MESSAGE: 0, // s<->c
+	GET_MEMBERS: 1, // c->s , ask for members list
+	GET_MEMBERS_ACK: 2, // s->c list of chat members arrived
+	ADD_MEMBERS: 3, // s->c someone has added some users to chat
+	ATTACHED: 4, // s->c user adds multichat contact to his contact list
+	DETACHED: 5, // s->c someone has left the chat himself
+	DESTROYED: 6, // s->c conference is destroyed nafig
+	INVITE: 7, // someone has invited me to chat
+	DEL_MEMBERS: 8, // someone has deleted some users from chat
+	TURN_OUT: 9 // s->c someone has delete me from chat 
+}
+
 module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors }

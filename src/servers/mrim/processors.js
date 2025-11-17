@@ -5,6 +5,7 @@
  */
 
 const BinaryConstructor = require('../../constructors/binary')
+const { BinaryReader, BinaryEndianness } = require('../../binary-reader')
 const {
   MessageConstructor,
   FieldDataType
@@ -31,6 +32,7 @@ const {
   MrimContactNewer,
   MrimContactWithMicroblog,
   MrimContactWithMicroblogNewer,
+  MrimNewConferenceRequest,
   MrimAddContactRequest,
   MrimAddContactResponse,
   MrimContactAuthorizeData,
@@ -59,6 +61,7 @@ const {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroups,
+  getConferences,
   createOrCompleteContact,
   addContactMSG,
   searchUsers,
@@ -68,10 +71,12 @@ const {
   deleteGroup,
   modifyContact,
   deleteContact,
+  createNewConference,
   getOfflineMessages,
   cleanupOfflineMessages,
   sendOfflineMessage,
-  isContactAuthorized
+  isContactAuthorized,
+  checkUser
 } = require('../../database')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
@@ -121,9 +126,10 @@ function processHello (containerHeader, connectionId, logger) {
 }
 
 async function generateContactList (containerHeader, userId, state = null) {
-  const [contactGroups, contacts] = await Promise.all([
+  const [contactGroups, contacts, conferences] = await Promise.all([
     getContactGroups(userId),
-    getContactsFromGroups(userId)
+    getContactsFromGroups(userId),
+    getConferences(userId)
   ])
 
   let MRIM_CONTACT_MASK
@@ -161,6 +167,100 @@ async function generateContactList (containerHeader, userId, state = null) {
     })
   }
 
+  const contactsPacket = contacts.flat().filter((contact) => {
+    const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
+    return requesterIsAdder || contact.requester_is_contact === 1
+  }).map((contact) => {
+    const groupIndex = contactGroups.findIndex(
+      (group) => contact.requester_is_adder
+        ? group.id === contact.adder_group_id
+        : group.id === contact.contact_group_id
+    )
+
+    const connectedContact = global.clients.find(
+      ({ userId }) => userId === contact.user_id
+    )
+
+    const contactFlags = contact.requester_is_adder
+      ? contact.contact_flags
+      : contact.adder_flags
+
+    const contactFlagsAsUser = contact.requester_is_adder
+      ? contact.adder_flags
+      : contact.contact_flags
+
+    let status = connectedContact?.status ??
+      ((config.adminProfile?.username == contact.user_login &&
+        config.adminProfile?.domain == contact.user_domain
+      )
+        ? 1
+        : 0)
+
+    if (contactFlagsAsUser & MrimContactFlags.NEVER_VISIBLE || contactFlagsAsUser & MrimContactFlags.IGNORED) {
+      status = 0
+    } else if (connectedContact?.status === MrimStatus.INVISIBLE && contactFlagsAsUser & MrimContactFlags.ALWAYS_VISIBLE) { // Если Невидимка и "Я всегда видим для"
+      status = connectedContact?.status
+    }
+
+    const contactStructure = {
+      contactFlags: contactFlags + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0),
+      groupIndex: groupIndex !== -1 ? groupIndex : 0,
+      email: `${contact.user_login}@${contact.user_domain}`,
+      login: contact.contact_nickname ??
+          contact.user_nickname ??
+          contact.user_login,
+      authorized: Number(!contact.is_auth_success),
+      status,
+      phoneNumber: ''
+    }
+
+    // добавляем новые поля в структуру контакта в зависимости от версии протокола
+
+    if (containerHeader.protocolVersionMinor >= 15) {
+      contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ''
+      contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ''
+      contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ''
+      contactStructure.features = connectedContact?.features ?? 0x02FF
+      contactStructure.userAgent = connectedContact?.userAgent ?? ''
+    }
+
+    // и тут отправляем в нужной структуре
+
+    if (containerHeader.protocolVersionMinor >= 21) {
+      return MrimContactWithMicroblogNewer.writer(contactStructure, UTF16CAPABLE)
+    } else if (containerHeader.protocolVersionMinor >= 20) {
+      return MrimContactWithMicroblog.writer(contactStructure, UTF16CAPABLE)
+    } else if (containerHeader.protocolVersionMinor >= 15) {
+      return MrimContactNewer.writer(contactStructure, UTF16CAPABLE)
+    } else {
+      return MrimContact.writer(contactStructure)
+    }
+  })
+
+  if (containerHeader.protocolVersionMinor >= 20) {
+    const conferencesPacket = 
+      conferences.flat().filter((conference) => {
+        return conference.id > 0
+      }).map((conference) => {
+        const contactStructure = {
+          contactFlags: MrimContactFlags.CHAT + MrimContactFlags.UNICODE_NICKNAME,
+          groupIndex: 0,
+          email: `${conference.id + 1000000}@chat.agent`,
+          login: conference.name,
+          authorized: 0,
+          status: MrimStatus.ONLINE
+        }
+
+        if (containerHeader.protocolVersionMinor >= 21) {
+          return MrimContactWithMicroblogNewer.writer(contactStructure, true)
+        } else {
+          return MrimContactWithMicroblog.writer(contactStructure, true)
+        }
+      })
+
+    contactsPacket.push(...conferencesPacket)
+  }
+
   const contactList = MrimContactList.writer({
     groupCount: contactGroups.length,
     groupFlag: MRIM_GROUP_MASK,
@@ -174,77 +274,7 @@ async function generateContactList (containerHeader, userId, state = null) {
         }, UTF16CAPABLE)
       )
     ),
-    contacts: Buffer.concat(
-      contacts.flat().filter((contact) => {
-        const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
-        return requesterIsAdder || contact.requester_is_contact === 1
-      }).map((contact) => {
-        const groupIndex = contactGroups.findIndex(
-          (group) => contact.requester_is_adder
-            ? group.id === contact.adder_group_id
-            : group.id === contact.contact_group_id
-        )
-
-        const connectedContact = global.clients.find(
-          ({ userId }) => userId === contact.user_id
-        )
-
-        const contactFlags = contact.requester_is_adder
-          ? contact.contact_flags
-          : contact.adder_flags
-
-        const contactFlagsAsUser = contact.requester_is_adder
-          ? contact.adder_flags
-          : contact.contact_flags
-
-        let status = connectedContact?.status ??
-          ((config.adminProfile?.username == contact.user_login &&
-            config.adminProfile?.domain == contact.user_domain
-          )
-            ? 1
-            : 0)
-
-        if (contactFlagsAsUser & MrimContactFlags.NEVER_VISIBLE || contactFlagsAsUser & MrimContactFlags.IGNORED) {
-          status = 0
-        } else if (connectedContact?.status === MrimStatus.INVISIBLE && contactFlagsAsUser & MrimContactFlags.ALWAYS_VISIBLE) { // Если Невидимка и "Я всегда видим для"
-          status = connectedContact?.status
-        }
-
-        const contactStructure = {
-          contactFlags: contactFlags + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0),
-          groupIndex: groupIndex !== -1 ? groupIndex : 0,
-          email: `${contact.user_login}@${contact.user_domain}`,
-          login: contact.contact_nickname ??
-              contact.user_nickname ??
-              contact.user_login,
-          authorized: Number(!contact.is_auth_success),
-          status,
-          phoneNumber: ''
-        }
-
-        // добавляем новые поля в структуру контакта в зависимости от версии протокола
-
-        if (containerHeader.protocolVersionMinor >= 15) {
-          contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ''
-          contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ''
-          contactStructure.xstatusDescription = connectedContact?.xstatus?.description ?? ''
-          contactStructure.features = connectedContact?.features ?? 0x02FF
-          contactStructure.userAgent = connectedContact?.userAgent ?? ''
-        }
-
-        // и тут отправляем в нужной структуре
-
-        if (containerHeader.protocolVersionMinor >= 21) {
-          return MrimContactWithMicroblogNewer.writer(contactStructure, UTF16CAPABLE)
-        } else if (containerHeader.protocolVersionMinor >= 20) {
-          return MrimContactWithMicroblog.writer(contactStructure, UTF16CAPABLE)
-        } else if (containerHeader.protocolVersionMinor >= 15) {
-          return MrimContactNewer.writer(contactStructure, UTF16CAPABLE)
-        } else {
-          return MrimContact.writer(contactStructure)
-        }
-      })
-    )
+    contacts: Buffer.concat(contactsPacket)
   }, UTF16CAPABLE)
 
   return new BinaryConstructor()
@@ -317,6 +347,40 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
 
   logger.debug(`[${connectionId}] found ${offlineMessages.length} offline messages for userid = ${userId}`)
   cleanupOfflineMessages(userId)
+}
+
+async function _parseConferenceMembers (userId, unparsedMembers) {
+  const binaryReader = new BinaryReader(
+    Buffer.from(unparsedMembers), 
+    this.endianness
+  )
+  binaryReader.readUint32() // LPS size
+  const memberCount = binaryReader.readUint32()
+  const members = []
+
+  members.push(userId)
+
+  for (let i = 0; i < memberCount; i++) {
+    const length = binaryReader.readUint32()
+
+    if (length > 0) {
+      const email = new Iconv('CP1251', 'UTF-8')
+          .convert(
+            Buffer.from(
+              binaryReader.readUint8Array(length)
+            )
+          )
+          .toString('utf-8')
+          .slice(0, 50)
+      
+      const id = await getIdViaLogin(email.split("@")[0], email.split("@")[1])
+      
+      if (id > 0) {
+        members.push(id)
+      }
+    }
+  }
+  return members
 }
 
 async function processLogin (
@@ -962,6 +1026,17 @@ async function processAddContact (
       contactResponse = MrimAddContactResponse.writer({
         status: 0x0, // CONTACT_OPER_SUCCESS
         contactId: contactResult
+      })
+    } else if (request.flags & MrimContactFlags.CHAT) {
+      const conferencePacket = MrimNewConferenceRequest.reader(packetData, state.utf16capable)
+      const conferenceMembers = await _parseConferenceMembers(state.userId, conferencePacket.conferenceMembers)
+
+      conferenceResult = await createNewConference(state.userId, conferencePacket.name, conferenceMembers)
+
+      contactResponse = MrimAddContactResponse.writer({
+        status: 0x0, // CONTACT_OPER_SUCCESS
+        contactId: contactResult,
+        conferenceMail: `${conferenceResult + 1000000}@chat.agent`
       })
     } else {
       contactResult = await createOrCompleteContact(

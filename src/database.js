@@ -110,6 +110,20 @@ async function getContactsFromGroups (userId) {
   return [...resultsAsAdder[0], ...resultsAsContact[0]]
 }
 
+async function getConferences (userId) {
+  const connection = await pool.getConnection()
+
+  const conferences = await connection.query(
+    'SELECT * FROM `conferences_members` ' +
+      'LEFT JOIN `conferences` ON `conferences`.`id` = `conferences_members`.`conference` ' +
+      'WHERE `conferences_members`.`member` = ?',
+    [userId]
+  )
+
+  pool.releaseConnection(connection)
+  return conferences
+}
+
 /**
  * Поиск пользователей
  *
@@ -259,7 +273,7 @@ async function registerUser (userData) {
   const connection = await pool.getConnection()
   const query =
     'INSERT INTO `user` (`login`, `passwd`, `domain`, `nick`, `f_name`, `l_name`, `location`, `birthday`, `sex`) ' +
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   const variables = [
     userData.login,
     crypto.createHash('md5').update(userData.passwd).digest('hex').toLowerCase(),
@@ -633,6 +647,40 @@ async function deleteContact (adderUserId, contactLogin, contactDomain) {
   return contactUserResults[0].id
 }
 
+
+/**
+ * Создание новой конференции
+ *
+ * @param {number} userId ID пользователя-основателя
+ * @param {Object} name Название
+ * @param {Array} members ID участников
+ *
+ * @returns {Promise<boolean>} Результат создания, ID
+ */
+async function createNewConference (userId, conferenceName, conferenceMembers, options) {
+  const connection = await pool.getConnection()
+  
+  const result = await connection.query(
+    'INSERT INTO `conferences` ' +
+    '(`name`, `owner`, `options`)' +
+    'VALUES (?, ?, ?)',
+    [conferenceName, userId, options ?? 0]
+  )
+
+  await connection.commit()
+
+  for (const memberId of conferenceMembers) {
+    await connection.execute(
+      'INSERT INTO `conferences_members` (`conference`, `member`) VALUES (?, ?)',
+      [result[0].insertId, memberId]
+    )
+  }
+
+  await connection.commit()
+
+  pool.releaseConnection(connection)
+  return result[0].insertId
+}
 /**
  * Редактировать статус пользователя
  *
@@ -798,6 +846,7 @@ module.exports = {
   getUserIdViaCredentials,
   getContactGroups,
   getContactsFromGroups,
+  getConferences,
   createOrCompleteContact,
   addContactMSG,
   createNewGroup,
@@ -807,6 +856,7 @@ module.exports = {
   deleteGroup,
   modifyContact,
   deleteContact,
+  createNewConference,
   modifyUserStatus,
   isContactAuthorized,
   getOfflineMessages,
