@@ -1222,7 +1222,7 @@ async function processAuthorizeContact (
   }
 
   // Если юзер принял авторизацию
-  if (await isContactAuthorized(state.userId, contactUsername) > 0) {
+  if (await isContactAuthorized(state.userId, username, domain) > 0) {
     state.lastAuthorizedContact = contactUsername
 
     const authorizeReply = MrimAddContactData.writer({

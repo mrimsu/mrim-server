@@ -734,6 +734,11 @@ async function isContactAuthorized (user, contact, contactDomain) {
       [contact, contactDomain]
     )
 
+  if (contactUserResult[0].length === 0) {
+    pool.releaseConnection(connection)
+    return false
+  }
+
   const [{ id: contactUserId }] = contactUserResult[0]
 
   // eslint-disable-next-line no-unused-vars
