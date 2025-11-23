@@ -85,6 +85,8 @@ const MrimMessageFlags = {
   MULTICAST: 0x1000,
   WAKEUP: 0x4000,
   FLASH: 0x8000,
+  FROM_AUTH_USER: 0x40000,
+  MULTICHAT: 0x400000
 }
 
 const MrimMessageErrors = {
@@ -113,4 +115,4 @@ const MrimConferenceStatus = {
 	TURN_OUT: 9 // s->c someone has delete me from chat 
 }
 
-module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors }
+module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConferenceStatus }

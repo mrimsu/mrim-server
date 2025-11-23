@@ -681,6 +681,75 @@ async function createNewConference (userId, conferenceName, conferenceMembers, o
   pool.releaseConnection(connection)
   return result[0].insertId
 }
+
+/**
+ * Отдать информацию о конференции
+ *
+ * @param {number} conferenceId ID конференции
+ *
+ * @returns {Promise<boolean>} 
+ */
+async function getConferenceInfo (conferenceId) {
+  const connection = await pool.getConnection()
+
+  const result = await connection.query(
+    'SELECT * FROM `conferences` ' +
+    'WHERE `id` = ?',
+    [conferenceId]
+  )
+
+  await connection.commit()
+
+  pool.releaseConnection(connection)
+  return result[0][0] ?? null
+}
+
+/**
+ * Проверяет, является ли пользователь участником конференции
+ *
+ * @param {number} userId ID пользователя-основателя
+ * @param {number} conferenceId ID конференции
+ *
+ * @returns {Promise<boolean>} true or false
+ */
+async function isConferenceMember (userId, conferenceId) {
+  const connection = await pool.getConnection()
+
+  const result = await connection.query(
+    'SELECT * FROM `conferences_members` ' +
+    'WHERE `member` = ? AND `conference` = ?',
+    [userId, conferenceId]
+  )
+
+  await connection.commit()
+
+  pool.releaseConnection(connection)
+  return result[0].length > 0
+}
+
+/**
+ * Отдаёт список участников конференции
+ *
+ * @param {number} conferenceId ID конференции
+ *
+ * @returns {Promise<boolean>} Array список с userId
+ */
+async function getConferenceMembers (conferenceId) {
+  const connection = await pool.getConnection()
+
+  const result = await connection.query(
+    'SELECT `conferences_members`.`member`, `user`.`login`, `user`.`domain` FROM `conferences_members` ' +
+    'INNER JOIN `user` ON `conferences_members`.`member` = `user`.`id` ' +
+    'WHERE `conference` = ?',
+    [conferenceId]
+  )
+
+  await connection.commit()
+
+  pool.releaseConnection(connection)
+  return result[0]
+}
+
 /**
  * Редактировать статус пользователя
  *
@@ -857,6 +926,9 @@ module.exports = {
   modifyContact,
   deleteContact,
   createNewConference,
+  getConferenceInfo,
+  isConferenceMember,
+  getConferenceMembers,
   modifyUserStatus,
   isContactAuthorized,
   getOfflineMessages,

@@ -269,6 +269,8 @@ class MessageConstructor {
         }
       }
 
+      result['__length'] = binaryReader.offset
+
       return result
     }
   }

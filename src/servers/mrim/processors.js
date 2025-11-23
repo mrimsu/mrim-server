@@ -15,7 +15,8 @@ const {
   MrimStatus,
   MrimContactFlags,
   MrimMessageFlags,
-  MrimMessageErrors
+  MrimMessageErrors,
+  MrimConferenceStatus
 } = require('./globals')
 const {
   MrimLoginData,
@@ -42,7 +43,12 @@ const {
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   MrimClientMessageData,
-  MrimServerMessageData
+  MrimServerMessageData,
+  // Chat
+  MrimChatMessageData,
+  MrimChatMembersData, 
+  MrimChatMember,
+  MrimServerMessageWithoutChatData
 } = require('../../messages/mrim/messaging')
 const {
   MrimSearchField,
@@ -76,7 +82,10 @@ const {
   cleanupOfflineMessages,
   sendOfflineMessage,
   isContactAuthorized,
-  checkUser
+  checkUser,
+  isConferenceMember,
+  getConferenceMembers,
+  getConferenceInfo
 } = require('../../database')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
@@ -750,6 +759,150 @@ async function processMessage (
       messageData.addresser.split('@')[0],
       messageData.addresser.split('@')[1]
     )
+  }
+
+  // MRIM >= 1.20
+  if (messageData.addresser.endsWith("@chat.agent")) {
+    const conferenceId = parseInt(messageData.addresser.split('@')[0]) - 1000000;
+    let isMember = await isConferenceMember(state.userId, conferenceId);
+    let messageStatus = 0x8001
+
+    if(isMember) {
+      const membersList = await getConferenceMembers(conferenceId)
+      let conferenceInfo = await getConferenceInfo(conferenceId);
+
+      if (messageData.flags == MrimMessageFlags.RTF && messageData.message == '') { 
+        // action
+        let packageType = packetData.readUint32LE(messageData.__length + 4)
+
+        logger.debug(
+          `[${connectionId}] ${state.username}@${state.domain}: chat request with package type ${packageType} to ${messageData.addresser}`
+        )
+
+        const msgId = Math.random() * 0xFFFFFFFF;
+
+        const dataToSend = MrimServerMessageWithoutChatData.writer({
+          id: msgId,
+          flags: MrimMessageFlags.MULTICHAT + MrimMessageFlags.FROM_AUTH_USER,
+          addresser: messageData.addresser,
+          message: '',
+          messageRTF: ''
+        }, true)
+
+        let additionalDataForChats;
+
+        switch (packageType) {
+          case MrimConferenceStatus.GET_MEMBERS:
+            additionalDataForChats = MrimChatMembersData.writer({
+              packageType: MrimConferenceStatus.GET_MEMBERS_ACK,
+              conferenceName: conferenceInfo.name,
+              membersCount: membersList.length,
+              members: Buffer.concat(
+                membersList.flat().map((member) => {
+                  return MrimChatMember.writer({
+                    email: `${member.login}@${member.domain}`
+                  })
+                })
+              )
+            }, true)
+            break;
+        
+          default:
+            break;
+        }
+
+        return {
+          reply: [
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: containerHeader.packetOrder,
+                  packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                  dataSize: 4
+                })
+              )
+              .integer(0, 4)
+              .finish(),
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: msgId,
+                  packetCommand: MrimMessageCommands.MESSAGE_ACK,
+                  dataSize: dataToSend.length + 4 + (additionalDataForChats.length ?? 0)
+                })
+              )
+              .subbuffer(dataToSend)
+              .integer(additionalDataForChats.length ?? 0, 4)
+              .subbuffer(additionalDataForChats ?? null)
+              .finish()
+          ]
+        }
+      } else {
+        // msg
+        if (membersList.length > 0) {
+          membersList.forEach(async (member) => {
+            if (state.userId !== member.member) {
+              const addresserClient = global.clients.find(
+                ({ userId }) => userId === member.member
+              )
+  
+              if (addresserClient !== undefined) {                
+                const dataToSend = MrimServerMessageData.writer({
+                  id: Math.random() * 0xFFFFFFFF,
+                  flags: messageData.flags,
+                  addresser: messageData.addresser,
+                  message: messageData.message ?? ' ',
+                  messageRTF: messageData.messageRTF ?? ' '
+                }, addresserClient.utf16capable)
+  
+                const additionalDataForChats = MrimChatMessageData.writer({
+                  packageType: MrimConferenceStatus.MESSAGE,
+                  from: conferenceInfo.name,
+                  fromUser: `${state.username}@${state.domain}`
+                }, addresserClient.utf16capable)
+  
+                addresserClient.socket.write(
+                  new BinaryConstructor()
+                    .subbuffer(
+                      MrimContainerHeader.writer({
+                        ...containerHeader,
+                        protocolVersionMinor: addresserClient.protocolVersionMinor,
+                        packetOrder: Math.random() * 0xFFFFFFFF,
+                        packetCommand: MrimMessageCommands.MESSAGE_ACK,
+                        dataSize: dataToSend.length + 4 + additionalDataForChats.length
+                      })
+                    )
+                    .subbuffer(dataToSend)
+                    .integer(additionalDataForChats.length, 4)
+                    .subbuffer(additionalDataForChats)
+                    .finish()
+                )
+              }
+            }
+          });
+  
+          messageStatus = 0x0
+        }
+      }
+    }
+
+    return {
+      reply: [
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetOrder: containerHeader.packetOrder,
+            packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+            dataSize: 4
+          })
+        )
+        .integer(messageStatus, 4)
+        .finish()
+      ]
+    }
   }
 
   const addresserClient = global.clients.find(
