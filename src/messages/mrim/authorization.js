@@ -69,12 +69,12 @@ const MrimUserInfo = new MessageConstructor()
   .field('messagesunread', FieldDataType.UNICODE_STRING)
   .field('clientip.field', FieldDataType.UBIART_LIKE_STRING, 'client.endpoint')
   .field('clientip', FieldDataType.UNICODE_STRING)
-  .field('mblogid.field', FieldDataType.UBIART_LIKE_STRING, 'micblog.status.id')
-  .field('mblogid', FieldDataType.UNICODE_STRING)
+  /* .field('mblogid.field', FieldDataType.UBIART_LIKE_STRING, 'micblog.status.id')
+  .field('mblogid', FieldDataType.UINT32)
   .field('mblogtime.field', FieldDataType.UBIART_LIKE_STRING, 'micblog.status.time')
-  .field('mblogtime', FieldDataType.UNICODE_STRING)
+  .field('mblogtime', FieldDataType.UINT32)
   .field('mblogtext.field', FieldDataType.UBIART_LIKE_STRING, 'micblog.status.text')
-  .field('mblogtext', FieldDataType.UNICODE_STRING)
+  .field('mblogtext', FieldDataType.UNICODE_STRING) */
   .finish()
 
 module.exports = { MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }

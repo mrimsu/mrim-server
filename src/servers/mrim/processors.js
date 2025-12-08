@@ -46,6 +46,7 @@ const {
   MrimServerMessageData,
   // Chat
   MrimChatMessageData,
+  MrimChatMembersHeader, 
   MrimChatMembersData, 
   MrimChatMember,
   MrimServerMessageWithoutChatData
@@ -769,9 +770,11 @@ async function processMessage (
 
     if(isMember) {
       const membersList = await getConferenceMembers(conferenceId)
-      let conferenceInfo = await getConferenceInfo(conferenceId);
+      let conferenceInfo = await getConferenceInfo(conferenceId)
 
-      if (messageData.flags == MrimMessageFlags.RTF && messageData.message == '') { 
+      // let's try to guess 
+      if ((messageData.flags == MrimMessageFlags.RTF || messageData.flags & MrimMessageFlags.MULTICHAT) 
+        && messageData.messageRTF == '') { 
         // action
         let packageType = packetData.readUint32LE(messageData.__length + 4)
 
@@ -782,8 +785,8 @@ async function processMessage (
         const msgId = Math.random() * 0xFFFFFFFF;
 
         const dataToSend = MrimServerMessageWithoutChatData.writer({
-          id: msgId,
-          flags: MrimMessageFlags.MULTICHAT + MrimMessageFlags.FROM_AUTH_USER,
+          id: 0,
+          flags: MrimMessageFlags.MULTICHAT + MrimMessageFlags.RTF,
           addresser: messageData.addresser,
           message: '',
           messageRTF: ''
@@ -793,9 +796,9 @@ async function processMessage (
 
         switch (packageType) {
           case MrimConferenceStatus.GET_MEMBERS:
-            additionalDataForChats = MrimChatMembersData.writer({
-              packageType: MrimConferenceStatus.GET_MEMBERS_ACK,
-              conferenceName: conferenceInfo.name,
+            // i have just one question. what. the. fuck ?!?!?!
+
+            const membersData = MrimChatMembersData.writer({
               membersCount: membersList.length,
               members: Buffer.concat(
                 membersList.flat().map((member) => {
@@ -804,6 +807,13 @@ async function processMessage (
                   })
                 })
               )
+            })
+
+            additionalDataForChats = MrimChatMembersHeader.writer({
+              packageType: MrimConferenceStatus.GET_MEMBERS_ACK,
+              conferenceName: conferenceInfo.name,
+              membersLength: membersData.length,
+              membersData: membersData
             }, true)
             break;
         
@@ -848,10 +858,12 @@ async function processMessage (
                 ({ userId }) => userId === member.member
               )
   
-              if (addresserClient !== undefined) {                
-                const dataToSend = MrimServerMessageData.writer({
+              if (addresserClient !== undefined) {
+                const alwaysMultichatFlag = (messageData.flags & MrimMessageFlags.MULTICHAT) != 0 ? 0 : MrimMessageFlags.MULTICHAT
+                
+                const dataToSend = MrimServerMessageWithoutChatData.writer({
                   id: Math.random() * 0xFFFFFFFF,
-                  flags: messageData.flags,
+                  flags: messageData.flags + alwaysMultichatFlag + MrimMessageFlags.v1p16,
                   addresser: messageData.addresser,
                   message: messageData.message ?? ' ',
                   messageRTF: messageData.messageRTF ?? ' '
@@ -913,7 +925,7 @@ async function processMessage (
   if (addresserClient !== undefined) {
     const dataToSend = MrimServerMessageData.writer({
       id: Math.random() * 0xFFFFFFFF,
-      flags: messageData.flags,
+      flags: messageData.flags + (addresserClient.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
       addresser: `${state.username}@${state.domain}`,
       message: messageData.message ?? ' ',
       messageRTF: messageData.messageRTF ?? ' '

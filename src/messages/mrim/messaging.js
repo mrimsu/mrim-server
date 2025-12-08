@@ -24,13 +24,19 @@ const MrimChatMessageData = new MessageConstructor()
   .field('reserved1', FieldDataType.UINT32, 0)
   .finish()
 
-const MrimChatMembersData = new MessageConstructor()
+const MrimChatMembersHeader = new MessageConstructor()
   .field('packageType', FieldDataType.UINT32)
   .field('conferenceName', FieldDataType.UNICODE_STRING)
-  .field('_empty', FieldDataType.UINT32, 0)
+  .field('membersLength', FieldDataType.UINT32)
+  .field('membersData', FieldDataType.SUBBUFFER)
+  .finish()
+
+// what the FUCK!?
+const MrimChatMembersData = new MessageConstructor()
   .field('membersCount', FieldDataType.UINT32)
   .field('members', FieldDataType.SUBBUFFER)
   .finish()
+
   
 const MrimChatMember = new MessageConstructor()
   .field('email', FieldDataType.UBIART_LIKE_STRING)
@@ -61,6 +67,7 @@ module.exports = {
 
   // Chat
   MrimChatMessageData,
+  MrimChatMembersHeader,
   MrimChatMembersData, 
   MrimChatMember,
 

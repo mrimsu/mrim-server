@@ -86,6 +86,7 @@ const MrimMessageFlags = {
   WAKEUP: 0x4000,
   FLASH: 0x8000,
   FROM_AUTH_USER: 0x40000,
+  v1p16: 0x100000, // unicode convertion
   MULTICHAT: 0x400000
 }
 

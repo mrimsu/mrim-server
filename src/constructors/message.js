@@ -18,6 +18,7 @@ const FieldDataType = {
   BYTE: 1,
   UINT16: 2,
   UINT32: 3,
+  LONG: 10,
   INT16: 4,
   INT32: 5,
   SUBBUFFER: 6,
@@ -103,6 +104,12 @@ class MessageConstructor {
             binaryConstructor = binaryConstructor.integer(
               field.constantValue ?? message[field.key],
               4
+            )
+            break
+          case FieldDataType.LONG:
+            binaryConstructor = binaryConstructor.integer(
+              field.constantValue ?? message[field.key],
+              8
             )
             break
           case FieldDataType.INT16:
