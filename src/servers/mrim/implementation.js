@@ -165,7 +165,7 @@ async function disconnectClient (connectionId, logger, state) {
   )
 
   const sameUserSessionsCount = global.clients.filter(
-    ({ username }) => username === state.username
+    ({ username, domain }) => username === state.username && domain === state.domain
   ).length
 
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
