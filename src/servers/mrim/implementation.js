@@ -145,11 +145,15 @@ function onData (socket, connectionId, logger, state, variables) {
 
 function onClose (socket, connectionId, logger, state, variables) {
   return async () => {
-    if (global.clients.length > 0) {
-      disconnectClient(connectionId, logger, state)
-      logger.debug(
-        `[${connectionId}] !!! connection closed for ${state.username}`
-      )
+    try {
+      if (global.clients.length > 0) {
+        disconnectClient(connectionId, logger, state)
+        logger.debug(
+          `[${connectionId}] !!! connection closed for ${state.username}`
+        )
+      }
+    } catch (e) {
+      logger.debug(`[${connectionId}] seems like the client did harakiri: ${e.message} ${e.stack}`)
     }
   }
 }
@@ -164,7 +168,7 @@ async function disconnectClient (connectionId, logger, state) {
   ).length
 
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  if (clientIndex && sameUserSessionsCount <= 1) {
+  if (clientIndex >= 0 && sameUserSessionsCount <= 1) {
     await processChangeStatus(
       {
         protocolVersionMajor: state.protocolVersionMajor,
@@ -184,9 +188,7 @@ async function disconnectClient (connectionId, logger, state) {
       null
     )
 
-    if (clientIndex !== -1) {
-      global.clients.splice(clientIndex, 1)
-    }
+    global.clients.splice(clientIndex, 1)
 
     clearTimeout(timeoutTimer[connectionId])
     delete timeoutTimer[connectionId]
