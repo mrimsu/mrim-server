@@ -8,6 +8,12 @@ const {
   FieldDataType
 } = require('../../constructors/message')
 
+// для MRIM 1.? (1.4) и ниже
+const MrimOldLoginData = new MessageConstructor()
+  .field('login', FieldDataType.UBIART_LIKE_STRING)
+  .field('password', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
 // для MRIM 1.14 и ниже
 const MrimLoginData = new MessageConstructor()
   .field('login', FieldDataType.UBIART_LIKE_STRING)
@@ -77,4 +83,4 @@ const MrimUserInfo = new MessageConstructor()
   .field('mblogtext', FieldDataType.UNICODE_STRING)
   .finish()
 
-module.exports = { MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }
+module.exports = { MrimOldLoginData, MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }

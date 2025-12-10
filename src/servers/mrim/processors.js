@@ -9,7 +9,7 @@ const {
   MessageConstructor,
   FieldDataType
 } = require('../../constructors/message')
-const { 
+const {
   MrimMessageCommands,
   MrimStatus,
   MrimContactFlags,
@@ -17,6 +17,7 @@ const {
   MrimMessageErrors
 } = require('./globals')
 const {
+  MrimOldLoginData,
   MrimLoginData,
   MrimNewerLoginData,
   MrimMoreNewerLoginData,
@@ -27,6 +28,7 @@ const {
 const {
   MrimContactList,
   MrimContactGroup,
+  MrimOldContact,
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,
@@ -168,8 +170,8 @@ async function generateContactList (containerHeader, userId, state = null) {
     groups: Buffer.concat(
       contactGroups.map((contactGroup, index) =>
         MrimContactGroup.writer({
-          groupFlags: MrimContactFlags.GROUP + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0) 
-                      + (index * 0x1000000),
+          groupFlags: MrimContactFlags.GROUP + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0) +
+                      (index * 0x1000000),
           name: contactGroup.name
         }, UTF16CAPABLE)
       )
@@ -240,8 +242,10 @@ async function generateContactList (containerHeader, userId, state = null) {
           return MrimContactWithMicroblog.writer(contactStructure, UTF16CAPABLE)
         } else if (containerHeader.protocolVersionMinor >= 15) {
           return MrimContactNewer.writer(contactStructure, UTF16CAPABLE)
-        } else {
+        } else if (containerHeader.protocolVersionMinor >= 8) {
           return MrimContact.writer(contactStructure)
+        } else {
+          return MrimOldContact.writer(contactStructure)
         }
       })
     )
@@ -317,6 +321,121 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
 
   logger.debug(`[${connectionId}] found ${offlineMessages.length} offline messages for userid = ${userId}`)
   cleanupOfflineMessages(userId)
+}
+
+async function processLegacyLogin (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let loginData
+
+  loginData = MrimOldLoginData.reader(packetData)
+
+  logger.debug(`[${connectionId}] ${loginData.login} tries to login using Legacy Login method...`)
+
+  try {
+    state.userId = await getUserIdViaCredentials(
+      loginData.login.split('@')[0],
+      loginData.login.split('@')[1],
+      loginData.password
+    )
+    state.username = loginData.login.split('@')[0]
+    state.domain = loginData.login.split('@')[1]
+    state.status = 1
+    state.protocolVersionMajor = containerHeader.protocolVersionMajor
+    state.protocolVersionMinor = containerHeader.protocolVersionMinor
+    state.connectionId = connectionId
+    state.userAgent = 'client="magent" version="4.?"'
+    state.features = 0x005F
+    state.utf16capable = false // old ass client
+
+    if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
+      logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
+    }
+
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
+
+    global.clients.push(state)
+  } catch (e) {
+    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`)
+
+    let dataToSend
+    if (e.fatal !== false) {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: 'Invalid login'
+      })
+    } else {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: 'Database error'
+      })
+    }
+
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.LOGIN_REJ,
+            dataSize: dataToSend.length
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    }
+  }
+
+  const statusData = MrimChangeStatusRequest.writer({
+    status: 1
+  })
+
+  // eslint-disable-next-line no-unused-vars
+  const [contactList, _changeStatus] = await Promise.all([
+    generateContactList(containerHeader, state.userId, state),
+    processChangeStatus(
+      containerHeader,
+      statusData,
+      connectionId,
+      logger,
+      state,
+      variables
+    )
+  ])
+
+  const searchResults = await searchUsers(0, { login: state.username })
+
+  const userInfo = MrimUserInfo.writer({
+    nickname: searchResults[0].nick,
+    messagestotal: '0', // dummy
+    messagesunread: '0', // dummy
+    clientip: '127.0.0.1:' + state.socket.remotePort
+  }, state.utf16capable)
+
+  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
+
+  return {
+    reply: [
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.LOGIN_ACK,
+        dataSize: 0
+      }),
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_INFO,
+            dataSize: userInfo.length
+          })
+        )
+        .subbuffer(userInfo)
+        .finish(),
+      contactList
+    ]
+  }
 }
 
 async function processLogin (
@@ -1092,8 +1211,9 @@ async function processAddContact (
             }, state.utf16capable)
           } else {
             userStatusUpdate = MrimUserStatusUpdate.writer({
-              status: (clientAddresser.status !== MrimStatus.XSTATUS ? 
-                clientAddresser.status : MrimStatus.ONLINE) ?? 
+              status: (clientAddresser.status !== MrimStatus.XSTATUS
+                ? clientAddresser.status
+                : MrimStatus.ONLINE) ??
                 MrimStatus.OFFLINE,
               contact: request.contact
             })
@@ -1434,8 +1554,8 @@ async function processChangeStatus (
       ? contact.contact_flags
       : contact.adder_flags
 
-    if (status.status === MrimStatus.INVISIBLE && 
-      (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED)) { 
+    if (status.status === MrimStatus.INVISIBLE &&
+      (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED)) {
       continue
     } else if (status.status === MrimStatus.INVISIBLE && !(contactFlags & MrimContactFlags.ALWAYS_VISIBLE)) {
       status.status = 0
@@ -1730,6 +1850,7 @@ async function processCallAnswer (
 
 module.exports = {
   processHello,
+  processLegacyLogin,
   processLogin,
   processLoginThree,
   processSearch,

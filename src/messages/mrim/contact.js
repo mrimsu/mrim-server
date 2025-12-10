@@ -24,6 +24,17 @@ const MrimContactGroup = new MessageConstructor()
   .field('name', FieldDataType.UNICODE_STRING)
   .finish()
 
+// older than MRIM 1.8
+const MrimOldContact = new MessageConstructor()
+  .field('contactFlags', FieldDataType.UINT32)
+  .field('groupIndex', FieldDataType.UINT32)
+  .field('email', FieldDataType.UBIART_LIKE_STRING)
+  .field('login', FieldDataType.UBIART_LIKE_STRING)
+  .field('authorized', FieldDataType.UINT32)
+  .field('status', FieldDataType.UINT32)
+  .finish()
+
+// MRIM >1.8
 const MrimContact = new MessageConstructor()
   .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -131,6 +142,8 @@ const MrimModifyContactResponse = new MessageConstructor()
 module.exports = {
   MrimContactList,
   MrimContactGroup,
+
+  MrimOldContact,
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,

@@ -9,6 +9,7 @@ const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   processHello,
+  processLegacyLogin,
   processLogin,
   processLoginThree,
   processMessage,
@@ -206,6 +207,16 @@ async function processPacket (
   switch (containerHeader.packetCommand) {
     case MrimMessageCommands.HELLO:
       return processHello(containerHeader, connectionId, logger)
+    // MRIM <= 1.7
+    case MrimMessageCommands.LOGIN:
+      return processLegacyLogin(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
     // MRIM <= 1.20
     case MrimMessageCommands.LOGIN2:
       return processLogin(
