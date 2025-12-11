@@ -761,7 +761,7 @@ async function processMessage (
 
     const dataToSend = MrimServerMessageData.writer({
       id: containerHeader.packetOrder + 1,
-      flags: 0 + (addresserClient.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
+      flags: 0 + (state.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
       addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
       message: config.adminProfile.defaultMessage,
       messageRTF: ''
