@@ -1781,7 +1781,7 @@ async function processCall (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetOrder: 0x228,
-            packetCommand: MrimMessageCommands.CALL,
+            packetCommand: MrimMessageCommands.CALL2,
             dataSize: dataToSend.length
           })
         )

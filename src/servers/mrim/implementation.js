@@ -317,7 +317,7 @@ async function processPacket (
         state,
         variables
       )
-    case MrimMessageCommands.CALL:
+    case MrimMessageCommands.CALL2:
       return processCall(
         containerHeader,
         packetData,

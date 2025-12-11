@@ -43,7 +43,8 @@ const MrimMessageCommands = {
   // File Transfer & VoIP
   FILE_TRANSFER: 0x1026,
   FILE_TRANSFER_ACK: 0x1027,
-  CALL: 0x1049,
+  CALL2: 0x1049,
+  CALL: 0x1031,
   CALL_ACK: 0x1032,
   // Logout
   LOGOUT: 0x1013
