@@ -815,7 +815,7 @@ async function processMessage (
   if (addresserClient !== undefined) {
     const dataToSend = MrimServerMessageData.writer({
       id: Math.random() * 0xFFFFFFFF,
-      flags: messageData.flags,
+      flags: messageData.flags + (addresserClient.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
       addresser: `${state.username}@${state.domain}`,
       message: messageData.message ?? ' ',
       messageRTF: messageData.messageRTF ?? ' '
