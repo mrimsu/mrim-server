@@ -86,7 +86,8 @@ const MrimMessageFlags = {
   SMS: 0x800,
   MULTICAST: 0x1000,
   WAKEUP: 0x4000,
-  FLASH: 0x8000
+  FLASH: 0x8000,
+  v1p16: 0x100000, // unicode convertion
 }
 
 const MrimMessageErrors = {
