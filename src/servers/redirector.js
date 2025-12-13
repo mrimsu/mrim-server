@@ -10,7 +10,7 @@ const { ServerConstructor } = require('../constructors/server')
 const LOCAL_IP_ADDRESS = '127.0.0.1:2041'
 
 function onConnection (socket, connectionId, logger, variables) {
-  socket.end(variables.ipAddress)
+  socket.end(variables.ipAddress + "\x0A")
   logger.info(`[${connectionId}] ip address sent`)
 }
 
