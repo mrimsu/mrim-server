@@ -18,7 +18,7 @@ function createRedirectorServer (options) {
   return new ServerConstructor({
     logger: options.logger,
     onConnection,
-    variables: { ipAddress: config.redirector?.redirectTo ?? LOCAL_IP_ADDRESS }
+    variables: { ipAddress: (config.redirector?.redirectTo ?? LOCAL_IP_ADDRESS) + '\n' }
   }).finish()
 }
 
