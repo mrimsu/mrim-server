@@ -10,6 +10,13 @@ const {
 
 const MRIM_GET_CONTACTS_OK = 0
 
+// MRIM 1.7 and older
+const MrimLegacyContactList = new MessageConstructor()
+  .field('contactsCount', FieldDataType.UINT32)
+  .field('contactsLength', FieldDataType.UINT32)
+  .field('contacts', FieldDataType.SUBBUFFER)
+  .finish()
+
 const MrimContactList = new MessageConstructor()
   .field('status', FieldDataType.UINT32, MRIM_GET_CONTACTS_OK)
   .field('groupCount', FieldDataType.UINT32)
@@ -24,7 +31,7 @@ const MrimContactGroup = new MessageConstructor()
   .field('name', FieldDataType.UNICODE_STRING)
   .finish()
 
-// older than MRIM 1.8
+// mask uussuu
 const MrimOldContact = new MessageConstructor()
   .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -34,7 +41,7 @@ const MrimOldContact = new MessageConstructor()
   .field('status', FieldDataType.UINT32)
   .finish()
 
-// MRIM >1.8
+// MRIM >1.8 (mask uussuus)
 const MrimContact = new MessageConstructor()
   .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -45,7 +52,7 @@ const MrimContact = new MessageConstructor()
   .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-// MRIM >1.14
+// MRIM >1.14 (mask uussuussssus)
 const MrimContactNewer = new MessageConstructor()
   .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -140,6 +147,8 @@ const MrimModifyContactResponse = new MessageConstructor()
   .finish()
 
 module.exports = {
+  MrimLegacyContactList,
+
   MrimContactList,
   MrimContactGroup,
 

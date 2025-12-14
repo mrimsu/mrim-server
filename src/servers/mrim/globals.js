@@ -16,6 +16,9 @@ const MrimMessageCommands = {
   LOGIN3: 0x1078,
   USER_INFO: 0x1015,
   // Contacts and statuses
+  CONTACT_LIST: 0x100A,
+  CONTACT_LIST_ACK: 0x100B,
+
   CONTACT_LIST2: 0x1037,
   USER_STATUS: 0x100f,
   // Email (dummy)

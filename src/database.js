@@ -517,6 +517,7 @@ async function deleteGroup (userId, groupIndex, request) {
 async function modifyContact (
   requesterUserId,
   contactUserLogin,
+  contactDomain,
   contactNickname,
   contactFlags,
   groupIndex

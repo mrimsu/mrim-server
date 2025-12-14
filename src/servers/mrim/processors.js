@@ -28,6 +28,7 @@ const {
 const {
   MrimContactList,
   MrimContactGroup,
+  MrimLegacyContactList,
   MrimOldContact,
   MrimContact,
   MrimContactNewer,
@@ -120,6 +121,142 @@ function processHello (containerHeader, connectionId, logger) {
       .integer(config.mrim?.pingTimer ?? 10, 4)
       .finish()
   }
+}
+
+async function generateLegacyContactList (containerHeader, userId, state = null) {
+  const [contactGroups, contacts] = await Promise.all([
+    getContactGroups(userId),
+    getContactsFromGroups(userId)
+  ])
+
+  if (config.adminProfile?.enabled) {
+    contacts.push({
+      requester_is_adder: 1,
+      requester_is_contact: 1,
+      is_auth_success: 1,
+      adder_group_id: 0,
+      user_id: 0,
+      user_login: config.adminProfile.username,
+      user_domain: config.adminProfile.domain,
+      user_nickname: config.adminProfile.nickname,
+      contact_flags: 0
+    })
+  }
+
+  // 
+
+  // создаём группу
+
+  const groupsBuffer = Buffer.alloc(0xa00, 0x00)
+  contactGroups.forEach((contactGroup, index) => {
+    if (index < 10 && contactGroup.name.length < 0x80 - 9) {
+      const str = new Iconv('UTF-8', 'CP1251').convert(
+        `00000000 ${contactGroup.name}`
+      )
+      Buffer.from(str).copy(groupsBuffer, index * 0x80)
+      groupsBuffer.writeUInt8(0x0a, index * 0x80 + 0x7f)
+    }
+  })
+
+  // контакты
+
+  const contactsBuffers = contacts.flat().filter((contact) => {
+    const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
+    return requesterIsAdder || contact.requester_is_contact === 1
+  }).map((contact, index) => {
+    const groupIndex = contactGroups.findIndex(
+      (group) => contact.requester_is_adder
+        ? group.id === contact.adder_group_id
+        : group.id === contact.contact_group_id
+    )
+
+    const nickname = contact.contact_nickname ?? contact.user_nickname ?? contact.user_login
+    const nicknameLength = nickname.length.toString(16).padStart(2, '0')
+
+    const groupIndexStr = groupIndex.toString(16).padStart(8, '0')
+    const str = new Iconv('UTF-8', 'CP1251').convert(
+      `00000000 ${groupIndexStr} ${contact.user_login}@${contact.user_domain} ${nicknameLength}${nickname}`
+    )
+
+    const buffer = Buffer.alloc(0x100, 0x00)
+    Buffer.from(str).copy(buffer, 0)
+    Buffer.from((!Number(contact.is_auth_success)).toString(16).padStart(4, '0')).copy(buffer, 0xfb) // server flag
+    buffer.writeUInt8(0x0a, 0x100 - 1)
+    return buffer
+  })
+
+  // объединяем
+
+  const unitedBuffer = Buffer.concat([groupsBuffer, ...contactsBuffers])
+
+  const contactList = MrimLegacyContactList.writer({
+    contactsCount: 0,
+    contactsLength: unitedBuffer.length,
+    contacts: unitedBuffer
+  }, false)
+
+  return new BinaryConstructor()
+    .subbuffer(
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.CONTACT_LIST_ACK,
+        dataSize: contactList.length
+      })
+    )
+    .subbuffer(contactList)
+    .finish()
+}
+
+async function getOnlineStatusesLegacy (containerHeader, userId, state) {
+  const contacts = await getContactsFromGroups(userId);
+  
+  const statuses = await contacts.flat().filter((contact) => {
+    const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
+    return requesterIsAdder || contact.requester_is_contact === 1
+  }).map((contact) => {
+    const connectedContact = global.clients.find(
+      ({ userId }) => userId === contact.user_id
+    )
+
+    let status = connectedContact?.status ??
+      ((config.adminProfile?.username == contact.user_login &&
+        config.adminProfile?.domain == contact.user_domain
+      )
+        ? 1
+        : 0)
+
+    const contactFlagsAsUser = contact.requester_is_adder
+      ? contact.adder_flags
+      : contact.contact_flags
+
+    if (contactFlagsAsUser & MrimContactFlags.NEVER_VISIBLE || contactFlagsAsUser & MrimContactFlags.IGNORED) {
+      status = 0
+    } else if (connectedContact?.status === MrimStatus.INVISIBLE && contactFlagsAsUser & MrimContactFlags.ALWAYS_VISIBLE) { // Если Невидимка и "Я всегда видим для"
+      status = connectedContact?.status
+    }
+
+    userStatusUpdate = MrimUserStatusUpdate.writer({
+      status: status !== MrimStatus.XSTATUS ? status : MrimStatus.ONLINE,
+      contact: `${contact.user_login}@${contact.user_domain}`
+    })
+
+    if (status != 0) {
+      return new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_STATUS,
+            dataSize: userStatusUpdate.length
+          })
+        )
+        .subbuffer(userStatusUpdate)
+        .finish()
+    } else {
+      return null
+    }
+  }).filter(item => item !== null)
+
+  return statuses
 }
 
 async function generateContactList (containerHeader, userId, state = null) {
@@ -349,15 +486,23 @@ async function processLegacyLogin (
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
-    state.userAgent = 'client="magent" version="4.?"'
     state.features = 0x005F
     state.utf16capable = false // old ass client
+
+    // since this client doesn't say which version it is, we'll just guess
+    if (containerHeader.protocolVersionMinor >= 4) {
+      state.userAgent = 'client="magent" version="4.0"'
+    } else if (containerHeader.protocolVersionMinor >= 2) {
+      state.userAgent = 'client="magent" version="2.55"'
+    } else if (containerHeader.protocolVersionMinor >= 0) {
+      state.userAgent = 'client="magent" version="2.0"'
+    }
 
     if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info`)
 
     global.clients.push(state)
   } catch (e) {
@@ -393,8 +538,9 @@ async function processLegacyLogin (
   })
 
   // eslint-disable-next-line no-unused-vars
-  const [contactList, _changeStatus] = await Promise.all([
-    generateContactList(containerHeader, state.userId, state),
+  const [contactList, statuses, _changeStatus] = await Promise.all([
+    generateLegacyContactList(containerHeader, state.userId, state),
+    getOnlineStatusesLegacy(containerHeader, state.userId, state),
     processChangeStatus(
       containerHeader,
       statusData,
@@ -433,7 +579,8 @@ async function processLegacyLogin (
         )
         .subbuffer(userInfo)
         .finish(),
-      contactList
+      contactList,
+      ...statuses
     ]
   }
 }
@@ -718,6 +865,24 @@ async function processLoginThree (
   }
 }
 
+async function processContactListRequest (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  logger.debug(`[${connectionId}] ${state.username} requests contact list (they're on very very old client of ancient greek)`)
+
+  const contactList = await generateLegacyContactList(containerHeader, state.userId, state)
+  const statuses = await getOnlineStatusesLegacy(containerHeader, state.userId, state)
+
+  return {
+    reply: [contactList, ...statuses]
+  }
+}
+
 async function processMessage (
   containerHeader,
   packetData,
@@ -821,20 +986,23 @@ async function processMessage (
       messageRTF: messageData.messageRTF ?? ' '
     }, addresserClient.utf16capable)
 
-    addresserClient.socket.write(
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            protocolVersionMinor: addresserClient.protocolVersionMinor,
-            packetOrder: Math.random() * 0xFFFFFFFF,
-            packetCommand: MrimMessageCommands.MESSAGE_ACK,
-            dataSize: dataToSend.length
-          })
-        )
-        .subbuffer(dataToSend)
-        .finish()
-    )
+    // send message UNTIL the proto version is less then 8 and "pers is typing" flag is set
+    if (!(addresserClient.protocolVersionMinor <= 8 && messageData.flags & MrimMessageFlags.NOTIFY)) {
+      addresserClient.socket.write(
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              protocolVersionMinor: addresserClient.protocolVersionMinor,
+              packetOrder: Math.random() * 0xFFFFFFFF,
+              packetCommand: MrimMessageCommands.MESSAGE_ACK,
+              dataSize: dataToSend.length
+            })
+          )
+          .subbuffer(dataToSend)
+          .finish()
+      )
+    }
 
     return {
       reply: [
@@ -1853,6 +2021,7 @@ module.exports = {
   processLegacyLogin,
   processLogin,
   processLoginThree,
+  processContactListRequest,
   processSearch,
   processMessage,
   processAddContact,

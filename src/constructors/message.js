@@ -171,6 +171,17 @@ class MessageConstructor {
           continue
         }
 
+        if (binaryReader.offset >= message.length) {
+          if (field.dataType === FieldDataType.UBIART_LIKE_STRING ||
+            field.dataType === FieldDataType.UNICODE_STRING) {
+            result[field.key] = ''
+            continue
+          } else {
+            result[field.key] = 0
+            continue
+          }
+        }
+
         switch (field.dataType) {
           case FieldDataType.BYTE: {
             result[field.key] = binaryReader.readInt8()

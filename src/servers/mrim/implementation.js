@@ -12,6 +12,7 @@ const {
   processLegacyLogin,
   processLogin,
   processLoginThree,
+  processContactListRequest,
   processMessage,
   processSearch,
   processAddContact,
@@ -230,6 +231,15 @@ async function processPacket (
     // MRIM >= 1.21
     case MrimMessageCommands.LOGIN3:
       return processLoginThree(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.CONTACT_LIST:
+      return processContactListRequest(
         containerHeader,
         packetData,
         connectionId,
