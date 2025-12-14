@@ -143,7 +143,7 @@ async function generateLegacyContactList (containerHeader, userId, state = null)
     })
   }
 
-  // 
+  //
 
   // создаём группу
 
@@ -208,8 +208,8 @@ async function generateLegacyContactList (containerHeader, userId, state = null)
 }
 
 async function getOnlineStatusesLegacy (containerHeader, userId, state) {
-  const contacts = await getContactsFromGroups(userId);
-  
+  const contacts = await getContactsFromGroups(userId)
+
   const statuses = await contacts.flat().filter((contact) => {
     const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
     return requesterIsAdder || contact.requester_is_contact === 1
