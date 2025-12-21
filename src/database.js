@@ -326,10 +326,18 @@ async function createOrCompleteContact (
       )
     const [{ id: existingContactId }] = existingContactResult
 
+    let authQuery = ''
+
+    if (existingContactResult[0].is_auth_success === 0 && 
+        existingContactResult[0].adder_user_id === requesterUserId && 
+        existingContactResult[0].contact_user_id === contactUserId) {
+      authQuery = ', `contact`.`is_auth_success` = 1'
+    }
+
     await connection.execute(
       'UPDATE `contact` SET ' +
       '`contact`.`adder_nickname` = ?, `contact`.`adder_flags` = ?, ' +
-      '`contact`.`contact_group_id` = ?, `contact`.`is_auth_success` = 1 ' +
+      '`contact`.`contact_group_id` = ?,' + authQuery +
       'WHERE `contact`.`id` = ?',
       [contactNickname, contactFlags, groupId, existingContactId]
     )
@@ -349,15 +357,23 @@ async function createOrCompleteContact (
 
       const [{ id: existingContactId }] = existingContactResult
 
+      let authQuery = ''
+
+      if (existingContactResult[0].is_auth_success === 0 && 
+          existingContactResult[0].adder_user_id === requesterUserId && 
+          existingContactResult[0].contact_user_id === contactUserId) {
+        authQuery = ', `contact`.`is_auth_success` = 1'
+      }
+
       await connection.execute(
         'UPDATE `contact` SET ' +
       '`contact`.`contact_nickname` = ?, `contact`.`contact_flags` = ?, ' +
-      '`contact`.`adder_group_id` = ?, `contact`.`is_auth_success` = 1 ' +
+      '`contact`.`adder_group_id` = ?' + authQuery +
       'WHERE `contact`.`id` = ?',
         [contactNickname, contactFlags, groupId, existingContactId]
       )
 
-      result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
+      result = { action: 'MODIFY_EXISTING', authSuccess: authQuery !== '', contactId: existingContactId }
     } catch (error) {
       // ну ладно создадим контакта
       const { insertId } = await connection.execute(

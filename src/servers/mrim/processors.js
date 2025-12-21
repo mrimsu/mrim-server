@@ -1297,7 +1297,7 @@ async function processAddContact (
               .finish()
           )
         }
-      } else {
+      } else if (contactResult.action === 'MODIFY_EXISTING' && contactResult.authSuccess === true) {
         logger.debug(`[${connectionId}] ${state.username}@${state.domain} authorized ${request.contact}, congrats!`)
 
         // for contact
@@ -1426,6 +1426,21 @@ async function processAddContact (
               .subbuffer(authMessage)
               .finish(),
             userStatusPacket
+          ]
+        }
+      } else if (contactResult.action === 'MODIFY_EXISTING' && contactResult.authSuccess === false) {
+        return {
+          reply: [
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
+                  dataSize: contactResponse.length
+                })
+              )
+              .subbuffer(contactResponse)
+              .finish()
           ]
         }
       }
