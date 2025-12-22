@@ -60,6 +60,7 @@ const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mri
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
 const {
   getUserIdViaCredentials,
+  getContact,
   getContactGroups,
   getContactsFromGroups,
   createOrCompleteContact,
@@ -74,7 +75,8 @@ const {
   getOfflineMessages,
   cleanupOfflineMessages,
   sendOfflineMessage,
-  isContactAuthorized
+  isContactAuthorized,
+  isContactAdder
 } = require('../../database')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
@@ -336,6 +338,10 @@ async function generateContactList (containerHeader, userId, state = null) {
           ? contact.adder_flags
           : contact.contact_flags
 
+        if (contactFlags & MrimContactFlags.DELETED) {
+          return null
+        }
+
         let status = connectedContact?.status ??
           ((config.adminProfile?.username == contact.user_login &&
             config.adminProfile?.domain == contact.user_domain
@@ -384,7 +390,7 @@ async function generateContactList (containerHeader, userId, state = null) {
         } else {
           return MrimOldContact.writer(contactStructure)
         }
-      })
+      }).filter(item => item !== null)
     )
   }, UTF16CAPABLE)
 
@@ -965,11 +971,77 @@ async function processMessage (
     logger.debug(
       `[${connectionId}] auth request via MRIM_CS_MESSAGE from ${state.username}@${state.domain} to ${messageData.addresser}`
     )
-    addContactMSG(
+    
+    let authResult = await addContactMSG(
       state.userId,
       messageData.addresser.split('@')[0],
       messageData.addresser.split('@')[1]
     )
+
+    if (authResult === true) {
+      // TODO: перенести это в contacts
+      const MrimAddContactData = new MessageConstructor()
+        .field('addresser', FieldDataType.UBIART_LIKE_STRING)
+        .finish()
+
+      // сообщаем о такой прекрасной вести клиенту
+      const contactUsername = messageData.addresser
+      const clientAddresser = global.clients.find(
+        ({ username, domain }) => username === contactUsername.split('@')[0] &&
+                                  domain === contactUsername.split('@')[1]
+      )
+
+      if (clientAddresser !== undefined) {
+        const authorizeReplyToContact = MrimAddContactData.writer({
+          addresser: `${state.username}@${state.domain}`
+        })
+
+        clientAddresser.socket.write(
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+                dataSize: authorizeReplyToContact.length
+              })
+            )
+            .subbuffer(authorizeReplyToContact)
+            .finish()
+        )
+      }
+
+      const authorizeReply = MrimAddContactData.writer({
+        addresser: messageData.addresser
+      })
+
+      return {
+        reply: [
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                dataSize: 4
+              })
+            )
+            .integer(MrimMessageErrors.SUCCESS, 4)
+            .finish(),
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder+1,
+                packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+                dataSize: authorizeReply.length
+              })
+            )
+            .subbuffer(authorizeReply)
+            .finish(),
+          
+        ]
+      }
+    }
   }
 
   const addresserClient = global.clients.find(
@@ -1021,7 +1093,26 @@ async function processMessage (
     }
   } else {
     let messageStatus = MrimMessageErrors.SUCCESS
-    const receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
+    let receiverId
+    try {
+      receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
+    } catch (e) {
+      return {
+        reply: [
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                dataSize: 4
+              })
+            )
+            .integer(MrimMessageErrors.NO_USER, 4)
+            .finish()
+        ]
+      }
+    }
     const messages = await getOfflineMessages(receiverId)
 
     if ([0x0, 0x80].includes(messageData.flags)) {
@@ -1504,6 +1595,7 @@ async function processAuthorizeContact (
   state,
   variables
 ) {
+  // TODO: перенести это в contacts
   const MrimAddContactData = new MessageConstructor()
     .field('addresser', FieldDataType.UBIART_LIKE_STRING)
     .finish()
@@ -1524,8 +1616,21 @@ async function processAuthorizeContact (
     // терь жди пока тебя не примут через MRIM_CS_MESSAGE с флагом MESSAGE_FLAG_AUTHORIZE
   }
 
+  // TODO: поменять логику немного и отвязать авторизацию от онлайна
+
   // Если юзер принял авторизацию
-  if (await isContactAuthorized(state.userId, username, domain) > 0) {
+  if (isContactAdder(state.userId, contactUsername.split('@')[0], contactUsername.split('@')[1]) === true) {
+    await addContactMSG(
+      state.userId,
+      contactUsername.split('@')[0],
+      contactUsername.split('@')[1]
+    )
+
+    if (addContactMSG === false) {
+      return
+    }
+
+    logger.debug(`[${connectionId}] ${state.username}@${state.domain} authorized ${contactUsername}, congrats!`)
     state.lastAuthorizedContact = contactUsername
 
     const authorizeReply = MrimAddContactData.writer({
@@ -1639,31 +1744,44 @@ async function processModifyContact (
     }
 
     if (!isGroup) {
-      const contactUserId = await deleteContact(
-        state.userId,
-        request.contact.split('@')[0],
-        request.contact.split('@')[1]
-      )
+      // если контакт в списке игнорируемых, ставим флаг что он якобы UDALEN (делитит)
+      const contact = await getContact(state.userId, request.contact.split('@')[0], request.contact.split('@')[1])
 
-      if (contactUserId !== null) {
-        await processChangeStatus(
-          {
-            protocolVersionMajor: state.protocolVersionMajor,
-            protocolVersionMinor: state.protocolVersionMinor,
-            packetOrder: 0
-          },
-          new BinaryConstructor()
-            .integer(0, 4) // STATUS_OFFLINE
-            .integer(0, 4)
-            .integer(0, 4)
-            .integer(0, 4)
-            .integer(0xFF02, 4)
-            .finish(),
-          connectionId,
-          logger,
-          state,
-          variables
+      const contactFlagsAsUser = contact.requester_is_adder
+          ? contact.adder_flags
+          : contact.contact_flags
+
+      if (contactFlagsAsUser & MrimContactFlags.IGNORED) {
+        await modifyContact(state.userId, request.contact.split('@')[0], request.contact.split('@')[1], '', MrimContactFlags.DELETED, 0)
+      } else {
+
+        const contactUserId = await deleteContact(
+          state.userId,
+          request.contact.split('@')[0],
+          request.contact.split('@')[1]
         )
+
+        // TODO: разобраться зачем это нужно тут
+        if (contactUserId !== null) {
+          await processChangeStatus(
+            {
+              protocolVersionMajor: state.protocolVersionMajor,
+              protocolVersionMinor: state.protocolVersionMinor,
+              packetOrder: 0
+            },
+            new BinaryConstructor()
+              .integer(0, 4) // STATUS_OFFLINE
+              .integer(0, 4)
+              .integer(0, 4)
+              .integer(0, 4)
+              .integer(0xFF02, 4)
+              .finish(),
+            connectionId,
+            logger,
+            state,
+            variables
+          )
+        }
       }
     }
 

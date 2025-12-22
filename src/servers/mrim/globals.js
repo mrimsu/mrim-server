@@ -66,13 +66,14 @@ const MrimContactFlags = {
   GROUP: 0x02,
   CHAT: 0x80,
   PHONE_CONTACT: 0x100000,
-
+  
   // Groups
   NEVER_VISIBLE: 0x04,
   ALWAYS_VISIBLE: 0x08,
   IGNORED: 0x10,
-
+  
   // Technical info
+  DELETED: 0x01,
   UNICODE_NICKNAME: 0x200
 }
 
@@ -95,6 +96,8 @@ const MrimMessageFlags = {
 
 const MrimMessageErrors = {
   SUCCESS: 0x0,
+  NO_USER: 0x8001,
+  INTERNAL: 0x8003,
   OFFLINE_LIMIT: 0x8004,
   TOO_MUCH: 0x8005,
   OFFLINE_DISABLED: 0x8006
