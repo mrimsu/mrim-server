@@ -1608,16 +1608,6 @@ async function processAuthorizeContact (
                               domain === contactUsername.split('@')[1]
   )
 
-  if (clientAddresser !== undefined) {
-    // ну
-
-    // всё, соси хуй небритой обезьяны
-
-    // терь жди пока тебя не примут через MRIM_CS_MESSAGE с флагом MESSAGE_FLAG_AUTHORIZE
-  }
-
-  // TODO: поменять логику немного и отвязать авторизацию от онлайна
-
   // Если юзер принял авторизацию
   if (isContactAdder(state.userId, contactUsername.split('@')[0], contactUsername.split('@')[1]) === true) {
     await addContactMSG(
@@ -1637,23 +1627,39 @@ async function processAuthorizeContact (
       addresser: contactUsername
     })
 
-    let statusReply
+    let statusPacket = null
 
-    if (state.protocolVersionMinor >= 15) {
-      statusReply = MrimUserXStatusUpdate.writer({
-        status: clientAddresser.status ?? 0x00,
-        contact: contactUsername,
-        xstatusType: clientAddresser.xstatus?.type ?? '',
-        xstatusTitle: clientAddresser.xstatus?.title ?? '',
-        xstatusDescription: clientAddresser.xstatus?.description ?? '',
-        features: clientAddresser.features ?? 0x02FF,
-        userAgent: clientAddresser.userAgent ?? ''
-      })
-    } else {
-      statusReply = MrimUserStatusUpdate.writer({
-        status: clientAddresser.status ?? 0x00,
-        contact: contactUsername
-      })
+    // if online
+    if (clientAddresser !== undefined) {
+      let statusReply
+
+      if (state.protocolVersionMinor >= 15) {
+        statusReply = MrimUserXStatusUpdate.writer({
+          status: clientAddresser.status ?? 0x00,
+          contact: contactUsername,
+          xstatusType: clientAddresser.xstatus?.type ?? '',
+          xstatusTitle: clientAddresser.xstatus?.title ?? '',
+          xstatusDescription: clientAddresser.xstatus?.description ?? '',
+          features: clientAddresser.features ?? 0x02FF,
+          userAgent: clientAddresser.userAgent ?? ''
+        })
+      } else {
+        statusReply = MrimUserStatusUpdate.writer({
+          status: clientAddresser.status ?? 0x00,
+          contact: contactUsername
+        })
+      }
+
+      statusPacket = new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.CHANGE_STATUS,
+            dataSize: statusReply.length
+          })
+        )
+        .subbuffer(statusReply)
+        .finish()
     }
 
     return {
@@ -1668,16 +1674,7 @@ async function processAuthorizeContact (
           )
           .subbuffer(authorizeReply)
           .finish(),
-        new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.CHANGE_STATUS,
-              dataSize: statusReply.length
-            })
-          )
-          .subbuffer(statusReply)
-          .finish()
+        statusPacket
       ]
     }
   }
@@ -1746,15 +1743,19 @@ async function processModifyContact (
     if (!isGroup) {
       // если контакт в списке игнорируемых, ставим флаг что он якобы UDALEN (делитит)
       const contact = await getContact(state.userId, request.contact.split('@')[0], request.contact.split('@')[1])
+      let contactFlagsAsUser
 
-      const contactFlagsAsUser = contact.requester_is_adder
-          ? contact.adder_flags
-          : contact.contact_flags
+      try {
+        contactFlagsAsUser = contact.requester_is_adder
+            ? contact.adder_flags
+            : contact.contact_flags
+      } catch (e) {
+        contactFlagsAsUser = 0
+      }
 
       if (contactFlagsAsUser & MrimContactFlags.IGNORED) {
         await modifyContact(state.userId, request.contact.split('@')[0], request.contact.split('@')[1], '', MrimContactFlags.DELETED, 0)
       } else {
-
         const contactUserId = await deleteContact(
           state.userId,
           request.contact.split('@')[0],
