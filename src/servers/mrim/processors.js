@@ -2219,6 +2219,14 @@ async function processNewMicroblog (
 
   logger.debug(`[${connectionId}] new microblog post from ${state.username}@${state.domain} -> ${microblog.text}`)
 
+    const userMicroblogUpdate = MrimMicroblogStatus.writer({
+      flags: microblog.flags,
+      contact: `${state.username}@${state.domain}`,
+      text: microblog.text,
+      id: 42,
+      time: Math.floor(Date.now() / 1000)
+    }, true)
+
   const contacts = await getContactsFromGroups(state.userId)
 
   for (const contact of contacts) {
@@ -2247,14 +2255,6 @@ async function processNewMicroblog (
       continue
     }
 
-    const userMicroblogUpdate = MrimMicroblogStatus.writer({
-      flags: microblog.flags,
-      contact: `${state.username}@${state.domain}`,
-      text: microblog.text,
-      id: 42,
-      time: Math.floor(Date.now() / 1000)
-    }, true)
-
     client.socket.write(
       new BinaryConstructor()
         .subbuffer(
@@ -2270,6 +2270,20 @@ async function processNewMicroblog (
 
     logger.debug(`[${connectionId}] 'll send ${state.username}@${state.domain}'s new microblog post to ${contact.user_login}@${contact.user_domain}`)
   }
+
+  return {
+    reply: 
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_BLOG_STATUS,
+            dataSize: userMicroblogUpdate.length
+          })
+        )
+        .subbuffer(userMicroblogUpdate)
+        .finish()
+    }
 }
 
 module.exports = {
