@@ -1,6 +1,6 @@
 # Интеграция Микроблога
 
-Перед началом нужно импротировать `00003-microblog.sql` из `install/update` в базу данных сервера. Далее, в столбец `microblog_settings` указать JSON объект:
+Перед началом нужно импротировать [следующее](install/updates/00003-microblog.sql) в базу данных сервера. Далее, в столбец `microblog_settings` указать JSON объект:
 `{"type":"openvk","instance":"ovk.to","userId":"0","token":"example"}`
 
 ### Параметры
