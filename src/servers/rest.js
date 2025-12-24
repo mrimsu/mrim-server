@@ -47,7 +47,7 @@ RESTserver.get('/users/status', async (req, res) => {
   }
 
   let userEmail
-  
+
   try {
     userEmail = user.split('@')
   } catch {

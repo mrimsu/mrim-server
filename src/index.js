@@ -28,6 +28,14 @@ function main () {
     transports: [new winston.transports.Console()]
   })
 
+  process.on('uncaughtException', err => {
+    logger.error('uncaught exception:', err)
+  })
+
+  process.on('unhandledRejection', err => {
+    logger.error('unhandled rejection:', err)
+  })
+
   const servers = {}
 
   if (

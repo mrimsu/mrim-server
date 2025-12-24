@@ -11,10 +11,14 @@ const MrimMessageCommands = {
   LOGIN_ACK: 0x1004,
   LOGIN_REJ: 0x1005,
   PING: 0x1006,
+  LOGIN: 0x1003,
   LOGIN2: 0x1038,
   LOGIN3: 0x1078,
   USER_INFO: 0x1015,
   // Contacts and statuses
+  CONTACT_LIST: 0x100A,
+  CONTACT_LIST_ACK: 0x100B,
+
   CONTACT_LIST2: 0x1037,
   USER_STATUS: 0x100f,
   // Email (dummy)
@@ -34,6 +38,9 @@ const MrimMessageCommands = {
   AUTHORIZE_ACK: 0x1021,
   // Status
   CHANGE_STATUS: 0x1022,
+  // Microblog
+  CHANGE_USER_BLOG_STATUS: 0x1064,
+  USER_BLOG_STATUS: 0x1063,
   // Search
   ANKETA_INFO: 0x1028,
   WP_REQUEST: 0x1029,
@@ -42,7 +49,8 @@ const MrimMessageCommands = {
   // File Transfer & VoIP
   FILE_TRANSFER: 0x1026,
   FILE_TRANSFER_ACK: 0x1027,
-  CALL: 0x1049,
+  CALL2: 0x1049,
+  CALL: 0x1031,
   CALL_ACK: 0x1032,
   // Logout
   LOGOUT: 0x1013
@@ -61,13 +69,14 @@ const MrimContactFlags = {
   GROUP: 0x02,
   CHAT: 0x80,
   PHONE_CONTACT: 0x100000,
-
+  
   // Groups
   NEVER_VISIBLE: 0x04,
   ALWAYS_VISIBLE: 0x08,
   IGNORED: 0x10,
-
+  
   // Technical info
+  DELETED: 0x01,
   UNICODE_NICKNAME: 0x200
 }
 
@@ -92,6 +101,8 @@ const MrimMessageFlags = {
 
 const MrimMessageErrors = {
   SUCCESS: 0x0,
+  NO_USER: 0x8001,
+  INTERNAL: 0x8003,
   OFFLINE_LIMIT: 0x8004,
   TOO_MUCH: 0x8005,
   OFFLINE_DISABLED: 0x8006
@@ -100,7 +111,7 @@ const MrimMessageErrors = {
 const MrimCallStatus = {
   DENY: 0x0,
   ACCEPT: 0x1,
-  PROXY: 0x4,
+  PROXY: 0x4
 }
 
 const MrimConferenceStatus = {

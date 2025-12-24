@@ -10,7 +10,7 @@ const {
   MessageConstructor,
   FieldDataType
 } = require('../../constructors/message')
-const { 
+const {
   MrimMessageCommands,
   MrimStatus,
   MrimContactFlags,
@@ -19,6 +19,7 @@ const {
   MrimConferenceStatus
 } = require('./globals')
 const {
+  MrimOldLoginData,
   MrimLoginData,
   MrimNewerLoginData,
   MrimMoreNewerLoginData,
@@ -29,6 +30,8 @@ const {
 const {
   MrimContactList,
   MrimContactGroup,
+  MrimLegacyContactList,
+  MrimOldContact,
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,
@@ -61,11 +64,16 @@ const {
   MrimUserStatusUpdate,
   MrimUserXStatusUpdate
 } = require('../../messages/mrim/status')
+const {
+  MrimChangeMicroblogStatus,
+  MrimMicroblogStatus
+} = require('../../messages/mrim/microblog')
 const { MrimGameData } = require('../../messages/mrim/games')
 const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
 const {
   getUserIdViaCredentials,
+  getContact,
   getContactGroups,
   getContactsFromGroups,
   getConferences,
@@ -86,10 +94,14 @@ const {
   checkUser,
   isConferenceMember,
   getConferenceMembers,
-  getConferenceInfo
+  getConferenceInfo,
+  isContactAdder,
+  getMicroblogSettings
 } = require('../../database')
+const { getZodiacId } = require('../../tools/zodiac')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
+const https = require('https')
 
 const MrimSearchRequestFields = {
   USER: 0,
@@ -133,6 +145,144 @@ function processHello (containerHeader, connectionId, logger) {
       .integer(config.mrim?.pingTimer ?? 10, 4)
       .finish()
   }
+}
+
+async function generateLegacyContactList (containerHeader, userId, state = null) {
+  const [contactGroups, contacts] = await Promise.all([
+    getContactGroups(userId),
+    getContactsFromGroups(userId)
+  ])
+
+  if (config.adminProfile?.enabled) {
+    contacts.push({
+      requester_is_adder: 1,
+      requester_is_contact: 1,
+      is_auth_success: 1,
+      adder_group_id: 0,
+      user_id: 0,
+      user_login: config.adminProfile.username,
+      user_domain: config.adminProfile.domain,
+      user_nickname: config.adminProfile.nickname,
+      contact_flags: 0
+    })
+  }
+
+  // создаём группу
+
+  const groupsBuffer = Buffer.alloc(0xa00, 0x00)
+  contactGroups.forEach((contactGroup, index) => {
+    if (index < 10 && contactGroup.name.length < 0x80 - 9) {
+      const str = new Iconv('UTF-8', 'CP1251').convert(
+        `00000000 ${contactGroup.name}`
+      )
+      Buffer.from(str).copy(groupsBuffer, index * 0x80)
+      groupsBuffer.writeUInt8(0x0a, index * 0x80 + 0x7f)
+    }
+  })
+
+  // контакты
+
+  const contactsBuffers = contacts.flat().filter((contact) => {
+    const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
+    return requesterIsAdder || contact.requester_is_contact === 1
+  }).map((contact, index) => {
+    let groupIndex = contactGroups.findIndex(
+      (group) => contact.requester_is_adder
+        ? group.id === contact.adder_group_id
+        : group.id === contact.contact_group_id
+    )
+
+    if (groupIndex === -1) {
+      groupIndex = 0
+    }
+
+    const nickname = contact.contact_nickname ?? contact.user_nickname ?? contact.user_login
+    const nicknameLength = nickname.length.toString(16).padStart(2, '0')
+
+    const groupIndexStr = groupIndex.toString(16).padStart(8, '0')
+    const str = new Iconv('UTF-8', 'CP1251').convert(
+      `00000000 ${groupIndexStr} ${contact.user_login}@${contact.user_domain} ${nicknameLength}${nickname}`
+    )
+
+    const buffer = Buffer.alloc(0x100, 0x00)
+    Buffer.from(str).copy(buffer, 0)
+    Buffer.from((!Number(contact.is_auth_success)).toString(16).padStart(4, '0')).copy(buffer, 0xfb) // server flag
+    buffer.writeUInt8(0x0a, 0x100 - 1)
+    return buffer
+  })
+
+  // объединяем
+
+  const unitedBuffer = Buffer.concat([groupsBuffer, ...contactsBuffers])
+
+  const contactList = MrimLegacyContactList.writer({
+    contactsCount: 0,
+    contactsLength: unitedBuffer.length,
+    contacts: unitedBuffer
+  }, false)
+
+  return new BinaryConstructor()
+    .subbuffer(
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.CONTACT_LIST_ACK,
+        dataSize: contactList.length
+      })
+    )
+    .subbuffer(contactList)
+    .finish()
+}
+
+async function getOnlineStatusesLegacy (containerHeader, userId, state) {
+  const contacts = await getContactsFromGroups(userId)
+
+  const statuses = await contacts.flat().filter((contact) => {
+    const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
+    return requesterIsAdder || contact.requester_is_contact === 1
+  }).map((contact) => {
+    const connectedContact = global.clients.find(
+      ({ userId }) => userId === contact.user_id
+    )
+
+    let status = connectedContact?.status ??
+      ((config.adminProfile?.username == contact.user_login &&
+        config.adminProfile?.domain == contact.user_domain
+      )
+        ? 1
+        : 0)
+
+    const contactFlagsAsUser = contact.requester_is_adder
+      ? contact.adder_flags
+      : contact.contact_flags
+
+    if (contactFlagsAsUser & MrimContactFlags.NEVER_VISIBLE || contactFlagsAsUser & MrimContactFlags.IGNORED) {
+      status = 0
+    } else if (connectedContact?.status === MrimStatus.INVISIBLE && contactFlagsAsUser & MrimContactFlags.ALWAYS_VISIBLE) { // Если Невидимка и "Я всегда видим для"
+      status = connectedContact?.status
+    }
+
+    userStatusUpdate = MrimUserStatusUpdate.writer({
+      status: status !== MrimStatus.XSTATUS ? status : MrimStatus.ONLINE,
+      contact: `${contact.user_login}@${contact.user_domain}`
+    })
+
+    if (status != 0) {
+      return new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_STATUS,
+            dataSize: userStatusUpdate.length
+          })
+        )
+        .subbuffer(userStatusUpdate)
+        .finish()
+    } else {
+      return null
+    }
+  }).filter(item => item !== null)
+
+  return statuses
 }
 
 async function generateContactList (containerHeader, userId, state = null) {
@@ -206,6 +356,10 @@ async function generateContactList (containerHeader, userId, state = null) {
         ? 1
         : 0)
 
+    if (contactFlags & MrimContactFlags.DELETED) {
+      return null
+    }
+
     if (contactFlagsAsUser & MrimContactFlags.NEVER_VISIBLE || contactFlagsAsUser & MrimContactFlags.IGNORED) {
       status = 0
     } else if (connectedContact?.status === MrimStatus.INVISIBLE && contactFlagsAsUser & MrimContactFlags.ALWAYS_VISIBLE) { // Если Невидимка и "Я всегда видим для"
@@ -226,6 +380,12 @@ async function generateContactList (containerHeader, userId, state = null) {
 
     // добавляем новые поля в структуру контакта в зависимости от версии протокола
 
+    if (containerHeader.protocolVersionMinor >= 20) {
+      contactStructure.microblogId = connectedContact?.microblog?.text !== undefined ? 4 : 0
+      contactStructure.microblogUnixTime = connectedContact?.microblog?.date ?? 0
+      contactStructure.microblogLastMessage = connectedContact?.microblog?.text ?? ''
+    }
+
     if (containerHeader.protocolVersionMinor >= 15) {
       contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ''
       contactStructure.xstatusTitle = connectedContact?.xstatus?.title ?? ''
@@ -245,7 +405,7 @@ async function generateContactList (containerHeader, userId, state = null) {
     } else {
       return MrimContact.writer(contactStructure)
     }
-  })
+  }).filter(item => item !== null)
 
   if (containerHeader.protocolVersionMinor >= 20) {
     const conferencesPacket = 
@@ -278,8 +438,8 @@ async function generateContactList (containerHeader, userId, state = null) {
     groups: Buffer.concat(
       contactGroups.map((contactGroup, index) =>
         MrimContactGroup.writer({
-          groupFlags: MrimContactFlags.GROUP + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0) 
-                      + (index * 0x1000000),
+          groupFlags: MrimContactFlags.GROUP + (UTF16CAPABLE ? MrimContactFlags.UNICODE_NICKNAME : 0) +
+                      (index * 0x1000000),
           name: contactGroup.name
         }, UTF16CAPABLE)
       )
@@ -391,6 +551,131 @@ async function _parseConferenceMembers (userId, unparsedMembers) {
     }
   }
   return members
+}
+
+async function processLegacyLogin (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  let loginData
+
+  loginData = MrimOldLoginData.reader(packetData)
+
+  logger.debug(`[${connectionId}] ${loginData.login} tries to login using Legacy Login method...`)
+
+  try {
+    state.userId = await getUserIdViaCredentials(
+      loginData.login.split('@')[0],
+      loginData.login.split('@')[1],
+      loginData.password
+    )
+    state.username = loginData.login.split('@')[0]
+    state.domain = loginData.login.split('@')[1]
+    state.status = 1
+    state.protocolVersionMajor = containerHeader.protocolVersionMajor
+    state.protocolVersionMinor = containerHeader.protocolVersionMinor
+    state.connectionId = connectionId
+    state.features = 0x005F
+    state.utf16capable = false // old ass client
+
+    // since this client doesn't say which version it is, we'll just guess
+    if (containerHeader.protocolVersionMinor >= 4) {
+      state.userAgent = 'client="magent" version="4.0"'
+    } else if (containerHeader.protocolVersionMinor >= 2) {
+      state.userAgent = 'client="magent" version="2.55"'
+    } else if (containerHeader.protocolVersionMinor >= 0) {
+      state.userAgent = 'client="magent" version="2.0"'
+    }
+
+    if (_logoutPreviousClientIfNeeded(state.userId, containerHeader)) {
+      logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
+    }
+
+    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info`)
+
+    global.clients.push(state)
+  } catch (e) {
+    logger.debug(`[${connectionId}] login to ${loginData.login} failed: ${e.fatal === false ? 'database error / internal error' : 'invalid login/password'}`)
+
+    let dataToSend
+    if (e.fatal !== false) {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: 'Invalid login'
+      })
+    } else {
+      dataToSend = MrimRejectLoginData.writer({
+        reason: 'Database error'
+      })
+    }
+
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.LOGIN_REJ,
+            dataSize: dataToSend.length
+          })
+        )
+        .subbuffer(dataToSend)
+        .finish()
+    }
+  }
+
+  const statusData = MrimChangeStatusRequest.writer({
+    status: 1
+  })
+
+  // eslint-disable-next-line no-unused-vars
+  const [contactList, statuses, _changeStatus] = await Promise.all([
+    generateLegacyContactList(containerHeader, state.userId, state),
+    getOnlineStatusesLegacy(containerHeader, state.userId, state),
+    processChangeStatus(
+      containerHeader,
+      statusData,
+      connectionId,
+      logger,
+      state,
+      variables
+    )
+  ])
+
+  const searchResults = await searchUsers(0, { login: state.username })
+
+  const userInfo = MrimUserInfo.writer({
+    nickname: searchResults[0].nick,
+    messagestotal: '0', // dummy
+    messagesunread: '0', // dummy
+    clientip: '127.0.0.1:' + state.socket.remotePort
+  }, state.utf16capable)
+
+  _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
+
+  return {
+    reply: [
+      MrimContainerHeader.writer({
+        ...containerHeader,
+        packetCommand: MrimMessageCommands.LOGIN_ACK,
+        dataSize: 0
+      }),
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_INFO,
+            dataSize: userInfo.length
+          })
+        )
+        .subbuffer(userInfo)
+        .finish(),
+      contactList,
+      ...statuses
+    ]
+  }
 }
 
 async function processLogin (
@@ -673,6 +958,24 @@ async function processLoginThree (
   }
 }
 
+async function processContactListRequest (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  logger.debug(`[${connectionId}] ${state.username} requests contact list (they're on very very old client of ancient greek)`)
+
+  const contactList = await generateLegacyContactList(containerHeader, state.userId, state)
+  const statuses = await getOnlineStatusesLegacy(containerHeader, state.userId, state)
+
+  return {
+    reply: [contactList, ...statuses]
+  }
+}
+
 async function processMessage (
   containerHeader,
   packetData,
@@ -716,7 +1019,7 @@ async function processMessage (
 
     const dataToSend = MrimServerMessageData.writer({
       id: containerHeader.packetOrder + 1,
-      flags: MrimMessageFlags.SYSTEM,
+      flags: 0 + (state.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
       addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
       message: config.adminProfile.defaultMessage,
       messageRTF: ''
@@ -755,11 +1058,77 @@ async function processMessage (
     logger.debug(
       `[${connectionId}] auth request via MRIM_CS_MESSAGE from ${state.username}@${state.domain} to ${messageData.addresser}`
     )
-    addContactMSG(
+    
+    let authResult = await addContactMSG(
       state.userId,
       messageData.addresser.split('@')[0],
       messageData.addresser.split('@')[1]
     )
+
+    if (authResult === true) {
+      // TODO: перенести это в contacts
+      const MrimAddContactData = new MessageConstructor()
+        .field('addresser', FieldDataType.UBIART_LIKE_STRING)
+        .finish()
+
+      // сообщаем о такой прекрасной вести клиенту
+      const contactUsername = messageData.addresser
+      const clientAddresser = global.clients.find(
+        ({ username, domain }) => username === contactUsername.split('@')[0] &&
+                                  domain === contactUsername.split('@')[1]
+      )
+
+      if (clientAddresser !== undefined) {
+        const authorizeReplyToContact = MrimAddContactData.writer({
+          addresser: `${state.username}@${state.domain}`
+        })
+
+        clientAddresser.socket.write(
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+                dataSize: authorizeReplyToContact.length
+              })
+            )
+            .subbuffer(authorizeReplyToContact)
+            .finish()
+        )
+      }
+
+      const authorizeReply = MrimAddContactData.writer({
+        addresser: messageData.addresser
+      })
+
+      return {
+        reply: [
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                dataSize: 4
+              })
+            )
+            .integer(MrimMessageErrors.SUCCESS, 4)
+            .finish(),
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder+1,
+                packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
+                dataSize: authorizeReply.length
+              })
+            )
+            .subbuffer(authorizeReply)
+            .finish(),
+          
+        ]
+      }
+    }
   }
 
   // MRIM >= 1.20
@@ -931,20 +1300,23 @@ async function processMessage (
       messageRTF: messageData.messageRTF ?? ' '
     }, addresserClient.utf16capable)
 
-    addresserClient.socket.write(
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            protocolVersionMinor: addresserClient.protocolVersionMinor,
-            packetOrder: Math.random() * 0xFFFFFFFF,
-            packetCommand: MrimMessageCommands.MESSAGE_ACK,
-            dataSize: dataToSend.length
-          })
-        )
-        .subbuffer(dataToSend)
-        .finish()
-    )
+    // send message UNTIL the proto version is less then 8 and "pers is typing" flag is set
+    if (!(addresserClient.protocolVersionMinor <= 8 && messageData.flags & MrimMessageFlags.NOTIFY)) {
+      addresserClient.socket.write(
+        new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              protocolVersionMinor: addresserClient.protocolVersionMinor,
+              packetOrder: Math.random() * 0xFFFFFFFF,
+              packetCommand: MrimMessageCommands.MESSAGE_ACK,
+              dataSize: dataToSend.length
+            })
+          )
+          .subbuffer(dataToSend)
+          .finish()
+      )
+    }
 
     return {
       reply: [
@@ -963,7 +1335,26 @@ async function processMessage (
     }
   } else {
     let messageStatus = MrimMessageErrors.SUCCESS
-    const receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
+    let receiverId
+    try {
+      receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
+    } catch (e) {
+      return {
+        reply: [
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                dataSize: 4
+              })
+            )
+            .integer(MrimMessageErrors.NO_USER, 4)
+            .finish()
+        ]
+      }
+    }
     const messages = await getOfflineMessages(receiverId)
 
     if ([0x0, 0x80].includes(messageData.flags)) {
@@ -1134,10 +1525,6 @@ async function processSearch (
   }
 
   for (const user of searchResults) {
-    user.birthday = user.birthday
-      ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
-      : ''
-
     for (const key of Object.values(responseFields)) {
       let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
@@ -1145,6 +1532,17 @@ async function processSearch (
 
       if (key === 'mrim_status') {
         value = new Iconv('UTF-8', 'CP1251').convert('3')
+      }
+
+      if (key === 'birthday') {
+        let birthday = user.birthday
+          ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+          : ''
+        value = new Iconv('UTF-8', 'CP1251').convert(birthday)
+      }
+
+      if (key === 'zodiac') {
+        value = new Iconv('UTF-8', 'CP1251').convert(`${getZodiacId(user.birthday)}`)
       }
 
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
@@ -1250,7 +1648,7 @@ async function processAddContact (
               .finish()
           )
         }
-      } else {
+      } else if (contactResult.action === 'MODIFY_EXISTING' && contactResult.authSuccess === true) {
         logger.debug(`[${connectionId}] ${state.username}@${state.domain} authorized ${request.contact}, congrats!`)
 
         // for contact
@@ -1332,8 +1730,9 @@ async function processAddContact (
             }, state.utf16capable)
           } else {
             userStatusUpdate = MrimUserStatusUpdate.writer({
-              status: (clientAddresser.status !== MrimStatus.XSTATUS ? 
-                clientAddresser.status : MrimStatus.ONLINE) ?? 
+              status: (clientAddresser.status !== MrimStatus.XSTATUS
+                ? clientAddresser.status
+                : MrimStatus.ONLINE) ??
                 MrimStatus.OFFLINE,
               contact: request.contact
             })
@@ -1378,6 +1777,21 @@ async function processAddContact (
               .subbuffer(authMessage)
               .finish(),
             userStatusPacket
+          ]
+        }
+      } else if (contactResult.action === 'MODIFY_EXISTING' && contactResult.authSuccess === false) {
+        return {
+          reply: [
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetCommand: MrimMessageCommands.ADD_CONTACT_ACK,
+                  dataSize: contactResponse.length
+                })
+              )
+              .subbuffer(contactResponse)
+              .finish()
           ]
         }
       }
@@ -1441,6 +1855,7 @@ async function processAuthorizeContact (
   state,
   variables
 ) {
+  // TODO: перенести это в contacts
   const MrimAddContactData = new MessageConstructor()
     .field('addresser', FieldDataType.UBIART_LIKE_STRING)
     .finish()
@@ -1453,39 +1868,58 @@ async function processAuthorizeContact (
                               domain === contactUsername.split('@')[1]
   )
 
-  if (clientAddresser !== undefined) {
-    // ну
-
-    // всё, соси хуй небритой обезьяны
-
-    // терь жди пока тебя не примут через MRIM_CS_MESSAGE с флагом MESSAGE_FLAG_AUTHORIZE
-  }
-
   // Если юзер принял авторизацию
-  if (await isContactAuthorized(state.userId, contactUsername) > 0) {
+  if (isContactAdder(state.userId, contactUsername.split('@')[0], contactUsername.split('@')[1]) === true) {
+    await addContactMSG(
+      state.userId,
+      contactUsername.split('@')[0],
+      contactUsername.split('@')[1]
+    )
+
+    if (addContactMSG === false) {
+      return
+    }
+
+    logger.debug(`[${connectionId}] ${state.username}@${state.domain} authorized ${contactUsername}, congrats!`)
     state.lastAuthorizedContact = contactUsername
 
     const authorizeReply = MrimAddContactData.writer({
       addresser: contactUsername
     })
 
-    let statusReply
+    let statusPacket = null
 
-    if (state.protocolVersionMinor >= 15) {
-      statusReply = MrimUserXStatusUpdate.writer({
-        status: clientAddresser.status ?? 0x00,
-        contact: contactUsername,
-        xstatusType: clientAddresser.xstatus?.type ?? '',
-        xstatusTitle: clientAddresser.xstatus?.title ?? '',
-        xstatusDescription: clientAddresser.xstatus?.description ?? '',
-        features: clientAddresser.features ?? 0x02FF,
-        userAgent: clientAddresser.userAgent ?? ''
-      })
-    } else {
-      statusReply = MrimUserStatusUpdate.writer({
-        status: clientAddresser.status ?? 0x00,
-        contact: contactUsername
-      })
+    // if online
+    if (clientAddresser !== undefined) {
+      let statusReply
+
+      if (state.protocolVersionMinor >= 15) {
+        statusReply = MrimUserXStatusUpdate.writer({
+          status: clientAddresser.status ?? 0x00,
+          contact: contactUsername,
+          xstatusType: clientAddresser.xstatus?.type ?? '',
+          xstatusTitle: clientAddresser.xstatus?.title ?? '',
+          xstatusDescription: clientAddresser.xstatus?.description ?? '',
+          features: clientAddresser.features ?? 0x02FF,
+          userAgent: clientAddresser.userAgent ?? ''
+        })
+      } else {
+        statusReply = MrimUserStatusUpdate.writer({
+          status: clientAddresser.status ?? 0x00,
+          contact: contactUsername
+        })
+      }
+
+      statusPacket = new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.CHANGE_STATUS,
+            dataSize: statusReply.length
+          })
+        )
+        .subbuffer(statusReply)
+        .finish()
     }
 
     return {
@@ -1500,16 +1934,7 @@ async function processAuthorizeContact (
           )
           .subbuffer(authorizeReply)
           .finish(),
-        new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.CHANGE_STATUS,
-              dataSize: statusReply.length
-            })
-          )
-          .subbuffer(statusReply)
-          .finish()
+        statusPacket
       ]
     }
   }
@@ -1576,31 +2001,48 @@ async function processModifyContact (
     }
 
     if (!isGroup) {
-      const contactUserId = await deleteContact(
-        state.userId,
-        request.contact.split('@')[0],
-        request.contact.split('@')[1]
-      )
+      // если контакт в списке игнорируемых, ставим флаг что он якобы UDALEN (делитит)
+      const contact = await getContact(state.userId, request.contact.split('@')[0], request.contact.split('@')[1])
+      let contactFlagsAsUser
 
-      if (contactUserId !== null) {
-        await processChangeStatus(
-          {
-            protocolVersionMajor: state.protocolVersionMajor,
-            protocolVersionMinor: state.protocolVersionMinor,
-            packetOrder: 0
-          },
-          new BinaryConstructor()
-            .integer(0, 4) // STATUS_OFFLINE
-            .integer(0, 4)
-            .integer(0, 4)
-            .integer(0, 4)
-            .integer(0xFF02, 4)
-            .finish(),
-          connectionId,
-          logger,
-          state,
-          variables
+      try {
+        contactFlagsAsUser = contact.requester_is_adder
+            ? contact.adder_flags
+            : contact.contact_flags
+      } catch (e) {
+        contactFlagsAsUser = 0
+      }
+
+      if (contactFlagsAsUser & MrimContactFlags.IGNORED) {
+        await modifyContact(state.userId, request.contact.split('@')[0], request.contact.split('@')[1], '', MrimContactFlags.DELETED, 0)
+      } else {
+        const contactUserId = await deleteContact(
+          state.userId,
+          request.contact.split('@')[0],
+          request.contact.split('@')[1]
         )
+
+        // TODO: разобраться зачем это нужно тут
+        if (contactUserId !== null) {
+          await processChangeStatus(
+            {
+              protocolVersionMajor: state.protocolVersionMajor,
+              protocolVersionMinor: state.protocolVersionMinor,
+              packetOrder: 0
+            },
+            new BinaryConstructor()
+              .integer(0, 4) // STATUS_OFFLINE
+              .integer(0, 4)
+              .integer(0, 4)
+              .integer(0, 4)
+              .integer(0xFF02, 4)
+              .finish(),
+            connectionId,
+            logger,
+            state,
+            variables
+          )
+        }
       }
     }
 
@@ -1674,8 +2116,8 @@ async function processChangeStatus (
       ? contact.contact_flags
       : contact.adder_flags
 
-    if (status.status === MrimStatus.INVISIBLE && 
-      (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED)) { 
+    if (status.status === MrimStatus.INVISIBLE &&
+      (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED)) {
       continue
     } else if (status.status === MrimStatus.INVISIBLE && !(contactFlags & MrimContactFlags.ALWAYS_VISIBLE)) {
       status.status = 0
@@ -1901,7 +2343,7 @@ async function processCall (
           MrimContainerHeader.writer({
             ...containerHeader,
             packetOrder: 0x228,
-            packetCommand: MrimMessageCommands.CALL,
+            packetCommand: MrimMessageCommands.CALL2,
             dataSize: dataToSend.length
           })
         )
@@ -1968,10 +2410,133 @@ async function processCallAnswer (
   }
 }
 
+async function processNewMicroblog (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
+
+  // TODO: logic to send it to external social networks
+
+  const microblogSettings = await getMicroblogSettings(state.userId)
+
+  // openvk
+
+  if (microblogSettings.type === 'openvk') {
+    try {
+      const opt = {
+        hostname: microblogSettings.instance,
+        port: 443,
+        path: '/method/wall.post?' +
+          'owner_id=' + microblogSettings.userId +
+          '&message=' + encodeURIComponent(microblog.text) +
+          '&access_token=' + microblogSettings.token,
+        method: 'GET'
+      }
+
+      https.get(opt, (res) => {
+        res.setEncoding('utf8')
+        let responseBody = ''
+
+        res.on('data', (chunk) => {
+          responseBody += chunk
+        })
+
+        res.on('end', () => {
+          logger.debug(`[${connectionId}] posted to OpenVK: ${responseBody}`)
+        })
+      })
+    } catch (e) {
+      logger.error(`[${connectionId}] failed to post to OpenVK: ${e.stack}`)
+    }
+  }
+
+  state.microblog = {
+    text: microblog.text,
+    date: Math.floor(Date.now() / 1000)
+  } 
+
+  state.xstatus.description = microblog.text // duplication for older clients
+
+  logger.debug(`[${connectionId}] new microblog post from ${state.username}@${state.domain} -> ${microblog.text}`)
+
+    const userMicroblogUpdate = MrimMicroblogStatus.writer({
+      flags: microblog.flags,
+      contact: `${state.username}@${state.domain}`,
+      text: microblog.text,
+      id: 42,
+      time: Math.floor(Date.now() / 1000)
+    }, true)
+
+  const contacts = await getContactsFromGroups(state.userId)
+
+  for (const contact of contacts) {
+    const client = global.clients.find(
+      ({ userId }) => userId === contact.user_id
+    )
+
+    if (client === undefined) {
+      continue
+    }
+
+    if (contact.is_auth_success === 0) {
+      continue
+    }
+
+    if (client.protocolVersionMinor < 20) {
+      continue
+    }
+
+    // если статус невидимый
+    const contactFlags = contact.requester_is_adder
+      ? contact.contact_flags
+      : contact.adder_flags
+
+    if (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED) {
+      continue
+    }
+
+    client.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_BLOG_STATUS,
+            dataSize: userMicroblogUpdate.length
+          })
+        )
+        .subbuffer(userMicroblogUpdate)
+        .finish()
+    )
+
+    logger.debug(`[${connectionId}] 'll send ${state.username}@${state.domain}'s new microblog post to ${contact.user_login}@${contact.user_domain}`)
+  }
+
+  return {
+    reply: 
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_BLOG_STATUS,
+            dataSize: userMicroblogUpdate.length
+          })
+        )
+        .subbuffer(userMicroblogUpdate)
+        .finish()
+    }
+}
+
 module.exports = {
   processHello,
+  processLegacyLogin,
   processLogin,
   processLoginThree,
+  processContactListRequest,
   processSearch,
   processMessage,
   processAddContact,
@@ -1982,5 +2547,6 @@ module.exports = {
   processFileTransfer,
   processFileTransferAnswer,
   processCall,
-  processCallAnswer
+  processCallAnswer,
+  processNewMicroblog
 }

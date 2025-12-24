@@ -10,6 +10,13 @@ const {
 
 const MRIM_GET_CONTACTS_OK = 0
 
+// MRIM 1.7 and older
+const MrimLegacyContactList = new MessageConstructor()
+  .field('contactsCount', FieldDataType.UINT32)
+  .field('contactsLength', FieldDataType.UINT32)
+  .field('contacts', FieldDataType.SUBBUFFER)
+  .finish()
+
 const MrimContactList = new MessageConstructor()
   .field('status', FieldDataType.UINT32, MRIM_GET_CONTACTS_OK)
   .field('groupCount', FieldDataType.UINT32)
@@ -24,6 +31,17 @@ const MrimContactGroup = new MessageConstructor()
   .field('name', FieldDataType.UNICODE_STRING)
   .finish()
 
+// mask uussuu
+const MrimOldContact = new MessageConstructor()
+  .field('contactFlags', FieldDataType.UINT32)
+  .field('groupIndex', FieldDataType.UINT32)
+  .field('email', FieldDataType.UBIART_LIKE_STRING)
+  .field('login', FieldDataType.UBIART_LIKE_STRING)
+  .field('authorized', FieldDataType.UINT32)
+  .field('status', FieldDataType.UINT32)
+  .finish()
+
+// MRIM >1.8 (mask uussuus)
 const MrimContact = new MessageConstructor()
   .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -34,7 +52,7 @@ const MrimContact = new MessageConstructor()
   .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-// MRIM >1.14
+// MRIM >1.14 (mask uussuussssus)
 const MrimContactNewer = new MessageConstructor()
   .field('contactFlags', FieldDataType.UINT32)
   .field('groupIndex', FieldDataType.UINT32)
@@ -64,12 +82,11 @@ const MrimContactWithMicroblog = new MessageConstructor()
   .field('xstatusDescription', FieldDataType.UNICODE_STRING)
   .field('features', FieldDataType.UINT32)
   .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
-  .field('unknown0', FieldDataType.UINT32)
-  .field('unknown1', FieldDataType.UINT32)
-  .field('unknown2', FieldDataType.UINT32)
+  .field('microblogId', FieldDataType.UINT64)
+  .field('microblogUnixTime', FieldDataType.UINT32)
   .field('microblogLastMessage', FieldDataType.UNICODE_STRING)
-  .field('unknown3', FieldDataType.UNICODE_STRING)
-  .field('unknown4', FieldDataType.UNICODE_STRING)
+  .field('reserved', FieldDataType.UNICODE_STRING)
+  .field('replyTo', FieldDataType.UNICODE_STRING)
   .finish()
 
 // MRIM >1.21
@@ -86,8 +103,7 @@ const MrimContactWithMicroblogNewer = new MessageConstructor()
   .field('xstatusDescription', FieldDataType.UNICODE_STRING)
   .field('features', FieldDataType.UINT32)
   .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
-  .field('microblogId1', FieldDataType.UINT32)
-  .field('microblogId2', FieldDataType.UINT32)
+  .field('microblogId', FieldDataType.UINT64)
   .field('microblogUnixTime', FieldDataType.UINT32)
   .field('microblogLastMessage', FieldDataType.UNICODE_STRING)
   .field('reserved', FieldDataType.UNICODE_STRING)
@@ -141,8 +157,12 @@ const MrimModifyContactResponse = new MessageConstructor()
   .finish()
 
 module.exports = {
+  MrimLegacyContactList,
+
   MrimContactList,
   MrimContactGroup,
+
+  MrimOldContact,
   MrimContact,
   MrimContactNewer,
   MrimContactWithMicroblog,

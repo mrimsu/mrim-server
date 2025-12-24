@@ -132,6 +132,10 @@ function connectionListener (socket) {
           `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
       )
 
+      if (avatarPath === undefined) {
+        return respond(version, 404, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+      }
+
       try {
         const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
 

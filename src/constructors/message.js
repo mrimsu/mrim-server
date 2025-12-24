@@ -18,7 +18,7 @@ const FieldDataType = {
   BYTE: 1,
   UINT16: 2,
   UINT32: 3,
-  LONG: 10,
+  UINT64: 10,
   INT16: 4,
   INT32: 5,
   SUBBUFFER: 6,
@@ -106,7 +106,7 @@ class MessageConstructor {
               4
             )
             break
-          case FieldDataType.LONG:
+          case FieldDataType.UINT64:
             binaryConstructor = binaryConstructor.integer(
               field.constantValue ?? message[field.key],
               8
@@ -178,6 +178,17 @@ class MessageConstructor {
           continue
         }
 
+        if (binaryReader.offset >= message.length) {
+          if (field.dataType === FieldDataType.UBIART_LIKE_STRING ||
+            field.dataType === FieldDataType.UNICODE_STRING) {
+            result[field.key] = ''
+            continue
+          } else {
+            result[field.key] = 0
+            continue
+          }
+        }
+
         switch (field.dataType) {
           case FieldDataType.BYTE: {
             result[field.key] = binaryReader.readInt8()
@@ -201,6 +212,18 @@ class MessageConstructor {
             break
           case FieldDataType.UINT32:
             result[field.key] = binaryReader.readUint32()
+
+            assert(
+              field.constantValue === undefined ||
+                result[field.key] === field.constantValue
+            )
+
+            break
+          case FieldDataType.UINT64:
+            const low = binaryReader.readUint32()
+            const high = binaryReader.readUint32()
+
+            result[field.key] = (BigInt(high) << 32n) | BigInt(low)
 
             assert(
               field.constantValue === undefined ||
