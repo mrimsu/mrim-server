@@ -83,6 +83,7 @@ const {
   isContactAdder,
   getMicroblogSettings
 } = require('../../database')
+const { getZodiacId } = require('../../tools/zodiac')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
 const https = require('https')
@@ -1298,10 +1299,6 @@ async function processSearch (
   }
 
   for (const user of searchResults) {
-    user.birthday = user.birthday
-      ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
-      : ''
-
     for (const key of Object.values(responseFields)) {
       let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
@@ -1309,6 +1306,17 @@ async function processSearch (
 
       if (key === 'mrim_status') {
         value = new Iconv('UTF-8', 'CP1251').convert('3')
+      }
+
+      if (key === 'birthday') {
+        let birthday = user.birthday
+          ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+          : ''
+        value = new Iconv('UTF-8', 'CP1251').convert(birthday)
+      }
+
+      if (key === 'zodiac') {
+        value = new Iconv('UTF-8', 'CP1251').convert(`${getZodiacId(user.birthday)}`)
       }
 
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
