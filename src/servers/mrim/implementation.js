@@ -23,7 +23,8 @@ const {
   processFileTransfer,
   processFileTransferAnswer,
   processCall,
-  processCallAnswer
+  processCallAnswer,
+  processNewMicroblog
 } = require('./processors')
 
 const config = require('../../../config')
@@ -338,6 +339,15 @@ async function processPacket (
       )
     case MrimMessageCommands.CALL_ACK:
       return processCallAnswer(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.CHANGE_USER_BLOG_STATUS:
+      return processNewMicroblog(
         containerHeader,
         packetData,
         connectionId,

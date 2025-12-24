@@ -38,6 +38,9 @@ const MrimMessageCommands = {
   AUTHORIZE_ACK: 0x1021,
   // Status
   CHANGE_STATUS: 0x1022,
+  // Microblog
+  CHANGE_USER_BLOG_STATUS: 0x1064,
+  USER_BLOG_STATUS: 0x1063,
   // Search
   ANKETA_INFO: 0x1028,
   WP_REQUEST: 0x1029,

@@ -15,18 +15,28 @@ class BinaryConstructor {
    * Добавление целого числа в элементы
    *
    * @param {number} value Значение (число)
-   * @param {number} size Размер в байтах (int8 = 1, int16 = 2, int32 = 4)
+   * @param {number} size Размер в байтах (int8 = 1, int16 = 2, int32 = 4, int64 = 8)
    * @param {boolean} signed Знаковое или нет?
    *
    * @returns {BinaryConstructor} Возвращает себя
    */
   integer (value, size, signed = false) {
-    let rawInteger = Buffer.alloc(size)
+    let rawInteger = Buffer.alloc(size, 0x0)
 
     if (signed) {
-      rawInteger.writeIntLE(value, 0, size)
+      if (size > 4) { // если 64 бит
+        rawInteger.writeInt32LE(value >> 8, 0); // верхний
+        rawInteger.writeInt32LE(value & 0x00ff, 4); // нижний
+      } else {
+        rawInteger.writeIntLE(value, 0, size)
+      }
     } else {
-      rawInteger.writeUIntLE(value, 0, size)
+      if (size > 4) { // если 64 бит
+        rawInteger.writeUInt32LE(value >> 8, 0); // верхний
+        rawInteger.writeUInt32LE(value & 0x00ff, 4); // нижний
+      } else {
+        rawInteger.writeUIntLE(value, 0, size)
+      }
     }
 
     if (this.endianness !== BinaryEndianness.LITTLE) {

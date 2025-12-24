@@ -55,6 +55,10 @@ const {
   MrimUserStatusUpdate,
   MrimUserXStatusUpdate
 } = require('../../messages/mrim/status')
+const {
+  MrimChangeMicroblogStatus,
+  MrimMicroblogStatus
+} = require('../../messages/mrim/microblog')
 const { MrimGameData } = require('../../messages/mrim/games')
 const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
@@ -145,8 +149,6 @@ async function generateLegacyContactList (containerHeader, userId, state = null)
     })
   }
 
-  //
-
   // создаём группу
 
   const groupsBuffer = Buffer.alloc(0xa00, 0x00)
@@ -166,11 +168,15 @@ async function generateLegacyContactList (containerHeader, userId, state = null)
     const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
     return requesterIsAdder || contact.requester_is_contact === 1
   }).map((contact, index) => {
-    const groupIndex = contactGroups.findIndex(
+    let groupIndex = contactGroups.findIndex(
       (group) => contact.requester_is_adder
         ? group.id === contact.adder_group_id
         : group.id === contact.contact_group_id
     )
+
+    if (groupIndex === -1) {
+      groupIndex = 0
+    }
 
     const nickname = contact.contact_nickname ?? contact.user_nickname ?? contact.user_login
     const nicknameLength = nickname.length.toString(16).padStart(2, '0')
@@ -368,6 +374,13 @@ async function generateContactList (containerHeader, userId, state = null) {
         }
 
         // добавляем новые поля в структуру контакта в зависимости от версии протокола
+
+        if (containerHeader.protocolVersionMinor >= 20) {
+          contactStructure.microblogId = connectedContact?.microblog?.text !== undefined ? 4 : 0
+          contactStructure.microblogUnixTime = connectedContact?.microblog?.date ?? 0
+          contactStructure.microblogLastMessage = connectedContact?.microblog?.text ?? ''
+          
+        }
 
         if (containerHeader.protocolVersionMinor >= 15) {
           contactStructure.xstatusType = connectedContact?.xstatus?.type ?? ''
@@ -2150,6 +2163,80 @@ async function processCallAnswer (
   }
 }
 
+async function processNewMicroblog (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
+
+  // TODO: logic to send it to external social networks
+
+  state.microblog = {
+    text: microblog.text,
+    date: Math.floor(Date.now() / 1000)
+  } 
+
+  state.xstatus.description = microblog.text // duplication for older clients
+
+  logger.debug(`[${connectionId}] new microblog post from ${state.username}@${state.domain} -> ${microblog.text}`)
+
+  const contacts = await getContactsFromGroups(state.userId)
+
+  for (const contact of contacts) {
+    const client = global.clients.find(
+      ({ userId }) => userId === contact.user_id
+    )
+
+    if (client === undefined) {
+      continue
+    }
+
+    if (contact.is_auth_success === 0) {
+      continue
+    }
+
+    if (client.protocolVersionMinor < 20) {
+      continue
+    }
+
+    // если статус невидимый
+    const contactFlags = contact.requester_is_adder
+      ? contact.contact_flags
+      : contact.adder_flags
+
+    if (contactFlags & MrimContactFlags.NEVER_VISIBLE || contactFlags & MrimContactFlags.IGNORED) {
+      continue
+    }
+
+    const userMicroblogUpdate = MrimMicroblogStatus.writer({
+      flags: microblog.flags,
+      contact: `${state.username}@${state.domain}`,
+      text: microblog.text,
+      id: 42,
+      time: Math.floor(Date.now() / 1000)
+    }, true)
+
+    client.socket.write(
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_BLOG_STATUS,
+            dataSize: userMicroblogUpdate.length
+          })
+        )
+        .subbuffer(userMicroblogUpdate)
+        .finish()
+    )
+
+    logger.debug(`[${connectionId}] 'll send ${state.username}@${state.domain}'s new microblog post to ${contact.user_login}@${contact.user_domain}`)
+  }
+}
+
 module.exports = {
   processHello,
   processLegacyLogin,
@@ -2166,5 +2253,6 @@ module.exports = {
   processFileTransfer,
   processFileTransferAnswer,
   processCall,
-  processCallAnswer
+  processCallAnswer,
+  processNewMicroblog
 }
