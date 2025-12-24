@@ -921,6 +921,33 @@ async function getUserAvatar (userLogin, userDomain) {
   return results[0].avatar
 }
 
+/**
+ * Получение настроек микроблога пользователя
+ *
+ * @param {number} userId ID пользователя
+ *
+ * @returns {object}
+ */
+async function getMicroblogSettings (userId) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.query(
+    'SELECT `user`.`microblog_settings` FROM `user` ' +
+    'WHERE `user`.`id` = ? ' +
+    'LIMIT 1',
+    [userId]
+  )
+
+  pool.releaseConnection(connection)
+
+  if (results.length === 0) {
+    throw new Error('no avatar found')
+  }
+
+  return JSON.parse(results[0].microblog_settings)
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -943,5 +970,6 @@ module.exports = {
   sendOfflineMessage,
   getUserAvatar,
   registerUser,
-  checkUser
+  checkUser,
+  getMicroblogSettings
 }

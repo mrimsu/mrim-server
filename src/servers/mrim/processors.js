@@ -80,10 +80,12 @@ const {
   cleanupOfflineMessages,
   sendOfflineMessage,
   isContactAuthorized,
-  isContactAdder
+  isContactAdder,
+  getMicroblogSettings
 } = require('../../database')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
+const https = require('https')
 
 const MrimSearchRequestFields = {
   USER: 0,
@@ -2174,6 +2176,39 @@ async function processNewMicroblog (
   const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
 
   // TODO: logic to send it to external social networks
+
+  const microblogSettings = await getMicroblogSettings(state.userId)
+
+  // openvk
+
+  if (microblogSettings.type === 'openvk') {
+    try {
+      const opt = {
+        hostname: microblogSettings.instance,
+        port: 443,
+        path: '/method/wall.post?' +
+          'owner_id=' + microblogSettings.userId +
+          '&message=' + encodeURIComponent(microblog.text) +
+          '&access_token=' + microblogSettings.token,
+        method: 'GET'
+      }
+
+      https.get(opt, (res) => {
+        res.setEncoding('utf8')
+        let responseBody = ''
+
+        res.on('data', (chunk) => {
+          responseBody += chunk
+        })
+
+        res.on('end', () => {
+          logger.debug(`[${connectionId}] posted to OpenVK: ${responseBody}`)
+        })
+      })
+    } catch (e) {
+      logger.error(`[${connectionId}] failed to post to OpenVK: ${e.stack}`)
+    }
+  }
 
   state.microblog = {
     text: microblog.text,
