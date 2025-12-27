@@ -15,6 +15,11 @@ const MrimMessageCommands = {
   LOGIN2: 0x1038,
   LOGIN3: 0x1078,
   USER_INFO: 0x1015,
+
+  // SSL
+  SSL: 0x1086,
+  SSL_ACK: 0x1087,
+
   // Contacts and statuses
   CONTACT_LIST: 0x100A,
   CONTACT_LIST_ACK: 0x100B,
