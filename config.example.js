@@ -9,6 +9,7 @@ const mrim = {
   serverHostname: '127.0.0.1',
   serverPort: 2041,
   offlineMessagesLimit: 20,
+  realEmailRequired: false, // for prod
   ssl: {
     enabled: true,
     keyPath: './ca-key.pem',

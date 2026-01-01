@@ -575,6 +575,33 @@ async function processLegacyLogin (
 
   const searchResults = await searchUsers(0, { login: state.username })
 
+  if (searchResults[0].real_email === null && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
+    const emailMessage = MrimServerMessageData.writer({
+      id: 0x4,
+      flags: MrimMessageFlags.NORECV,
+      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
+      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
+               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
+               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
+               `лишь для восстановления доступа к аккаунту.`,
+      messageRTF: ' '
+    }, state.utf16capable)
+
+    const messagePacket = new BinaryConstructor()
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetCommand: MrimMessageCommands.MESSAGE_ACK,
+          dataSize: emailMessage.length
+        })
+      )
+      .subbuffer(emailMessage)
+      .finish()
+
+    state.socket.write(messagePacket)
+  }
+
   const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
@@ -733,6 +760,33 @@ async function processLogin (
 
   const searchResults = await searchUsers(0, { login: state.username })
 
+  if (searchResults[0].real_email === null && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
+    const emailMessage = MrimServerMessageData.writer({
+      id: 0x4,
+      flags: MrimMessageFlags.NORECV,
+      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
+      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
+               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
+               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
+               `лишь для восстановления доступа к аккаунту.`,
+      messageRTF: ' '
+    }, state.utf16capable)
+
+    const messagePacket = new BinaryConstructor()
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetCommand: MrimMessageCommands.MESSAGE_ACK,
+          dataSize: emailMessage.length
+        })
+      )
+      .subbuffer(emailMessage)
+      .finish()
+
+    state.socket.write(messagePacket)
+  }
+
   const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
@@ -855,6 +909,33 @@ async function processLoginThree (
   ])
 
   const searchResults = await searchUsers(0, { login: state.username })
+
+  if (searchResults[0].real_email === '' && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
+    const emailMessage = MrimServerMessageData.writer({
+      id: 0x4,
+      flags: MrimMessageFlags.NORECV,
+      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
+      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
+               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
+               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
+               `лишь для восстановления доступа к аккаунту.`,
+      messageRTF: ' '
+    }, state.utf16capable)
+
+    const messagePacket = new BinaryConstructor()
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetCommand: MrimMessageCommands.MESSAGE_ACK,
+          dataSize: emailMessage.length
+        })
+      )
+      .subbuffer(emailMessage)
+      .finish()
+
+    state.socket.write(messagePacket)
+  }
 
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
 
