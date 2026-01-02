@@ -5,6 +5,7 @@ const crypto = require('node:crypto')
 
 const pool = mysql2.createPool({
   uri: config.database.connectionUri,
+  maxIdle: 3,
   idleTimeout: 5000,
   enableKeepAlive: true
 })
