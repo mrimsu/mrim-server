@@ -3,7 +3,11 @@ const config = require('../config')
 const mysql2 = require('mysql2/promise')
 const crypto = require('node:crypto')
 
-const pool = mysql2.createPool(config.database.connectionUri)
+const pool = mysql2.createPool({
+  uri: config.database.connectionUri,
+  idleTimeout: 5000,
+  enableKeepAlive: true
+})
 
 /**
  * Получение пользователя при помощи учетных данных
