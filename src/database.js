@@ -138,13 +138,13 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
   }
 
   if (Object.hasOwn(searchParameters, 'login')) {
-    query += '`user`.`login` LIKE ? AND '
-    variables.push(`%${searchParameters.login}%`)
+    query += '`user`.`login` = ? AND '
+    variables.push(`${searchParameters.login}`)
   }
 
   if (Object.hasOwn(searchParameters, 'domain')) {
-    query += '`user`.`domain` LIKE ? AND '
-    variables.push(`%${searchParameters.domain}%`)
+    query += '`user`.`domain` = ? AND '
+    variables.push(`${searchParameters.domain}`)
   }
 
   if (Object.hasOwn(searchParameters, 'nickname')) {
