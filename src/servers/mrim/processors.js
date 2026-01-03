@@ -606,7 +606,10 @@ async function processLegacyLogin (
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
-    clientip: '127.0.0.1:' + state.socket.remotePort
+    clientip: '127.0.0.1:' + state.socket.remotePort,
+    mblogid: '0', // dummy
+    mblogtime: '0', // dummy
+    mblogtext: '' // dummy
   }, state.utf16capable)
 
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
@@ -791,7 +794,10 @@ async function processLogin (
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
-    clientip: '127.0.0.1:' + state.socket.remotePort
+    clientip: '127.0.0.1:' + state.socket.remotePort,
+    mblogid: '0', // dummy
+    mblogtime: '0', // dummy
+    mblogtext: '' // dummy
   }, state.utf16capable)
 
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
@@ -943,7 +949,10 @@ async function processLoginThree (
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
-    clientip: '127.0.0.1:' + state.socket.remotePort
+    clientip: '127.0.0.1:' + state.socket.remotePort,
+    mblogid: '0', // dummy
+    mblogtime: '0', // dummy
+    mblogtext: '' // dummy
   }, state.utf16capable)
 
   return {
