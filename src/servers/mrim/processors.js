@@ -115,20 +115,33 @@ const AnketaInfoStatus = {
 function processHello (containerHeader, connectionId, logger) {
   logger.debug(`[${connectionId}] hello, stranger!`)
 
+  let awaitsServerTime = containerHeader.protocolVersionMinor >= 20
+
   const containerHeaderBinary = MrimContainerHeader.writer({
     ...containerHeader,
     packetOrder: 0,
     packetCommand: MrimMessageCommands.HELLO_ACK,
-    dataSize: 0x4,
+    dataSize: awaitsServerTime ? 0xc : 0x4,
     senderAddress: 0,
     senderPort: 0
   })
 
-  return {
-    reply: new BinaryConstructor()
-      .subbuffer(containerHeaderBinary)
-      .integer(config.mrim?.pingTimer ?? 10, 4)
-      .finish()
+  if (awaitsServerTime) {
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(containerHeaderBinary)
+        .integer(config.mrim?.pingTimer ?? 10, 4)
+        .integer(Math.floor(Date.now() / 1000), 4)
+        .integer(0, 4)
+        .finish()
+    }
+  } else {
+    return {
+      reply: new BinaryConstructor()
+        .subbuffer(containerHeaderBinary)
+        .integer(config.mrim?.pingTimer ?? 10, 4)
+        .finish()
+    }
   }
 }
 
