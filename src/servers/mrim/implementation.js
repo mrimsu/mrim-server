@@ -261,14 +261,25 @@ async function processPacket (
     // MRA >= 5.8
     case MrimMessageCommands.SSL:
       if (config?.mrim?.ssl?.enabled !== true) {
-        logger.debug(`[${connectionId}] client requested secure conn, but SSL is disabled in config. we'll keep silence and keep him without a condom`)
+        logger.debug(`[${connectionId}] client requested secure conn, but SSL is disabled in config. we'll keep him without a condom`)
+        return {
+          reply: new BinaryConstructor()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.FAILURE,
+              dataSize: 0
+            })
+          )
+          .finish()
+        }
       } else {
         state.socket.write(
           new BinaryConstructor()
           .subbuffer(
             MrimContainerHeader.writer({
               ...containerHeader,
-              packetCommand: MrimMessageCommands.SSL_ACK,
+              packetCommand: MrimMessageCommands.OK,
               dataSize: 0
             })
           )

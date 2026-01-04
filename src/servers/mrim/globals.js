@@ -22,7 +22,6 @@ const MrimMessageCommands = {
 
   // SSL
   SSL: 0x1086,
-  SSL_ACK: 0x1087,
 
   // Contacts and statuses
   CONTACT_LIST: 0x100A,
