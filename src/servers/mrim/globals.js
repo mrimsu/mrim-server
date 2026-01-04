@@ -16,6 +16,10 @@ const MrimMessageCommands = {
   LOGIN3: 0x1078,
   USER_INFO: 0x1015,
 
+  OK: 0x1087,
+  FAILURE: 0x1088,
+  COMPRESS_SERVER_STREAM: 0x1089,
+
   // SSL
   SSL: 0x1086,
   SSL_ACK: 0x1087,

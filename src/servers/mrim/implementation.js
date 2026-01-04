@@ -277,6 +277,20 @@ async function processPacket (
         initSSL(state.socket, connectionId, logger, state, variables)
       }
       return null
+    case MrimMessageCommands.COMPRESS_SERVER_STREAM:
+      // we don't know how this works yet
+      // we'll say that there's some internal error sorry
+      return {
+        reply: new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.FAILURE,
+            dataSize: 0
+          })
+        )
+        .finish()
+      }
     case MrimMessageCommands.CONTACT_LIST:
       return processContactListRequest(
         containerHeader,
