@@ -803,11 +803,19 @@ async function processLogin (
     state.socket.write(messagePacket)
   }
 
+  let clientip = state.socket.remoteAddress
+
+  if (state.socket.remoteFamily === 'IPv6' && clientip.startsWith('::ffff:')) {
+    clientip = clientip.slice(7)
+  } else if (state.socket.remoteFamily !== 'IPv4') {
+    clientip = '127.0.0.1'
+  }
+
   const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
-    clientip: '127.0.0.1:' + state.socket.remotePort,
+    clientip: clientip + ':' + state.socket.remotePort,
     mblogid: '0', // dummy
     mblogtime: '0', // dummy
     mblogtext: '' // dummy
@@ -922,6 +930,8 @@ async function processLoginThree (
     }
   }
 
+  // TODO: move replies to separate function
+
   // eslint-disable-next-line no-unused-vars
   const [contactList] = await Promise.all([
     generateContactList(containerHeader, state.userId)
@@ -958,11 +968,19 @@ async function processLoginThree (
 
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
 
+  let clientip = state.socket.remoteAddress
+
+  if (state.socket.remoteFamily === 'IPv6' && clientip.startsWith('::ffff:')) {
+    clientip = clientip.slice(7)
+  } else if (state.socket.remoteFamily !== 'IPv4') {
+    clientip = '127.0.0.1'
+  }
+
   const userInfo = MrimUserInfo.writer({
     nickname: searchResults[0].nick,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
-    clientip: '127.0.0.1:' + state.socket.remotePort,
+    clientip: clientip + ':' + state.socket.remotePort,
     mblogid: '0', // dummy
     mblogtime: '0', // dummy
     mblogtext: '' // dummy
