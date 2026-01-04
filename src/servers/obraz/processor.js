@@ -6,6 +6,8 @@
 const sharp = require('sharp')
 
 const AVATAR_METADATAS = {
+  _avatarsmall: { size: 45, format: 'jpeg', quality: 90 },
+  _avatar: { size: 90, format: 'jpeg', quality: 90 },
   _mrimavatar: { size: 90, format: 'jpeg', quality: 90 },
   _mrimavatarsmall: { size: 45, format: 'jpeg', quality: 90 },
   _mrimavatar180: { size: 180, format: 'jpeg', quality: 90 },
