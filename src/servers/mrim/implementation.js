@@ -442,7 +442,7 @@ async function processPacket (
           logger.debug(`[${connectionId}] user ${state.username} timed out (MRIM_CS_PING)`)
           state.socket.end()
           disconnectClient(connectionId, logger, state)
-        }, PING_TIMER + 3000, connectionId, state, logger)
+        }, PING_TIMER + 10000, connectionId, state, logger)
         timeoutTimer[connectionId].unref()
       }
     }
