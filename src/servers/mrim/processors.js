@@ -495,6 +495,66 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
   cleanupOfflineMessages(userId)
 }
 
+async function _makeUserInfoPacket(containerHeader, logger, connectionId, state, userInfo) {
+  let clientip = state.socket.remoteAddress
+
+  if (state.socket.remoteFamily === 'IPv6' && clientip.startsWith('::ffff:')) {
+    clientip = clientip.slice(7)
+  } else if (state.socket.remoteFamily !== 'IPv4') {
+    clientip = '127.0.0.1'
+  }
+
+  const userInfoPacket = MrimUserInfo.writer({
+    nickname: userInfo.nick,
+    messagestotal: '0', // dummy
+    messagesunread: '0', // dummy
+    clientip: clientip + ':' + state.socket.remotePort,
+    mblogid: '0', // dummy
+    mblogtime: '0', // dummy
+    mblogtext: '' // dummy
+  }, state.utf16capable)
+
+  return new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.USER_INFO,
+            dataSize: userInfoPacket.length
+          })
+        )
+        .subbuffer(userInfoPacket)
+        .finish()
+}
+
+async function _checkForFilledEmail(containerHeader, logger, connectionId, state, email) {
+  if (email === null && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
+    const emailMessage = MrimServerMessageData.writer({
+      id: 0x4,
+      flags: MrimMessageFlags.NORECV,
+      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
+      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
+               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
+               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
+               `лишь для восстановления доступа к аккаунту.`,
+      messageRTF: ' '
+    }, state.utf16capable)
+
+    const messagePacket = new BinaryConstructor()
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          protocolVersionMinor: state.protocolVersionMinor,
+          packetCommand: MrimMessageCommands.MESSAGE_ACK,
+          dataSize: emailMessage.length
+        })
+      )
+      .subbuffer(emailMessage)
+      .finish()
+
+    state.socket.write(messagePacket)
+  }
+}
+
 async function processLegacyLogin (
   containerHeader,
   packetData,
@@ -588,43 +648,8 @@ async function processLegacyLogin (
 
   const searchResults = await searchUsers(0, { login: state.username })
 
-  if (searchResults[0].real_email === null && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
-    const emailMessage = MrimServerMessageData.writer({
-      id: 0x4,
-      flags: MrimMessageFlags.NORECV,
-      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
-      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
-               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
-               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
-               `лишь для восстановления доступа к аккаунту.`,
-      messageRTF: ' '
-    }, state.utf16capable)
-
-    const messagePacket = new BinaryConstructor()
-      .subbuffer(
-        MrimContainerHeader.writer({
-          ...containerHeader,
-          protocolVersionMinor: state.protocolVersionMinor,
-          packetCommand: MrimMessageCommands.MESSAGE_ACK,
-          dataSize: emailMessage.length
-        })
-      )
-      .subbuffer(emailMessage)
-      .finish()
-
-    state.socket.write(messagePacket)
-  }
-
-  const userInfo = MrimUserInfo.writer({
-    nickname: searchResults[0].nick,
-    messagestotal: '0', // dummy
-    messagesunread: '0', // dummy
-    clientip: '127.0.0.1:' + state.socket.remotePort,
-    mblogid: '0', // dummy
-    mblogtime: '0', // dummy
-    mblogtext: '' // dummy
-  }, state.utf16capable)
-
+  const userInfo = await _makeUserInfoPacket(containerHeader, logger, connectionId, state, searchResults[0])
+  _checkForFilledEmail(containerHeader, logger, connectionId, state, searchResults[0].real_email)
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
 
   return {
@@ -634,16 +659,7 @@ async function processLegacyLogin (
         packetCommand: MrimMessageCommands.LOGIN_ACK,
         dataSize: 0
       }),
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.USER_INFO,
-            dataSize: userInfo.length
-          })
-        )
-        .subbuffer(userInfo)
-        .finish(),
+      userInfo,
       contactList,
       ...statuses
     ]
@@ -695,11 +711,33 @@ async function processLogin (
       logger.debug(`[${connectionId}] xstatus: ${loginData.xstatusTitle} (${loginData.xstatusDescription})`)
     }
 
-    if (loginData.modernUserAgent) {
+    if (loginData.modernUserAgent !== undefined) {
+      // check if modern useragent is there and valid
       const agentRegex = RegExp('client="([A-Za-z0-9 ]+)"').exec(loginData.modernUserAgent)
 
-      if (agentRegex.length > 1) {
+      if (agentRegex && agentRegex.length > 1) {
         state.clientName = agentRegex[1]
+      } else {
+
+      }
+    } else {
+      // welp, let's guess
+
+      // MRA 4.x
+      const clientVer = RegExp(/MRA ([0-9\.]+) \(build ([0-9]+)\)/).exec(loginData.userAgent)
+
+      if(clientVer && clientVer.length > 1)
+      {
+        state.userAgent = `client="magent" version="${clientVer[1]}" build="${clientVer[2]}"`
+      }
+
+      // J2ME Agent
+      if(loginData.userAgent.startsWith("Версия 1.")) {
+        const clientJ2ME = RegExp(/Версия 1.([0-9\.]+)/).exec(loginData.userAgent)
+
+        if (clientJ2ME && clientJ2ME.length > 1) {
+          state.userAgent = `client="jagent" version="1.${clientJ2ME[1]}"`
+        }
       }
     }
 
@@ -775,52 +813,9 @@ async function processLogin (
   ])
 
   const searchResults = await searchUsers(0, { login: state.username })
-
-  if (searchResults[0].real_email === null && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
-    const emailMessage = MrimServerMessageData.writer({
-      id: 0x4,
-      flags: MrimMessageFlags.NORECV,
-      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
-      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
-               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
-               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
-               `лишь для восстановления доступа к аккаунту.`,
-      messageRTF: ' '
-    }, state.utf16capable)
-
-    const messagePacket = new BinaryConstructor()
-      .subbuffer(
-        MrimContainerHeader.writer({
-          ...containerHeader,
-          protocolVersionMinor: state.protocolVersionMinor,
-          packetCommand: MrimMessageCommands.MESSAGE_ACK,
-          dataSize: emailMessage.length
-        })
-      )
-      .subbuffer(emailMessage)
-      .finish()
-
-    state.socket.write(messagePacket)
-  }
-
-  let clientip = state.socket.remoteAddress
-
-  if (state.socket.remoteFamily === 'IPv6' && clientip.startsWith('::ffff:')) {
-    clientip = clientip.slice(7)
-  } else if (state.socket.remoteFamily !== 'IPv4') {
-    clientip = '127.0.0.1'
-  }
-
-  const userInfo = MrimUserInfo.writer({
-    nickname: searchResults[0].nick,
-    messagestotal: '0', // dummy
-    messagesunread: '0', // dummy
-    clientip: clientip + ':' + state.socket.remotePort,
-    mblogid: '0', // dummy
-    mblogtime: '0', // dummy
-    mblogtext: '' // dummy
-  }, state.utf16capable)
-
+  
+  const userInfo = await _makeUserInfoPacket(containerHeader, logger, connectionId, state, searchResults[0])
+  _checkForFilledEmail(containerHeader, logger, connectionId, state, searchResults[0].real_email)
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
 
   return {
@@ -830,16 +825,7 @@ async function processLogin (
         packetCommand: MrimMessageCommands.LOGIN_ACK,
         dataSize: 0
       }),
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.USER_INFO,
-            dataSize: userInfo.length
-          })
-        )
-        .subbuffer(userInfo)
-        .finish(),
+      userInfo,
       contactList
     ]
   }
@@ -939,52 +925,9 @@ async function processLoginThree (
 
   const searchResults = await searchUsers(0, { login: state.username })
 
-  if (searchResults[0].real_email === '' && config.adminProfile?.enabled && config.mrim.realEmailRequired === true) {
-    const emailMessage = MrimServerMessageData.writer({
-      id: 0x4,
-      flags: MrimMessageFlags.NORECV,
-      addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
-      message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
-               `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
-               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
-               `лишь для восстановления доступа к аккаунту.`,
-      messageRTF: ' '
-    }, state.utf16capable)
-
-    const messagePacket = new BinaryConstructor()
-      .subbuffer(
-        MrimContainerHeader.writer({
-          ...containerHeader,
-          protocolVersionMinor: state.protocolVersionMinor,
-          packetCommand: MrimMessageCommands.MESSAGE_ACK,
-          dataSize: emailMessage.length
-        })
-      )
-      .subbuffer(emailMessage)
-      .finish()
-
-    state.socket.write(messagePacket)
-  }
-
+  const userInfo = await _makeUserInfoPacket(containerHeader, logger, connectionId, state, searchResults[0])
+  _checkForFilledEmail(containerHeader, logger, connectionId, state, searchResults[0].real_email)
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
-
-  let clientip = state.socket.remoteAddress
-
-  if (state.socket.remoteFamily === 'IPv6' && clientip.startsWith('::ffff:')) {
-    clientip = clientip.slice(7)
-  } else if (state.socket.remoteFamily !== 'IPv4') {
-    clientip = '127.0.0.1'
-  }
-
-  const userInfo = MrimUserInfo.writer({
-    nickname: searchResults[0].nick,
-    messagestotal: '0', // dummy
-    messagesunread: '0', // dummy
-    clientip: clientip + ':' + state.socket.remotePort,
-    mblogid: '0', // dummy
-    mblogtime: '0', // dummy
-    mblogtext: '' // dummy
-  }, state.utf16capable)
 
   return {
     reply: [
@@ -993,16 +936,7 @@ async function processLoginThree (
         packetCommand: MrimMessageCommands.LOGIN_ACK,
         dataSize: 0
       }),
-      new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.USER_INFO,
-            dataSize: userInfo.length
-          })
-        )
-        .subbuffer(userInfo)
-        .finish(),
+      userInfo,
       contactList
     ]
   }
