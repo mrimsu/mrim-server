@@ -559,7 +559,9 @@ async function _checkIfLoggedIn(containerHeader, logger, connectionId, state) {
   if (state.userId === null) {
     state.socket.end()
     logger.debug(`[${connectionId}] someone tried to use auth-only commands. kicking them out!`)
+    return 0
   }
+  return 1
 }
 
 async function processLegacyLogin (
@@ -957,7 +959,7 @@ async function processContactListRequest (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   logger.debug(`[${connectionId}] ${state.username} requests contact list (they're on very very old client of ancient greek)`)
 
@@ -977,7 +979,7 @@ async function processMessage (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
 
@@ -1233,7 +1235,7 @@ async function processSearch (
   logger,
   state
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   if (!state.searchRateLimiter) {
     state.searchRateLimiter = {
@@ -1417,7 +1419,7 @@ async function processAddContact (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const request = MrimAddContactRequest.reader(packetData, state.utf16capable)
 
@@ -1688,7 +1690,7 @@ async function processAuthorizeContact (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   // TODO: перенести это в contacts
   const MrimAddContactData = new MessageConstructor()
@@ -1783,7 +1785,7 @@ async function processModifyContact (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
 
@@ -1910,7 +1912,7 @@ async function processChangeStatus (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let status
 
@@ -2009,7 +2011,7 @@ async function processGame (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const pakcet = MrimGameData.reader(packetData)
 
@@ -2064,7 +2066,7 @@ async function processFileTransfer (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimFileTransfer.reader(packetData)
 
@@ -2117,7 +2119,7 @@ async function processFileTransferAnswer (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimFileTransferAnswer.reader(packetData)
 
@@ -2168,7 +2170,7 @@ async function processCall (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimCall.reader(packetData)
 
@@ -2217,7 +2219,7 @@ async function processCallAnswer (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimCallAnswer.reader(packetData)
 
@@ -2267,7 +2269,7 @@ async function processNewMicroblog (
   state,
   variables
 ) {
-  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
 
