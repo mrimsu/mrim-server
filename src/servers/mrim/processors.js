@@ -555,6 +555,13 @@ async function _checkForFilledEmail(containerHeader, logger, connectionId, state
   }
 }
 
+async function _checkIfLoggedIn(containerHeader, logger, connectionId, state) {
+  if (state.userId === null) {
+    state.socket.end()
+    logger.debug(`[${connectionId}] someone tried to use auth-only commands. kicking them out!`)
+  }
+}
+
 async function processLegacyLogin (
   containerHeader,
   packetData,
@@ -950,6 +957,8 @@ async function processContactListRequest (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   logger.debug(`[${connectionId}] ${state.username} requests contact list (they're on very very old client of ancient greek)`)
 
   const contactList = await generateLegacyContactList(containerHeader, state.userId, state)
@@ -968,6 +977,8 @@ async function processMessage (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   let messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
 
   // фикс для азербайджанской разработки
@@ -1222,6 +1233,8 @@ async function processSearch (
   logger,
   state
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   if (!state.searchRateLimiter) {
     state.searchRateLimiter = {
       available: 25,
@@ -1404,6 +1417,8 @@ async function processAddContact (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const request = MrimAddContactRequest.reader(packetData, state.utf16capable)
 
   let contactResponse
@@ -1673,6 +1688,8 @@ async function processAuthorizeContact (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   // TODO: перенести это в contacts
   const MrimAddContactData = new MessageConstructor()
     .field('addresser', FieldDataType.UBIART_LIKE_STRING)
@@ -1766,6 +1783,8 @@ async function processModifyContact (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   let request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
 
   // я щас начну логунги армянские выкрикивать на разработчика блять
@@ -1891,6 +1910,8 @@ async function processChangeStatus (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   let status
 
   if (containerHeader.protocolVersionMinor >= 15) {
@@ -1988,6 +2009,8 @@ async function processGame (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const pakcet = MrimGameData.reader(packetData)
 
   // так ну неплохо надо бы переправить данный пакет нужному получателю
@@ -2041,6 +2064,8 @@ async function processFileTransfer (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const packet = MrimFileTransfer.reader(packetData)
 
   // так ну неплохо надо бы переправить данный пакет нужному получателю
@@ -2092,6 +2117,8 @@ async function processFileTransferAnswer (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const packet = MrimFileTransferAnswer.reader(packetData)
 
   const addresserClient = global.clients.find(
@@ -2141,6 +2168,8 @@ async function processCall (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const packet = MrimCall.reader(packetData)
 
   const addresserClient = global.clients.find(
@@ -2188,6 +2217,8 @@ async function processCallAnswer (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const packet = MrimCallAnswer.reader(packetData)
 
   const addresserClient = global.clients.find(
@@ -2236,6 +2267,8 @@ async function processNewMicroblog (
   state,
   variables
 ) {
+  await _checkIfLoggedIn(containerHeader, logger, connectionId, state)
+
   const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
 
   // TODO: logic to send it to external social networks
