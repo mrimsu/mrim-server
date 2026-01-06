@@ -687,7 +687,7 @@ async function processLogin (
 
   if (containerHeader.protocolVersionMinor >= 16) {
     loginData = MrimMoreNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16)
-  } else if (containerHeader.protocolVersionMinor >= 15) {
+  } else if (containerHeader.protocolVersionMinor >= 14) {
     loginData = MrimNewerLoginData.reader(packetData, containerHeader.protocolVersionMinor >= 16)
   } else {
     loginData = MrimLoginData.reader(packetData)
