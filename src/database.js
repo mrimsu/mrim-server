@@ -80,9 +80,18 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, 1 as `requester_is_adder`, ' +
+        '`user`.`status` as `user_status`, ' +
+        '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
+        '`microblog`.`date` as `microblog_date`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
+        'LEFT JOIN `microblogs` microblog ON `microblog`.`id` = (' +
+          'SELECT `id` ' +
+          'FROM `microblogs` mb2 ' +
+          'WHERE mb2.`user` = `contact`.`contact_user_id` ' +
+          'ORDER BY mb2.`date` DESC ' +
+          'LIMIT 1' +
+        ')' +
         'WHERE `contact`.`adder_user_id` = ?',
       [userId]
     ),
@@ -93,9 +102,18 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
+        '`user`.`status` as `user_status`, '+ 
+        '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
+        '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`adder_user_id` = `user`.`id` ' +
+        'LEFT JOIN `microblogs` microblog ON `microblog`.`id` = (' +
+          'SELECT `id` ' +
+          'FROM `microblogs` mb2 ' +
+          'WHERE mb2.`user` = `contact`.`adder_user_id` ' +
+          'ORDER BY mb2.`date` DESC ' +
+          'LIMIT 1' +
+        ')' +
         'WHERE `contact`.`contact_user_id` = ?',
       [userId]
     )
@@ -956,6 +974,51 @@ async function getMicroblogSettings (userId) {
   return JSON.parse(results[0].microblog_settings)
 }
 
+/**
+ * Сохраняет микроблог в базу данных
+ *
+ * @param {string} user ID пользователя
+ * @param {string} message Пост пользователя
+ * @param {string} url Ссылка на пост
+ *
+ * @returns {Promise<number>} Внутренний ID на пост
+ */
+async function insertNewMicroblog (user, message, url) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'INSERT INTO `microblogs` ' +
+    '(`user`, `message`, `link`, `date`)' +
+    'VALUES (?, ?, ?, ?)',
+    [user, message, url, Math.floor(Date.now() / 1000)]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+  return results.insertId
+}
+
+/**
+ * Отдаёт последний микроблог в базе данных
+ *
+ * @param {string} user ID пользователя
+ */
+async function getLastMicroblog (user) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'SELECT `id`, `user`, `message`, `link`, `date` FROM `microblogs` ' +
+    'WHERE `microblogs`.`user` = ? ORDER BY `microblogs`.`date` DESC LIMIT 1',
+    [user]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+  return results[0] ?? null
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -979,5 +1042,7 @@ module.exports = {
   getUserAvatar,
   registerUser,
   checkUser,
-  getMicroblogSettings
+  getMicroblogSettings,
+  insertNewMicroblog,
+  getLastMicroblog
 }

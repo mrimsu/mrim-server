@@ -81,7 +81,9 @@ const {
   sendOfflineMessage,
   isContactAuthorized,
   isContactAdder,
-  getMicroblogSettings
+  getMicroblogSettings,
+  insertNewMicroblog,
+  getLastMicroblog
 } = require('../../database')
 const { getZodiacId } = require('../../tools/zodiac')
 const config = require('../../../config')
@@ -392,10 +394,17 @@ async function generateContactList (containerHeader, userId, state = null) {
         // добавляем новые поля в структуру контакта в зависимости от версии протокола
 
         if (containerHeader.protocolVersionMinor >= 20) {
-          contactStructure.microblogId = connectedContact?.microblog?.text !== undefined ? 4 : 0
-          contactStructure.microblogUnixTime = connectedContact?.microblog?.date ?? 0
-          contactStructure.microblogLastMessage = connectedContact?.microblog?.text ?? ''
-          
+          if (connectedContact) {
+            contactStructure.microblogId = connectedContact?.microblog?.id ?? 0
+            contactStructure.microblogUnixTime = connectedContact?.microblog?.date ?? 0
+            contactStructure.microblogLastMessage = connectedContact?.microblog?.text ?? ''
+          } else {
+            if (contact.microblog_text !== null && contact.microblog_date > (Math.floor(Date.now() / 1000) - (60 * 60 * 24 * 7))) {
+              contactStructure.microblogId = contact.microblog_id ?? 0
+              contactStructure.microblogUnixTime = contact.microblog_date ?? 0
+              contactStructure.microblogLastMessage = contact.microblog_text ?? ''
+            }
+          }
         }
 
         if (containerHeader.protocolVersionMinor >= 15) {
@@ -504,14 +513,24 @@ async function _makeUserInfoPacket(containerHeader, logger, connectionId, state,
     clientip = '127.0.0.1'
   }
 
+  let microblog = await getLastMicroblog(state.userId)
+            
+  if (microblog !== null && microblog.date > (Math.floor(Date.now() / 1000) - (60 * 60 * 24 * 7))) {
+    state.microblog = {
+      id: microblog.id,
+      text: microblog.message,
+      date: microblog.date
+    } 
+  }
+
   const userInfoPacket = MrimUserInfo.writer({
     nickname: userInfo.nick,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
     clientip: clientip + ':' + state.socket.remotePort,
-    mblogid: '0', // dummy
-    mblogtime: '0', // dummy
-    mblogtext: '' // dummy
+    mblogid: `${state.microblog?.id ?? 0}` , 
+    mblogtime: `${state.microblog?.date ?? 0}`, 
+    mblogtext: state.microblog?.text ?? ''
   }, state.utf16capable)
 
   return new BinaryConstructor()
@@ -2273,47 +2292,57 @@ async function processNewMicroblog (
 
   const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
 
-  // TODO: logic to send it to external social networks
+  let innerID = 0xFFFFFFFFFFFFFF
 
-  const microblogSettings = await getMicroblogSettings(state.userId)
+  if (microblog.flags == 0x9) {
+    const microblogSettings = await getMicroblogSettings(state.userId)
+    let url = ''
 
-  // openvk
+    // openvk
 
-  if (microblogSettings.type === 'openvk') {
-    try {
-      const opt = {
-        hostname: microblogSettings.instance,
-        port: 443,
-        path: '/method/wall.post?' +
-          'owner_id=' + microblogSettings.userId +
-          '&message=' + encodeURIComponent(microblog.text) +
-          '&access_token=' + microblogSettings.token,
-        method: 'GET'
+    if (microblogSettings.type === 'openvk') {
+      try {
+        const opt = {
+          hostname: microblogSettings.instance,
+          port: 443,
+          path: '/method/wall.post?' +
+            'owner_id=' + microblogSettings.userId +
+            '&message=' + encodeURIComponent(microblog.text) +
+            '&access_token=' + microblogSettings.token,
+          method: 'GET'
+        }
+
+        https.get(opt, (res) => {
+          res.setEncoding('utf8')
+          let responseBody = ''
+
+          res.on('data', (chunk) => {
+            responseBody += chunk
+          })
+
+          res.on('end', () => {
+            let response = JSON.parse(responseBody)
+            if (response.error_code !== undefined) {
+              logger.error(`[${connectionId}] failed to post to OpenVK: ${response.error_code} ${response.error_msg}`)
+            } else {
+              url = `https://${microblogSettings.instance}/wall${microblogSettings.userId}_${response.response.post_id}`
+              logger.debug(`[${connectionId}] posted to OpenVK: ${url}`)
+            }
+          })
+        })
+      } catch (e) {
+        logger.error(`[${connectionId}] failed to post to OpenVK: ${e.stack}`)
       }
-
-      https.get(opt, (res) => {
-        res.setEncoding('utf8')
-        let responseBody = ''
-
-        res.on('data', (chunk) => {
-          responseBody += chunk
-        })
-
-        res.on('end', () => {
-          logger.debug(`[${connectionId}] posted to OpenVK: ${responseBody}`)
-        })
-      })
-    } catch (e) {
-      logger.error(`[${connectionId}] failed to post to OpenVK: ${e.stack}`)
     }
+
+    innerID = insertNewMicroblog(state.userId, microblog.text, url)
   }
 
   state.microblog = {
+    id: innerID,
     text: microblog.text,
     date: Math.floor(Date.now() / 1000)
   } 
-
-  state.xstatus.description = microblog.text // duplication for older clients
 
   logger.debug(`[${connectionId}] new microblog post from ${state.username}@${state.domain} -> ${microblog.text}`)
 
@@ -2321,7 +2350,7 @@ async function processNewMicroblog (
       flags: microblog.flags,
       contact: `${state.username}@${state.domain}`,
       text: microblog.text,
-      id: 42,
+      id: innerID,
       time: Math.floor(Date.now() / 1000)
     }, true)
 
