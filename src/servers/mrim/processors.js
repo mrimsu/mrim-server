@@ -2294,7 +2294,7 @@ async function processNewMicroblog (
 
   let innerID = 0xFFFFFFFFFFFFFF
 
-  if ([0x1, 0x9].contains(microblog.flags)) {
+  if ([0x1, 0x9].includes(microblog.flags)) {
     const microblogSettings = await getMicroblogSettings(state.userId)
     let url = ''
 
