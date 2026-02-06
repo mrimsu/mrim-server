@@ -2335,6 +2335,41 @@ async function processNewMicroblog (
       }
     }
 
+    // telegram bot
+
+    if (microblogSettings.type === 'telegram') {
+      try {
+        const opt = {
+          hostname: 'api.telegram.org',
+          port: 443,
+          path: `/bot${microblogSettings.token}/sendMessage?` +
+            `chat_id=${microblogSettings.chatId}` +
+            `&text=${encodeURIComponent(microblog.text)}`,
+          method: 'GET'
+        }
+
+        https.get(opt, (res) => {
+          res.setEncoding('utf8')
+          let responseBody = ''
+
+          res.on('data', (chunk) => {
+            responseBody += chunk
+          })
+
+          res.on('end', () => {
+            let response = JSON.parse(responseBody)
+            if (response.error_code !== undefined) {
+              logger.error(`[${connectionId}] failed to post to Telegram: ${response.error_code} ${response.error_msg}`)
+            } else {
+              logger.debug(`[${connectionId}] posted to Telegram`)           
+            }
+          })
+        })
+      } catch (e) {
+        logger.error(`[${connectionId}] failed to post to Telegram: ${e.stack}`)
+      }
+    }
+
     innerID = insertNewMicroblog(state.userId, microblog.text, url)
   }
 
