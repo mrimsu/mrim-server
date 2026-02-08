@@ -44,7 +44,8 @@ const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   MrimClientMessageData,
   MrimServerMessageData,
-  MrimOfflineMessageData
+  MrimOfflineMessageData,
+  MrimOfflineMessageDelete
 } = require('../../messages/mrim/messaging')
 const {
   MrimSearchField,
@@ -1263,14 +1264,11 @@ async function processDeleteOfflineMsg (
 ) {
   if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
-  const low = packetData.readUint32LE()
-  const high = packetData.readUint32LE(4)
+  const msg = MrimOfflineMessageDelete.reader(packetData)
 
-  const messageId = (BigInt(low) << 32n) | BigInt(high) // ???????????????
+  await deleteOfflineMessage(state.userId, msg.id)
 
-  await deleteOfflineMessage(state.userId, messageId)
-
-  logger.debug(`[${connectionId}] ${state.username}@${state.domain} deleted offline message with id ${messageId}`)
+  logger.debug(`[${connectionId}] ${state.username}@${state.domain} deleted offline message with id ${msg.id}`)
 }
 
 async function processSearch (

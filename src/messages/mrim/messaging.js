@@ -30,5 +30,9 @@ const MrimOfflineMessageData = new MessageConstructor()
   .field('id', FieldDataType.UINT64)
   .field('data', FieldDataType.UNICODE_STRING)
   .finish()
+  
+const MrimOfflineMessageDelete = new MessageConstructor()
+  .field('id', FieldDataType.UINT64)
+  .finish()
 
-module.exports = { MrimClientMessageData, MrimServerMessageData, MrimOfflineMessageData }
+module.exports = { MrimClientMessageData, MrimServerMessageData, MrimOfflineMessageData, MrimOfflineMessageDelete }
