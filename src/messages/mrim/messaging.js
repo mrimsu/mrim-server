@@ -26,4 +26,9 @@ const MrimServerMessageData = new MessageConstructor()
   .field('reserved2', FieldDataType.UINT32, 0)
   .finish()
 
-module.exports = { MrimClientMessageData, MrimServerMessageData }
+const MrimOfflineMessageData = new MessageConstructor()
+  .field('id', FieldDataType.UINT64)
+  .field('data', FieldDataType.UNICODE_STRING)
+  .finish()
+
+module.exports = { MrimClientMessageData, MrimServerMessageData, MrimOfflineMessageData }

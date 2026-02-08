@@ -14,6 +14,7 @@ const {
   processLoginThree,
   processContactListRequest,
   processMessage,
+  processDeleteOfflineMsg,
   processSearch,
   processAddContact,
   processModifyContact,
@@ -313,6 +314,15 @@ async function processPacket (
       )
     case MrimMessageCommands.MESSAGE:
       return processMessage(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.OFFLINE_MESSAGE_DELETE:
+      return processDeleteOfflineMsg(
         containerHeader,
         packetData,
         connectionId,

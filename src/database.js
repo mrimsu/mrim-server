@@ -766,7 +766,7 @@ async function getOfflineMessages (userId) {
   const connection = await pool.getConnection()
 
   const [offlineMessages, _offlineMessages] = await connection.execute(
-    'SELECT `date`, `message`, `user`.`id` as `user_id`, ' +
+    'SELECT `offline_messages`.`id` as `message_id`, `date`, `message`, `user`.`id` as `user_id`, ' +
     '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
     '`user`.`domain` as `user_domain` ' +
     'FROM `offline_messages` ' +
@@ -794,6 +794,25 @@ async function cleanupOfflineMessages (userId) {
     'DELETE FROM `offline_messages` ' +
       'WHERE `user_to` = ?',
     [userId]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Удалить одно оффлайн сообщение у пользователя
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} messageId ID сообщения
+ */
+async function deleteOfflineMessage (userId, messageId) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'DELETE FROM `offline_messages` ' +
+      'WHERE `user_to` = ? AND `id` = ?',
+    [userId, messageId]
   )
 
   await connection.commit()
@@ -1038,6 +1057,7 @@ module.exports = {
   isContactAdder,
   getOfflineMessages,
   cleanupOfflineMessages,
+  deleteOfflineMessage,
   sendOfflineMessage,
   getUserAvatar,
   registerUser,

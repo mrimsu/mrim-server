@@ -43,7 +43,8 @@ const {
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 const {
   MrimClientMessageData,
-  MrimServerMessageData
+  MrimServerMessageData,
+  MrimOfflineMessageData
 } = require('../../messages/mrim/messaging')
 const {
   MrimSearchField,
@@ -78,6 +79,7 @@ const {
   deleteContact,
   getOfflineMessages,
   cleanupOfflineMessages,
+  deleteOfflineMessage,
   sendOfflineMessage,
   isContactAuthorized,
   isContactAdder,
@@ -472,17 +474,23 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
   const offlineMessages = await getOfflineMessages(userId)
 
   offlineMessages.forEach((message) => {
-    const messageId = Math.floor(Math.random() * 0xFFFFFFFF)
+    const messageId = message.message_id
     const date = new Date(message.date * 1000)
 
-    const messagePacket = MrimServerMessageData.writer({
+    const msgHeader = `` +
+    `From: ${message.user_login}@${message.user_domain}\r\n` +
+    `Date: ${date.toUTCString()}\r\n` +
+    `X-MRIM-Flags: 00100000\r\n` +
+    `Content-Type: text/plain; charset=UTF-16LE\r\n` +
+    `Content-Transfer-Encoding: base64\r\n` +
+    `\r\n`
+
+    const msg = msgHeader + new Iconv('UTF-8', 'UTF-16LE').convert(message.message).toString('base64')
+
+    const messagePacket = MrimOfflineMessageData.writer({
       id: messageId,
-      flags: MrimMessageFlags.OFFLINE,
-      addresser: `${message.user_login}@${message.user_domain}`,
-      message: `Offline Message from ${date.toISOString()} GMT:\n` +
-               `${message.message}`,
-      messageRTF: ' '
-    }, state.utf16capable)
+      data: msg
+    }, false)
 
     const packet = new BinaryConstructor()
       .subbuffer(
@@ -490,7 +498,7 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
           ...containerHeader,
           protocolVersionMinor: state.protocolVersionMinor,
           packetOrder: messageId,
-          packetCommand: MrimMessageCommands.MESSAGE_ACK,
+          packetCommand: MrimMessageCommands.OFFLINE_MESSAGE_ACK,
           dataSize: messagePacket.length
         })
       )
@@ -501,7 +509,6 @@ async function _processOfflineMessages (userId, containerHeader, logger, connect
   })
 
   logger.debug(`[${connectionId}] found ${offlineMessages.length} offline messages for userid = ${userId}`)
-  cleanupOfflineMessages(userId)
 }
 
 async function _makeUserInfoPacket(containerHeader, logger, connectionId, state, userInfo) {
@@ -1245,6 +1252,25 @@ async function processMessage (
       ]
     }
   }
+}
+
+async function processDeleteOfflineMsg (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state
+) {
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+
+  const low = packetData.readUint32LE()
+  const high = packetData.readUint32LE(4)
+
+  const messageId = (BigInt(low) << 32n) | BigInt(high) // ???????????????
+
+  await deleteOfflineMessage(state.userId, messageId)
+
+  logger.debug(`[${connectionId}] ${state.username}@${state.domain} deleted offline message with id ${messageId}`)
 }
 
 async function processSearch (
@@ -2421,6 +2447,7 @@ module.exports = {
   processContactListRequest,
   processSearch,
   processMessage,
+  processDeleteOfflineMsg,
   processAddContact,
   processModifyContact,
   processAuthorizeContact,
