@@ -14,7 +14,8 @@ const mrim = {
     enabled: true,
     keyPath: './ca-key.pem',
     certPath: './ca-cert.pem'
-  }
+  },
+  enableProxy: true
 }
 
 // Настройки сервера-перенаправлятора

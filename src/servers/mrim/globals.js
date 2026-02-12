@@ -62,6 +62,11 @@ const MrimMessageCommands = {
   CALL2: 0x1049,
   CALL: 0x1031,
   CALL_ACK: 0x1032,
+  TALK_SUCCESS: 0x1034,
+  PROXY: 0x1044,
+  PROXY_ACK: 0x1045,
+  PROXY_HELLO: 0x1046,
+  PROXY_HELLO_ACK: 0x1047,
   // Logout
   LOGOUT: 0x1013
 }
@@ -116,10 +121,12 @@ const MrimMessageErrors = {
   OFFLINE_DISABLED: 0x8006
 }
 
-const MrimCallStatus = {
+const MrimConnectionStatus = {
   DENY: 0x0,
   ACCEPT: 0x1,
+  ERROR: 0x2,
+  INCOMPATIBLE_VERSION: 0x3,
   PROXY: 0x4
 }
 
-module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors }
+module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConnectionStatus }

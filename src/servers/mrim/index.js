@@ -7,12 +7,9 @@
 const { ServerConstructor } = require('../../constructors/server')
 const onConnection = require('./implementation')
 
-/*
-  Временный костыль (а может и нет?), так как пихать переменную
-  в функцию или в класс, чтобы он ещё и был одинаковым во всех
-  инстанциях невозможно. Так что придётся делать так.
-*/
 global.clients = []
+global.proxies = []
+global.proxiesTimeout = []
 
 function createMrimServer (options) {
   return new ServerConstructor({

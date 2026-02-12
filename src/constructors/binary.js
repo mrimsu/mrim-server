@@ -25,15 +25,16 @@ class BinaryConstructor {
 
     if (signed) {
       if (size > 4) { // если 64 бит
-        rawInteger.writeInt32LE(value & 0xFFFFFFFF, 0); // верхний
-        rawInteger.writeInt32LE(value / 0x100000000, 4); // нижний
+        rawInteger.writeInt32LE(Math.floor(value & 0xFFFFFFFF), 0); // верхний
+        rawInteger.writeInt32LE(Math.floor(value / 0x100000000), 4); // нижний
       } else {
         rawInteger.writeIntLE(value, 0, size)
       }
     } else {
+
       if (size > 4) { // если 64 бит
-        rawInteger.writeUInt32LE(value & 0xFFFFFFFF, 0); // верхний
-        rawInteger.writeUInt32LE(value / 0x100000000, 4); // нижний
+        rawInteger.writeUInt32LE(Math.floor((value & 0xFFFFFFFF) >>> 0), 0); // верхний
+        rawInteger.writeUInt32LE(Math.floor(value / 0x100000000), 4); // нижний
       } else {
         rawInteger.writeUIntLE(value, 0, size)
       }
