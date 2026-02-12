@@ -25,6 +25,8 @@ const {
   processFileTransferAnswer,
   processCall,
   processCallAnswer,
+  processProxy,
+  processProxyHello,
   processNewMicroblog
 } = require('./processors')
 
@@ -422,6 +424,24 @@ async function processPacket (
         state,
         variables
       )
+    case MrimMessageCommands.PROXY:
+      return processProxy(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.PROXY_HELLO:
+      return processProxyHello(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
     case MrimMessageCommands.CHANGE_USER_BLOG_STATUS:
       return processNewMicroblog(
         containerHeader,
@@ -449,6 +469,8 @@ async function processPacket (
     case MrimMessageCommands.PING: {
       if (timeoutTimer[connectionId] !== undefined) {
         timeoutTimer[connectionId].refresh()
+      } else if (state.isProxyConnection ?? false) {
+        // don't do anything
       } else {
         const PING_TIMER = (config?.mrim?.pingTimer ?? 10) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
