@@ -94,6 +94,7 @@ const { getZodiacId } = require('../../tools/zodiac')
 const config = require('../../../config')
 const { Iconv } = require('iconv')
 const https = require('https')
+const { Throttle } = require('stream-throttle');
 
 const MrimSearchRequestFields = {
   USER: 0,
@@ -2490,8 +2491,10 @@ async function processProxyHello (
       state.socket.removeAllListeners('data');
       clientSecond[0].socket.removeAllListeners('data');
 
-      state.socket.pipe(clientSecond[0].socket)
-      clientSecond[0].socket.pipe(state.socket)
+      const speedLimit = config.mrim.proxySpeedLimit ?? 1024 * 1024;
+
+      state.socket.pipe(new Throttle({ rate: speedLimit })).pipe(clientSecond[0].socket)
+      clientSecond[0].socket.pipe(new Throttle({ rate: speedLimit })).pipe(state.socket)
 
       global.proxies.splice(proxyIndex, 1)
     }

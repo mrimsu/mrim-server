@@ -15,7 +15,8 @@ const mrim = {
     keyPath: './ca-key.pem',
     certPath: './ca-cert.pem'
   },
-  enableProxy: true
+  enableProxy: true,
+  speedLimit: 1024 * 1024 // 1 Mb/s
 }
 
 // Настройки сервера-перенаправлятора
