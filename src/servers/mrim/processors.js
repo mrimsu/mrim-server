@@ -593,8 +593,8 @@ async function _checkIfLoggedIn(containerHeader, logger, connectionId, state) {
   return 1
 }
 
-async function _addNewProxyConnection(sessionIdHigh, sessionIdLow) {
-  const proxy = {sessionIdHigh, sessionIdLow}
+async function _addNewProxyConnection(sessionIdHigh, sessionIdLow, sessHighSec, sessLowSec) {
+  const proxy = {sessionIdHigh, sessionIdLow, sessHighSec, sessLowSec}
 
   global.proxies.push(proxy);
 }
@@ -2334,8 +2334,10 @@ async function processProxy (
   if (config.mrim.enableProxy ?? true) {
     const sessionIdHigh = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
     const sessionIdLow = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
+    const sessionIdHighSecondary = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
+    const sessionIdLowSecondary = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
 
-    _addNewProxyConnection(sessionIdHigh, sessionIdLow)
+    _addNewProxyConnection(sessionIdHigh, sessionIdLow, sessionIdHighSecondary, sessionIdLowSecondary)
 
     proxyAck = MrimProxyAck.writer({
       status: MrimConnectionStatus.ACCEPT,
@@ -2347,6 +2349,8 @@ async function processProxy (
       proxy_ip: (config.redirector?.redirectTo ?? LOCAL_IP_ADDRESS) + ';',
       session_id_high: sessionIdHigh,
       session_id_low: sessionIdLow,
+      session_id_high_second: sessionIdHighSecondary,
+      session_id_low_second: sessionIdLowSecondary,
     }, state.utf16capable)
 
     const proxyAckToContact = MrimProxyRequest.writer({
@@ -2358,6 +2362,8 @@ async function processProxy (
       proxy_ip: (config.redirector?.redirectTo ?? LOCAL_IP_ADDRESS) + ';',
       session_id_high: sessionIdHigh,
       session_id_low: sessionIdLow,
+      session_id_high_second: sessionIdHighSecondary,
+      session_id_low_second: sessionIdLowSecondary,
     }, state.utf16capable)
 
     const proxyPacket = new BinaryConstructor()
@@ -2415,6 +2421,7 @@ async function processProxyHello (
 
     const proxyIndex = global.proxies.findIndex(
       (proxy) => proxy.sessionIdHigh == packet.session_id_high && proxy.sessionIdLow == packet.session_id_low
+              && proxy.sessHighSec == packet.session_id_high_second && proxy.sessLowSec == packet.session_id_low_second
     )
     
     state.proxyId = global.proxies[proxyIndex]
