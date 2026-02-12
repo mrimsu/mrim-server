@@ -177,11 +177,10 @@ async function disconnectClient (connectionId, logger, state) {
   ).length
 
   const connectedUser = global.clients.find(
-    (client) => client.username === state.username && client.domain === state.domain
+    ({ username, domain }) => username === state.username && domain === state.domain
   )
 
-  // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  if (clientIndex > 0 && sameUserSessionsCount <= 1 && connectedUser.connectionId == connectionId) {
+  if (clientIndex >= 0 && sameUserSessionsCount <= 1 && connectedUser.connectionId == connectionId) {
     await processChangeStatus(
       {
         protocolVersionMajor: state.protocolVersionMajor,
@@ -202,10 +201,10 @@ async function disconnectClient (connectionId, logger, state) {
     )
 
     global.clients.splice(clientIndex, 1)
-
-    clearTimeout(timeoutTimer[connectionId])
-    delete timeoutTimer[connectionId]
   }
+
+  clearTimeout(timeoutTimer[connectionId])
+  delete timeoutTimer[connectionId]
 }
 
 async function initSSL (socket, connectionId, logger, state, variables) {
