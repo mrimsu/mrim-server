@@ -63,7 +63,7 @@ const {
   MrimChangeMicroblogStatus,
   MrimMicroblogStatus
 } = require('../../messages/mrim/microblog')
-const { MrimGameData } = require('../../messages/mrim/games')
+const { MrimGameData, MrimGameNewerData } = require('../../messages/mrim/games')
 const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
 const {
@@ -2065,23 +2065,34 @@ async function processGame (
 ) {
   if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
-  const pakcet = MrimGameData.reader(packetData)
+  let packet
+  if (state.protocolVersionMinor < 15) {
+    packet = MrimGameData.reader(packetData)
+  } else {
+    packet = MrimGameNewerData.reader(packetData)
+  }
 
   // так ну неплохо надо бы переправить данный пакет нужному получателю
   const addresserClient = global.clients.find(
-    ({ username, domain }) => username === pakcet.addresser_or_receiver.split('@')[0] &&
-                              domain === pakcet.addresser_or_receiver.split('@')[1]
+    ({ username, domain }) => username === packet.contact.split('@')[0] &&
+                              domain === packet.contact.split('@')[1]
   )
 
   if (addresserClient !== undefined) {
     // basically we're just pushin same data to client
-    const dataToSend = MrimGameData.writer({
-      addresser_or_receiver: `${state.username}@${state.domain}`,
-      session: pakcet.session,
-      internal_msg: pakcet.internal_msg,
-      message_id: pakcet.message_id,
-      data: pakcet.data
-    })
+    const gameData = {
+      contact: `${state.username}@${state.domain}`,
+      session: packet.session,
+      internal_msg: packet.internal_msg,
+      message_id: packet.message_id,
+      time_send: packet.time_send ?? 0,
+      data: packet.data
+    }
+
+    
+    const dataToSend = addresserClient.protocolVersionMinor >= 15 
+                        ? MrimGameNewerData.writer(gameData)
+                        : MrimGameData.writer(gameData)
 
     addresserClient.socket.write(
       new BinaryConstructor()
@@ -2100,10 +2111,10 @@ async function processGame (
     return {
       reply:
         MrimGameData.writer({
-          addresser_or_receiver: pakcet.addresser_or_receiver,
-          session: pakcet.session,
+          contact: packet.contact,
+          session: packet.session,
           internal_msg: 10, // means no user found bruv
-          message_id: pakcet.message_id,
+          message_id: packet.message_id,
           data: ''
         })
     }
