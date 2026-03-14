@@ -2,6 +2,7 @@
  * @file Реализация процессоров запросов MRIM
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const BinaryConstructor = require('../../constructors/binary')
@@ -15,7 +16,8 @@ const {
   MrimContactFlags,
   MrimMessageFlags,
   MrimMessageErrors,
-  MrimConnectionStatus
+  MrimConnectionStatus,
+  MrimSmsStatus
 } = require('./globals')
 const {
   MrimOldLoginData,
@@ -63,6 +65,7 @@ const {
   MrimChangeMicroblogStatus,
   MrimMicroblogStatus
 } = require('../../messages/mrim/microblog')
+const { MrimCsSms, MrimCsSmsAck } = require('../../messages/mrim/sms')
 const { MrimGameData, MrimGameNewerData } = require('../../messages/mrim/games')
 const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
@@ -394,7 +397,6 @@ async function generateContactList (containerHeader, userId, state = null) {
               contact.user_login,
           authorized: Number(!contact.is_auth_success),
           status,
-          phoneNumber: ''
         }
 
         // добавляем новые поля в структуру контакта в зависимости от версии протокола
@@ -1422,7 +1424,7 @@ async function processSearch (
 
   for (const user of searchResults) {
     for (const key of Object.values(responseFields)) {
-      let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
+      let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' && key !== 'phone' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
 
@@ -2645,6 +2647,86 @@ async function processNewMicroblog (
     }
 }
 
+async function processSms (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+
+  const sms = MrimCsSms.reader(packetData, state.utf16capable)
+  let status = MrimSmsStatus.OK
+
+  const targetChatId = sms.phone.replace(/\D/g, '')
+  
+  if (!config.telegram?.enabled) {
+    logger.debug(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
+    status = MrimSmsStatus.SERVICE_UNAVAILABLE
+  } else {
+  try {
+    const opt = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${config.telegram.token}/sendMessage?chat_id=${encodeURIComponent(targetChatId)}&text=${encodeURIComponent(sms.message)}`, // выглядит страшно
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    } 
+
+    await new Promise((resolve) => {
+      const req = https.request(opt, (res) => {
+        res.setEncoding('utf8')
+        let responseBody = ''
+
+        res.on('data', (chunk) => { responseBody += chunk })
+
+        res.on('end', () => {
+          let response = JSON.parse(responseBody)
+          if (!response.ok) {
+            logger.error(`[${connectionId}] telegram error for chat ID ${targetChatId}: ${response.description}`)
+            status = response.error_code === 400 ? MrimSmsStatus.INVALID_PARAMS : MrimSmsStatus.SERVICE_UNAVAILABLE
+          } else {
+            logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${targetChatId}`)
+          }
+          resolve()
+        })
+      })
+
+      req.on('error', (e) => {
+        logger.error(`[${connectionId}] telegram connection error: ${e.stack}`)
+        status = MrimSmsStatus.SERVICE_UNAVAILABLE
+        resolve()
+      })
+
+      req.write(targetChatId)
+      req.end()
+    })
+  } catch (e) {
+    logger.error(`[${connectionId}] whoopsy while processing data: ${e.stack}`)
+    status = MrimSmsStatus.SERVICE_UNAVAILABLE
+  }
+  }
+ 
+  const smsAckUpdate = MrimCsSmsAck.writer({status})
+  return {
+    reply: 
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.SMS_ACK,
+            dataSize: smsAckUpdate.length
+          })
+        )
+        .subbuffer(smsAckUpdate)
+        .finish()
+  }
+}
+
 module.exports = {
   processHello,
   processLegacyLogin,
@@ -2665,5 +2747,6 @@ module.exports = {
   processCallAnswer,
   processProxy,
   processProxyHello,
-  processNewMicroblog
+  processNewMicroblog,
+  processSms
 }

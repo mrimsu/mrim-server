@@ -2,6 +2,7 @@
  * @file Реализация обработчика подключения к серверу
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const { MrimMessageCommands } = require('./globals')
@@ -27,7 +28,8 @@ const {
   processCallAnswer,
   processProxy,
   processProxyHello,
-  processNewMicroblog
+  processNewMicroblog,
+  processSms
 } = require('./processors')
 
 const config = require('../../../config')
@@ -319,6 +321,24 @@ async function processPacket (
       )
     case MrimMessageCommands.MESSAGE:
       return processMessage(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.SMS:
+      return processSms(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.SMS_ACK:
+      return processSms(
         containerHeader,
         packetData,
         connectionId,

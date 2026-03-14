@@ -338,7 +338,18 @@ async function createOrCompleteContact (
     )
   ])
 
+  if (contactUserResult[0].length === 0) {
+    pool.releaseConnection(connection)
+    return { action: 'ERROR', message: 'User not found' } 
+  }
+
   const [{ id: contactUserId }] = contactUserResult[0]
+  
+  if (groupResult[0].length === 0) {
+    pool.releaseConnection(connection)
+    return { action: 'ERROR', message: 'Group not found' }
+  }
+  
   const [{ id: groupId }] = groupResult[0]
 
   try { // дополнение контакта

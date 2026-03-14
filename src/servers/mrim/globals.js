@@ -39,6 +39,9 @@ const MrimMessageCommands = {
   MESSAGE_STATUS: 0x1012,
   OFFLINE_MESSAGE_ACK: 0x101D,
   OFFLINE_MESSAGE_DELETE: 0x101E,
+  // SMS
+  SMS: 0x1039,
+  SMS_ACK: 0x1040,
   // Contacts
   ADD_CONTACT: 0x1019,
   ADD_CONTACT_ACK: 0x101a,
@@ -129,4 +132,10 @@ const MrimConnectionStatus = {
   PROXY: 0x4
 }
 
-module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConnectionStatus }
+const MrimSmsStatus = {
+  OK: 0x1,
+  SERVICE_UNAVAILABLE: 0x2,
+  INVALID_PARAMS: 0x10000
+}
+
+module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConnectionStatus, MrimSmsStatus }

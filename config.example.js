@@ -60,4 +60,9 @@ const adminProfile = {
   avatarUrl: 'admin.jpg'
 }
 
-module.exports = { database, mrim, redirector, socks, obraz, rest, adminProfile }
+const telegram = {
+  enabled: false,
+  token: 'idk example'
+}
+
+module.exports = { database, mrim, redirector, socks, obraz, rest, adminProfile, telegram }
