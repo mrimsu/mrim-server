@@ -60,6 +60,7 @@ const adminProfile = {
   avatarUrl: 'admin.jpg'
 }
 
+// Настройки Telegram бота
 const telegram = {
   enabled: false,
   token: 'idk example'
