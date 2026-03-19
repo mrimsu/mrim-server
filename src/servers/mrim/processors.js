@@ -454,7 +454,7 @@ function _logoutPreviousClientIfNeeded (userId, containerHeader) {
   // NOTE https://storage.yandexcloud.net/schizophrenia/schizophrenia.jpg
   const previousClient = global.clients.find((client) => client.userId === userId)
   const previousClientIndex = global.clients.findIndex((client) => client.userId === userId)
-  if (previousClient === undefined) return false
+  if (previousClient === undefined && previousClientIndex === -1) return false
 
   const logoutMessage = new BinaryConstructor()
     .subbuffer(

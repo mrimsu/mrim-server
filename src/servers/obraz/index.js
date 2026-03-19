@@ -8,6 +8,8 @@ const { Socket, createServer } = require('node:net')
 const { processAvatar } = require('./processor')
 const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
+const { query } = require('winston')
+const { generateXMLResponse } = require('./weather')
 
 const ALLOWED_METHODS = ['GET', 'HEAD']
 const STATUS_CODES = {
@@ -53,7 +55,7 @@ function connectionListener (socket) {
    */
   function respond (httpVersion, statusCode, responseBody, responseHeaders) {
     if (typeof responseBody === 'string') {
-      responseBody = Buffer.from(responseBody, 'ascii')
+      responseBody = Buffer.from(responseBody, 'utf8')
     }
 
     if (responseHeaders === null || responseHeaders === undefined) {
@@ -101,14 +103,57 @@ function connectionListener (socket) {
         pathname = new URL(pathname).pathname
       }
       pathname = pathname.substring(1)
+      let [uripath, queryValue] = pathname.split('?')
+      let queryValues = {}
 
-      if (pathname.split('/').length !== 3) {
+      if (queryValue !== undefined) {
+        queryValue.split('&').forEach(element => {
+          const [key, value] = element.split('=')
+          queryValues[key] = value
+        });
+      }
+
+      console.log(
+          `[obraz] dbg ${pathname}`
+      )
+
+      /* special inform handlers */
+      if (uripath.endsWith("/popup.html")) {
+        return respond(version, 200, '<html><body>hello stranger</body></html>')
+      }
+
+      if (uripath.endsWith("/inf/anons_magent2.xml")) {
+        return respond(version, 200, `<?xml version="1.0" encoding="windows-1251"?>
+<MESSAGES>
+  <MESSAGE>
+    <icon>http://yourserver/icon.gif</icon>
+    <title>Заголовок новости</title>
+    <description>Текст новости</description>
+    <url>http://mail.ru</url>
+    <FONT family="Arial" color="000000" hicolor="0000FF" grayedcolor="808080"
+          underlined="0" italic="0" strikeout="0"/>
+  </MESSAGE>
+</MESSAGES>`)
+      }
+
+
+
+      if (uripath.startsWith("inf/magent_main.xml")) {
+        if (queryValues['city'] !== undefined) {
+          const xmlResponse = await generateXMLResponse(queryValues['city'])
+          if (xmlResponse !== null) {
+            return respond(version, 200, xmlResponse)
+          } else {
+            return respond(version, 500, 'Internal Server Error')
+          }
+        }
+      }
+
+      if (uripath.split('/').length !== 3) {
         return respond(version, 404, 'Not Found')
       }
 
-      let [domain, userLogin, avatarType] = pathname.split('/')
-
-      avatarType = avatarType.split('?')[0]
+      let [domain, userLogin, avatarType] = uripath.split('/')
 
       let avatarPath
 
@@ -155,7 +200,7 @@ function connectionListener (socket) {
       }
     } catch (e) {
       console.log(
-        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
+        `[obraz] internal error, stack: ${e.stack}`
       )
     }
   }
