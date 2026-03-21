@@ -146,8 +146,10 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
   const connection = await pool.getConnection()
   let query =
     'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
-    '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
-    'FROM `user` WHERE '
+    '`user`.`birthday`, `user`.`zodiac`, `virtual_numbers`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
+    'FROM `user` ' +
+    'LEFT JOIN `virtual_numbers` ON `user`.`id` = `virtual_numbers`.`user_id` ' +
+    'WHERE '
   const variables = []
 
   if (!searchMyself) {
@@ -1038,6 +1040,27 @@ async function getLastMicroblog (user) {
   return results[0] ?? null
 }
 
+/**
+ * Получение Telegram ID по виртуальному номеру
+ *
+ * @param {string} virtualNumber Виртуальный номер
+ * @returns {Promise<string|null>} Telegram ID или null, если номер не найден
+ */
+async function getTelegramIdByVirtualNumber (virtualNumber) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'SELECT `telegram_id` FROM `virtual_numbers` ' +
+    'WHERE `phone` = ? LIMIT 1',
+    [virtualNumber]
+  )
+  
+  await connection.commit()
+  pool.releaseConnection(connection)
+  return results.length > 0 ? results[0].telegram_id : null
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -1064,5 +1087,6 @@ module.exports = {
   checkUser,
   getMicroblogSettings,
   insertNewMicroblog,
-  getLastMicroblog
+  getLastMicroblog,
+  getTelegramIdByVirtualNumber
 }

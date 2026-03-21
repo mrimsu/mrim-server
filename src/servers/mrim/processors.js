@@ -91,7 +91,8 @@ const {
   isContactAdder,
   getMicroblogSettings,
   insertNewMicroblog,
-  getLastMicroblog
+  getLastMicroblog,
+  getTelegramIdByVirtualNumber
 } = require('../../database')
 const { getZodiacId } = require('../../tools/zodiac')
 const config = require('../../../config')
@@ -2660,17 +2661,30 @@ async function processSms (
   const sms = MrimCsSms.reader(packetData, state.utf16capable)
   let status = MrimSmsStatus.OK
 
-  const targetChatId = sms.phone.replace(/\D/g, '')
+  const virtualNumber = sms.phone.replace(/\D/g, '')
+  const messageWithMail = `${state.username}@${state.domain}: ` + sms.message
+  
+  let targetChatId;
+  try {
+    targetChatId = await getTelegramIdByVirtualNumber(virtualNumber);
+  } catch (e) {
+    logger.error(`[${connectionId}] db error while resolving virtual number: ${e.stack}`);
+  }
+
+  if (!targetChatId) {
+    logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`); // виртуальный номер ${виртуальный номер} пхахах
+    status = MrimSmsStatus.INVALID_PARAMS;
+  } 
   
   if (!config.telegram?.enabled) {
-    logger.debug(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
+    logger.error(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
     status = MrimSmsStatus.SERVICE_UNAVAILABLE
   } else {
   try {
     const opt = {
       hostname: 'api.telegram.org',
       port: 443,
-      path: `/bot${config.telegram.token}/sendMessage?chat_id=${encodeURIComponent(targetChatId)}&text=${encodeURIComponent(sms.message)}`, // выглядит страшно
+      path: `/bot${config.telegram.token}/sendMessage?chat_id=${encodeURIComponent(targetChatId)}&text=${encodeURIComponent(messageWithMail)}`, // выглядит страшно
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -2690,7 +2704,7 @@ async function processSms (
             logger.error(`[${connectionId}] telegram error for chat ID ${targetChatId}: ${response.description}`)
             status = response.error_code === 400 ? MrimSmsStatus.INVALID_PARAMS : MrimSmsStatus.SERVICE_UNAVAILABLE
           } else {
-            logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${targetChatId}`)
+            logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${virtualNumber}`)
           }
           resolve()
         })
@@ -2702,7 +2716,7 @@ async function processSms (
         resolve()
       })
 
-      req.write(targetChatId)
+      req.write(targetChatId.toString())
       req.end()
     })
   } catch (e) {
