@@ -15,6 +15,14 @@ const MrimMessageCommands = {
   LOGIN2: 0x1038,
   LOGIN3: 0x1078,
   USER_INFO: 0x1015,
+
+  OK: 0x1087,
+  FAILURE: 0x1088,
+  COMPRESS_SERVER_STREAM: 0x1089,
+
+  // SSL
+  SSL: 0x1086,
+
   // Contacts and statuses
   CONTACT_LIST: 0x100A,
   CONTACT_LIST_ACK: 0x100B,
@@ -29,6 +37,8 @@ const MrimMessageCommands = {
   MESSAGE: 0x1008,
   MESSAGE_ACK: 0x1009,
   MESSAGE_STATUS: 0x1012,
+  OFFLINE_MESSAGE_ACK: 0x101D,
+  OFFLINE_MESSAGE_DELETE: 0x101E,
   // Contacts
   ADD_CONTACT: 0x1019,
   ADD_CONTACT_ACK: 0x101a,
@@ -52,6 +62,11 @@ const MrimMessageCommands = {
   CALL2: 0x1049,
   CALL: 0x1031,
   CALL_ACK: 0x1032,
+  TALK_SUCCESS: 0x1034,
+  PROXY: 0x1044,
+  PROXY_ACK: 0x1045,
+  PROXY_HELLO: 0x1046,
+  PROXY_HELLO_ACK: 0x1047,
   // Logout
   LOGOUT: 0x1013
 }
@@ -108,9 +123,11 @@ const MrimMessageErrors = {
   OFFLINE_DISABLED: 0x8006
 }
 
-const MrimCallStatus = {
+const MrimConnectionStatus = {
   DENY: 0x0,
   ACCEPT: 0x1,
+  ERROR: 0x2,
+  INCOMPATIBLE_VERSION: 0x3,
   PROXY: 0x4
 }
 
@@ -127,4 +144,4 @@ const MrimConferenceStatus = {
 	TURN_OUT: 9 // s->c someone has delete me from chat 
 }
 
-module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConferenceStatus }
+module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConnectionStatus, MrimConferenceStatus }

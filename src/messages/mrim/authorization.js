@@ -14,7 +14,7 @@ const MrimOldLoginData = new MessageConstructor()
   .field('password', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-// для MRIM 1.14 и ниже
+// для MRIM 1.13 и ниже
 const MrimLoginData = new MessageConstructor()
   .field('login', FieldDataType.UBIART_LIKE_STRING)
   .field('password', FieldDataType.UBIART_LIKE_STRING)
@@ -22,7 +22,7 @@ const MrimLoginData = new MessageConstructor()
   .field('userAgent', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-// для MRIM 1.15 и выше
+// для MRIM 1.14 и выше
 const MrimNewerLoginData = new MessageConstructor()
   .field('login', FieldDataType.UBIART_LIKE_STRING)
   .field('password', FieldDataType.UBIART_LIKE_STRING)

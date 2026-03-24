@@ -55,6 +55,10 @@ ZODIAC = {
  * @returns {number}
  */
 function getZodiacId(date) {
+    if (!date || date.getMonth?.() === null || date.getDate?.() === null) {
+        return 0
+    }
+
     const m = date.getMonth() + 1
     const d = date.getDate()
 

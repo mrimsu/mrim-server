@@ -3,7 +3,13 @@ const config = require('../config')
 const mysql2 = require('mysql2/promise')
 const crypto = require('node:crypto')
 
-const pool = mysql2.createPool(config.database.connectionUri)
+const pool = mysql2.createPool({
+  uri: config.database.connectionUri,
+  connectionLimit: 15,
+  maxIdle: 7,
+  idleTimeout: 5000,
+  enableKeepAlive: true
+})
 
 /**
  * Получение пользователя при помощи учетных данных
@@ -74,9 +80,18 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, 1 as `requester_is_adder`, ' +
+        '`user`.`status` as `user_status`, ' +
+        '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
+        '`microblog`.`date` as `microblog_date`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
+        'LEFT JOIN `microblogs` microblog ON `microblog`.`id` = (' +
+          'SELECT `id` ' +
+          'FROM `microblogs` mb2 ' +
+          'WHERE mb2.`user` = `contact`.`contact_user_id` ' +
+          'ORDER BY mb2.`date` DESC ' +
+          'LIMIT 1' +
+        ')' +
         'WHERE `contact`.`adder_user_id` = ?',
       [userId]
     ),
@@ -87,9 +102,18 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
+        '`user`.`status` as `user_status`, '+ 
+        '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
+        '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`adder_user_id` = `user`.`id` ' +
+        'LEFT JOIN `microblogs` microblog ON `microblog`.`id` = (' +
+          'SELECT `id` ' +
+          'FROM `microblogs` mb2 ' +
+          'WHERE mb2.`user` = `contact`.`adder_user_id` ' +
+          'ORDER BY mb2.`date` DESC ' +
+          'LIMIT 1' +
+        ')' +
         'WHERE `contact`.`contact_user_id` = ?',
       [userId]
     )
@@ -136,23 +160,25 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
   const connection = await pool.getConnection()
   let query =
     'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
-    '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex` ' +
+    '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
     'FROM `user` WHERE '
   const variables = []
 
   if (!searchMyself) {
     query += '`user`.`id` != ? AND '
     variables.push(userId)
+  } else {
+    query += '`user`.`activated` = 1 AND '
   }
 
   if (Object.hasOwn(searchParameters, 'login')) {
-    query += '`user`.`login` LIKE ? AND '
-    variables.push(`%${searchParameters.login}%`)
+    query += '`user`.`login` = ? AND '
+    variables.push(`${searchParameters.login}`)
   }
 
   if (Object.hasOwn(searchParameters, 'domain')) {
-    query += '`user`.`domain` LIKE ? AND '
-    variables.push(`%${searchParameters.domain}%`)
+    query += '`user`.`domain` = ? AND '
+    variables.push(`${searchParameters.domain}`)
   }
 
   if (Object.hasOwn(searchParameters, 'nickname')) {
@@ -857,7 +883,7 @@ async function getOfflineMessages (userId) {
   const connection = await pool.getConnection()
 
   const [offlineMessages, _offlineMessages] = await connection.execute(
-    'SELECT `date`, `message`, `user`.`id` as `user_id`, ' +
+    'SELECT `offline_messages`.`id` as `message_id`, `date`, `message`, `user`.`id` as `user_id`, ' +
     '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
     '`user`.`domain` as `user_domain` ' +
     'FROM `offline_messages` ' +
@@ -885,6 +911,25 @@ async function cleanupOfflineMessages (userId) {
     'DELETE FROM `offline_messages` ' +
       'WHERE `user_to` = ?',
     [userId]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+}
+
+/**
+ * Удалить одно оффлайн сообщение у пользователя
+ *
+ * @param {number} userId ID пользователя
+ * @param {number} messageId ID сообщения
+ */
+async function deleteOfflineMessage (userId, messageId) {
+  const connection = await pool.getConnection()
+
+  await connection.execute(
+    'DELETE FROM `offline_messages` ' +
+      'WHERE `user_to` = ? AND `id` = ?',
+    [userId, messageId]
   )
 
   await connection.commit()
@@ -1065,6 +1110,51 @@ async function getMicroblogSettings (userId) {
   return JSON.parse(results[0].microblog_settings)
 }
 
+/**
+ * Сохраняет микроблог в базу данных
+ *
+ * @param {string} user ID пользователя
+ * @param {string} message Пост пользователя
+ * @param {string} url Ссылка на пост
+ *
+ * @returns {Promise<number>} Внутренний ID на пост
+ */
+async function insertNewMicroblog (user, message, url) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'INSERT INTO `microblogs` ' +
+    '(`user`, `message`, `link`, `date`)' +
+    'VALUES (?, ?, ?, ?)',
+    [user, message, url, Math.floor(Date.now() / 1000)]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+  return results.insertId
+}
+
+/**
+ * Отдаёт последний микроблог в базе данных
+ *
+ * @param {string} user ID пользователя
+ */
+async function getLastMicroblog (user) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'SELECT `id`, `user`, `message`, `link`, `date` FROM `microblogs` ' +
+    'WHERE `microblogs`.`user` = ? ORDER BY `microblogs`.`date` DESC LIMIT 1',
+    [user]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+  return results[0] ?? null
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -1089,9 +1179,12 @@ module.exports = {
   isContactAdder,
   getOfflineMessages,
   cleanupOfflineMessages,
+  deleteOfflineMessage,
   sendOfflineMessage,
   getUserAvatar,
   registerUser,
   checkUser,
-  getMicroblogSettings
+  getMicroblogSettings,
+  insertNewMicroblog,
+  getLastMicroblog
 }
