@@ -799,7 +799,7 @@ async function processLogin (
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
+    logger.info(`[${connectionId}] user ${loginData.login} logged in and they're online`)
 
     global.clients.push(state)
   } catch (e) {
@@ -932,7 +932,7 @@ async function processLoginThree (
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
+    logger.info(`[${connectionId}] user ${loginData.login} logged in and they're online`)
 
     global.clients.push(state)
   } catch (e) {
@@ -1057,10 +1057,10 @@ async function processMessage (
     let preparedMessage = config.adminProfile.defaultMessage
 
     if (messageData.message.includes('debug')) {
-      preparedMessage = `DEBUG INFO:\nraw useragent (new): ${state.userAgent}\n
-raw useragent (old): ${state.oldUserAgent}\n
-protocol version: ${state.protocolVersionMajor}.${state.protocolVersionMinor}\n
-ssl: ${state.ssl}\n
+      preparedMessage = `DEBUG INFO:\nraw useragent (new): ${state.userAgent}
+raw useragent (old): ${state.oldUserAgent}
+protocol version: ${state.protocolVersionMajor}.${state.protocolVersionMinor}
+ssl: ${state.ssl}
 utf16 capable: ${state.utf16capable}`
     }
 
@@ -2495,9 +2495,7 @@ async function processProxyHello (
     global.proxiesTimeout[connectionId] = setTimeout((connectionId, state, logger) => {
       if (state.isSecondClientConnected === false) {
         logger.debug(`[${connectionId}] [proxy] user timed out (20 seconds passed without second client connecting)`)
-        state.socket.end()
-        state.socket.destroy()
-        state.socket.unref()
+        state.socket.destroySoon()
 
         const clientIndex = global.clients.findIndex(
           ({ connectionId }) => connectionId === state.connectionId
