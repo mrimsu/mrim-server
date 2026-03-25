@@ -3,9 +3,9 @@
  * @author Vladimir Barinov <veselcraft@icloud.com>
  */
 
-const https = require('https')
-const xmlbuilder = require('xmlbuilder');
+const xmlbuilder = require('xmlbuilder')
 const config = require('../../../config')
+const fs = require('node:fs/promises');
 
 function convertCloudCode(code) {
   const baseCode = code.slice(0, 2);
@@ -131,13 +131,13 @@ function convertWeatherIcon(code) {
     '11d': 8,
     '13d': 17,
     '50d': 24,
-    '01n': 49,
-    '02n': 48,
-    '03n': 50,
-    '04n': 48,
-    '09n': 52,
-    '10n': 52,
-    '11n': 63,
+    '01n': 19,
+    '02n': 18,
+    '03n': 23,
+    '04n': 16,
+    '09n': 21,
+    '10n': 22,
+    '11n': 20,
     '13n': 17,
     '50n': 62,
   }
@@ -145,40 +145,34 @@ function convertWeatherIcon(code) {
   return codes[code] ?? 1
 }
 
+async function getProperCityName (cityId) {
+    const csvFile = await fs.readFile(`${__dirname}/../../../static/citylist_ru.csv`, 'utf16le')
+    const csvArray = csvFile.split(/\r?\n/)
+    const found = csvArray.find((line) => line.startsWith(`${cityId},`));
+    return found.substring(`${cityId},`.length)
+}
+
 async function generateXMLResponse (cityId) {
-    const openWeatherDomain = 'api.openweathermap.org'
+    // check cache
+    if (global.__weatherTmp[cityId] !== undefined && (global.__weatherTmp[cityId].lastUpd + (60*60*1000)) > Date.now()) {
+        return global.__weatherTmp[cityId].xml
+    }
 
-    let promise = new Promise((resolve, reject) => {
-        https.get({
-            hostname: openWeatherDomain,
-            port: 443,
-            path: '/data/2.5/weather?' +// TODO: Parse CSV to take out real shit
-                'q=' + encodeURIComponent('Москва,Россия') +
-                '&units=' + 'metric' +
-                '&lang=' + 'ru' +
-                '&appid=' + config.obraz.openWeatherMapApiKey,
-            method: 'GET'
-        }, (res) => {
-            res.setEncoding('utf8')
-            let responseBody = ''
+    const convertedCityName = await getProperCityName(cityId) 
 
-            res.on('data', (chunk) => {
-                responseBody += chunk
-            })
+    const apiResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?` +
+                `q=${convertedCityName ?? 'Москва,Россия'}` +  //default is moscow
+                `&units=metric` +
+                `&lang=ru` +
+                `&appid=${config.obraz.openWeatherMapApiKey}`)
 
-            res.on('end', () => {
-                resolve(JSON.parse(responseBody))
-            })
-        })
-    });
+    const weatherResponse = await apiResponse.json()
 
-    let weatherResponse = await promise; 
-
-    let wind = convertWindDirection(weatherResponse.wind.deg)
-    let weatherCode = convertWeatherCode(weatherResponse.weather[0].id)
-    let cloudCode = convertCloudCode(weatherResponse.weather[0].icon)
-    let cityName = weatherResponse.name
-    let currentDate = (new Date).toISOString().replace(/T/, ' ').replace(/\..+/, '')
+    const wind = convertWindDirection(weatherResponse.wind.deg)
+    const weatherCode = convertWeatherCode(weatherResponse.weather[0].id)
+    const cloudCode = convertCloudCode(weatherResponse.weather[0].icon)
+    const cityName = weatherResponse.name
+    const currentDate = (new Date).toISOString().replace(/T/, ' ').replace(/\..+/, '')
 
     const root = xmlbuilder.create('weather', { version: '1.0', encoding: 'UTF-8' })
             .ele('forecast', { datetime: currentDate })
@@ -247,6 +241,9 @@ async function generateXMLResponse (cityId) {
 
     // convert the XML tree to string
     const xml = root.end({ prettyPrint: true });
+
+    // serve it in cache
+    global.__weatherTmp[cityId] = {lastUpd: Date.now(), xml}
     return xml;
 }
 

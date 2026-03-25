@@ -91,6 +91,8 @@ function connectionListener (socket) {
   }
 
   /**
+   * Обработка запроса
+   * 
    * @param {Object} request Данные запроса
    */
   async function requestListener ({ method, pathname, version, headers }) {
@@ -118,27 +120,11 @@ function connectionListener (socket) {
       )
 
       /* special inform handlers */
-      if (uripath.endsWith("/popup.html")) {
+      if (uripath === '/popup.html' || uripath === 'popup.html') {
         return respond(version, 200, '<html><body>hello stranger</body></html>')
       }
 
-      if (uripath.endsWith("/inf/anons_magent2.xml")) {
-        return respond(version, 200, `<?xml version="1.0" encoding="windows-1251"?>
-<MESSAGES>
-  <MESSAGE>
-    <icon>http://yourserver/icon.gif</icon>
-    <title>Заголовок новости</title>
-    <description>Текст новости</description>
-    <url>http://mail.ru</url>
-    <FONT family="Arial" color="000000" hicolor="0000FF" grayedcolor="808080"
-          underlined="0" italic="0" strikeout="0"/>
-  </MESSAGE>
-</MESSAGES>`)
-      }
-
-
-
-      if (uripath.startsWith("inf/magent_main.xml")) {
+      if (uripath === "inf/magent_main.xml") {
         if (queryValues['city'] !== undefined) {
           const xmlResponse = await generateXMLResponse(queryValues['city'])
           if (xmlResponse !== null) {
@@ -151,57 +137,69 @@ function connectionListener (socket) {
 
       if (uripath.split('/').length !== 3) {
         return respond(version, 404, 'Not Found')
+      } else {
+        return await processObraz({method, uripath, version})
       }
 
-      let [domain, userLogin, avatarType] = uripath.split('/')
+      // processing pfp by default
 
-      let avatarPath
-
-      try {
-        if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain) &&
-          config.adminProfile?.avatarUrl !== null) {
-          avatarPath = config.adminProfile.avatarUrl
-        } else {
-          avatarPath = await getUserAvatar(userLogin, domain)
-        }
-      } catch {
-        return respond(version, 404, null, {
-          Date: new Date().toUTCString(),
-          'Content-Type': 'image/jpeg',
-          'Content-Length': '0',
-          'X-NoImage': '1'
-        })
-      }
-
-      console.log(
-          `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
-      )
-
-      if (avatarPath === undefined) {
-        return respond(version, 404, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
-      }
-
-      try {
-        const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
-
-        return respond(version, 200, method !== 'HEAD' ? avatar : null, {
-          Date: new Date().toUTCString(),
-          'Content-Type': 'image/jpeg',
-          'Content-Length': avatar.length,
-          'Cache-Control': 'max-age=604800',
-          'Last-Modified': new Date().toUTCString(),
-          Expires: new Date(Date.now() + 604_800_000).toUTCString()
-        })
-      } catch (e) {
-        console.log(
-          `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
-        )
-        return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
-      }
     } catch (e) {
       console.log(
         `[obraz] internal error, stack: ${e.stack}`
       )
+    }
+  }
+
+  /**
+   * Обработка запроса
+   * 
+   * @param {Object} request Данные запроса
+   */
+  async function processObraz ({ method, uripath, version }) {
+    let [domain, userLogin, avatarType] = uripath.split('/')
+
+    let avatarPath
+
+    try {
+      if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain) &&
+        config.adminProfile?.avatarUrl !== null) {
+        avatarPath = config.adminProfile.avatarUrl
+      } else {
+        avatarPath = await getUserAvatar(userLogin, domain)
+      }
+    } catch {
+      return respond(version, 404, null, {
+        Date: new Date().toUTCString(),
+        'Content-Type': 'image/jpeg',
+        'Content-Length': '0',
+        'X-NoImage': '1'
+      })
+    }
+
+    console.log(
+        `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
+    )
+
+    if (avatarPath === undefined) {
+      return respond(version, 404, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+    }
+
+    try {
+      const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
+
+      return respond(version, 200, method !== 'HEAD' ? avatar : null, {
+        Date: new Date().toUTCString(),
+        'Content-Type': 'image/jpeg',
+        'Content-Length': avatar.length,
+        'Cache-Control': 'max-age=604800',
+        'Last-Modified': new Date().toUTCString(),
+        Expires: new Date(Date.now() + 604_800_000).toUTCString()
+      })
+    } catch (e) {
+      console.log(
+        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
+      )
+      return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
   }
 }
