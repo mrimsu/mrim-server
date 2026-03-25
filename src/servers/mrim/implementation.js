@@ -55,7 +55,9 @@ function onData (socket, connectionId, logger, state, variables) {
       try {
         header = MrimContainerHeader.reader(data)
       } catch {
-        return socket.end()
+        logger.info(`[${connectionId}] sent incorrect data and got fucked (disconnected)`)
+        socket.destroySoon()
+        return
       }
 
       if (header.packetCommand !== MrimMessageCommands.PING && header.packetCommand !== MrimMessageCommands.MPOP_SESSION) {
@@ -153,13 +155,13 @@ function onData (socket, connectionId, logger, state, variables) {
 }
 
 function onClose (socket, connectionId, logger, state, variables) {
-  return async () => {
+  return async (error) => {
     try {
       if (global.clients.length > 0) {
         disconnectClient(connectionId, logger, state)
-        logger.debug(
-          `[${connectionId}] !!! connection closed for ${state.username}`
-        )
+        socket.destroySoon()
+        logger.info(`[${connectionId}] ${state.username ?? 'unknown user'} disconnected`)
+        logger.info(`[${connectionId}] !!! why: ${error?.message ?? 'disconnected'}`)
       }
     } catch (e) {
       logger.debug(`[${connectionId}] seems like the client did harakiri: ${e.message} ${e.stack}`)
@@ -475,9 +477,7 @@ async function processPacket (
         const PING_TIMER = (config?.mrim?.pingTimer ?? 10) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
           logger.debug(`[${connectionId}] user ${state.username} timed out (MRIM_CS_PING)`)
-          state.socket.end()
-          state.socket.destroy()
-          state.socket.unref()
+          state.socket.destroySoon()
           disconnectClient(connectionId, logger, state)
         }, PING_TIMER + 10000, connectionId, state, logger)
         timeoutTimer[connectionId].unref()

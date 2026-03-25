@@ -5,6 +5,7 @@
  */
 
 const BinaryConstructor = require('../../constructors/binary')
+const { BinaryReader } = require('../../binary-reader')
 const {
   MessageConstructor,
   FieldDataType
@@ -744,6 +745,7 @@ async function processLogin (
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
     state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
+    state.oldUserAgent = loginData.userAgent
     state.features = loginData.features
 
     if (containerHeader.protocolVersionMinor >= 15) {
@@ -797,7 +799,7 @@ async function processLogin (
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
+    logger.info(`[${connectionId}] user ${loginData.login} logged in and they're online`)
 
     global.clients.push(state)
   } catch (e) {
@@ -930,7 +932,7 @@ async function processLoginThree (
       logger.debug(`[${connectionId}] kicking out ${state.username}'s older client`)
     }
 
-    logger.debug(`[${connectionId}] login to ${loginData.login} succeed, sending info and contact list`)
+    logger.info(`[${connectionId}] user ${loginData.login} logged in and they're online`)
 
     global.clients.push(state)
   } catch (e) {
@@ -1024,9 +1026,11 @@ async function processMessage (
     messageData = MrimClientMessageData.reader(packetData, true)
   }
 
-  logger.debug(
-    `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
-  )
+  if (messageData.flags & MrimMessageFlags.MULTICAST === 0x0) {
+    logger.debug(
+      `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
+    )
+  }
 
   if (messageData.message.length > 5000) {
     return {
@@ -1050,11 +1054,21 @@ async function processMessage (
     messageData.addresser === `${config.adminProfile?.username}@${config.adminProfile?.domain}`) {
     logger.debug(`[${connectionId}] user ${state.username} messaged to admin. 'll just send prepared message :)`)
 
+    let preparedMessage = config.adminProfile.defaultMessage
+
+    if (messageData.message.includes('debug')) {
+      preparedMessage = `DEBUG INFO:\nraw useragent (new): ${state.userAgent}
+raw useragent (old): ${state.oldUserAgent}
+protocol version: ${state.protocolVersionMajor}.${state.protocolVersionMinor}
+ssl: ${state.ssl}
+utf16 capable: ${state.utf16capable}`
+    }
+
     const dataToSend = MrimServerMessageData.writer({
       id: containerHeader.packetOrder + 1,
       flags: 0 + (state.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
       addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
-      message: config.adminProfile.defaultMessage,
+      message: preparedMessage,
       messageRTF: ''
     }, state.utf16capable)
 
@@ -1164,60 +1178,69 @@ async function processMessage (
     }
   }
 
-  const addresserClient = global.clients.find(
-    ({ username, domain }) => username === messageData.addresser.split('@')[0] &&
-                  domain === messageData.addresser.split('@')[1]
-  )
+  let receivers = [messageData.addresser]
 
-  if (addresserClient !== undefined) {
-    const dataToSend = MrimServerMessageData.writer({
-      id: Math.random() * 0xFFFFFFFF,
-      flags: messageData.flags + (addresserClient.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
-      addresser: `${state.username}@${state.domain}`,
-      message: messageData.message ?? ' ',
-      messageRTF: messageData.messageRTF ?? ' '
-    }, addresserClient.utf16capable)
+  if (messageData.flags & MrimMessageFlags.MULTICAST) {
+    let multicastData = Buffer.from(messageData.addresser)
+    receivers = []
+    let binaryReader = new BinaryReader(multicastData, this.endianness)
 
-    // send message UNTIL the proto version is less then 8 and "pers is typing" flag is set
-    if (!(addresserClient.protocolVersionMinor <= 8 && messageData.flags & MrimMessageFlags.NOTIFY)) {
-      addresserClient.socket.write(
-        new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              protocolVersionMinor: addresserClient.protocolVersionMinor,
-              packetOrder: Math.random() * 0xFFFFFFFF,
-              packetCommand: MrimMessageCommands.MESSAGE_ACK,
-              dataSize: dataToSend.length
-            })
-          )
-          .subbuffer(dataToSend)
-          .finish()
-      )
+    // limited to 50 users by proto
+    for (i = 0; i < 50; i++) {
+      if (binaryReader.offset >= multicastData.length) break
+
+      let contact = new Iconv('CP1251', 'UTF-8')
+              .convert(
+                Buffer.from(
+                  binaryReader.readUint8Array(binaryReader.readUint32())
+                )
+              )
+              .toString('utf-8')
+
+      receivers.push(contact)
     }
 
-    return {
-      reply: [
-        new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetOrder: containerHeader.packetOrder,
-              packetCommand: MrimMessageCommands.MESSAGE_STATUS,
-              dataSize: 4
-            })
-          )
-          .integer(MrimMessageErrors.SUCCESS, 4)
-          .finish()
-      ]
-    }
-  } else {
-    let messageStatus = MrimMessageErrors.SUCCESS
-    let receiverId
-    try {
-      receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
-    } catch (e) {
-      return {
+    logger.debug(
+      `[${connectionId}] sending multicast message from ${state.username} to ${receivers.join(', ')}`
+    )
+  }
+
+  let rtrnValue = { reply: [] }
+
+  await receivers.forEach(async (receiver) => {
+    const addresserClient = global.clients.find(
+      ({ username, domain }) => username === receiver.split('@')[0] &&
+                    domain === receiver.split('@')[1]
+    )
+
+    if (addresserClient !== undefined) {
+      const dataToSend = MrimServerMessageData.writer({
+        id: Math.random() * 0xFFFFFFFF,
+        flags: messageData.flags + (addresserClient.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
+        addresser: `${state.username}@${state.domain}`,
+        message: messageData.message ?? ' ',
+        messageRTF: messageData.messageRTF ?? ' '
+      }, addresserClient.utf16capable)
+
+      // send message UNTIL the proto version is less then 8 and "pers is typing" flag is set
+      if (!(addresserClient.protocolVersionMinor <= 8 && messageData.flags & MrimMessageFlags.NOTIFY)) {
+        addresserClient.socket.write(
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                protocolVersionMinor: addresserClient.protocolVersionMinor,
+                packetOrder: Math.random() * 0xFFFFFFFF,
+                packetCommand: MrimMessageCommands.MESSAGE_ACK,
+                dataSize: dataToSend.length
+              })
+            )
+            .subbuffer(dataToSend)
+            .finish()
+        )
+      }
+
+      rtrnValue = {
         reply: [
           new BinaryConstructor()
             .subbuffer(
@@ -1228,40 +1251,64 @@ async function processMessage (
                 dataSize: 4
               })
             )
-            .integer(MrimMessageErrors.NO_USER, 4)
+            .integer(MrimMessageErrors.SUCCESS, 4)
+            .finish()
+        ]
+      }
+    } else {
+      let messageStatus = MrimMessageErrors.SUCCESS
+      let receiverId
+      try {
+        receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
+      } catch (e) {
+        rtrnValue = {
+          reply: [
+            new BinaryConstructor()
+              .subbuffer(
+                MrimContainerHeader.writer({
+                  ...containerHeader,
+                  packetOrder: containerHeader.packetOrder,
+                  packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                  dataSize: 4
+                })
+              )
+              .integer(MrimMessageErrors.NO_USER, 4)
+              .finish()
+          ]
+        }
+      }
+      const messages = await getOfflineMessages(receiverId)
+
+      if ([0x0, 0x80].includes(messageData.flags)) {
+        if (messages.length > (config.mrim.offlineMessagesLimit ?? 20)) {
+          messageStatus = MrimMessageErrors.OFFLINE_LIMIT
+        } else {
+          sendOfflineMessage(state.userId, receiverId, messageData.message)
+          messageStatus = MrimMessageErrors.SUCCESS
+        }
+      } else {
+        messageStatus = MrimMessageErrors.OFFLINE_DISABLED
+      }
+
+      rtrnValue = {
+        reply: [
+          new BinaryConstructor()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetOrder: containerHeader.packetOrder,
+                packetCommand: MrimMessageCommands.MESSAGE_STATUS,
+                dataSize: 4
+              })
+            )
+            .integer(messageStatus, 4)
             .finish()
         ]
       }
     }
-    const messages = await getOfflineMessages(receiverId)
+  })
 
-    if ([0x0, 0x80].includes(messageData.flags)) {
-      if (messages.length > (config.mrim.offlineMessagesLimit ?? 20)) {
-        messageStatus = MrimMessageErrors.OFFLINE_LIMIT
-      } else {
-        sendOfflineMessage(state.userId, receiverId, messageData.message)
-        messageStatus = MrimMessageErrors.SUCCESS
-      }
-    } else {
-      messageStatus = MrimMessageErrors.OFFLINE_DISABLED
-    }
-
-    return {
-      reply: [
-        new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetOrder: containerHeader.packetOrder,
-              packetCommand: MrimMessageCommands.MESSAGE_STATUS,
-              dataSize: 4
-            })
-          )
-          .integer(messageStatus, 4)
-          .finish()
-      ]
-    }
-  }
+  return rtrnValue
 }
 
 async function processDeleteOfflineMsg (
@@ -2448,9 +2495,7 @@ async function processProxyHello (
     global.proxiesTimeout[connectionId] = setTimeout((connectionId, state, logger) => {
       if (state.isSecondClientConnected === false) {
         logger.debug(`[${connectionId}] [proxy] user timed out (20 seconds passed without second client connecting)`)
-        state.socket.end()
-        state.socket.destroy()
-        state.socket.unref()
+        state.socket.destroySoon()
 
         const clientIndex = global.clients.findIndex(
           ({ connectionId }) => connectionId === state.connectionId
