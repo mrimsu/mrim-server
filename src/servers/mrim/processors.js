@@ -1026,9 +1026,11 @@ async function processMessage (
     messageData = MrimClientMessageData.reader(packetData, true)
   }
 
-  logger.debug(
-    `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
-  )
+  if (messageData.flags & MrimMessageFlags.MULTICAST === 0x0) {
+    logger.debug(
+      `[${connectionId}] sending message from ${state.username} to ${messageData.addresser}`
+    )
+  }
 
   if (messageData.message.length > 5000) {
     return {
@@ -1197,9 +1199,15 @@ utf16 capable: ${state.utf16capable}`
 
       receivers.push(contact)
     }
+
+    logger.debug(
+      `[${connectionId}] sending multicast message from ${state.username} to ${receivers.join(', ')}`
+    )
   }
 
-  receivers.forEach(async (receiver) => {
+  let rtrnValue = { reply: [] }
+
+  await receivers.forEach(async (receiver) => {
     const addresserClient = global.clients.find(
       ({ username, domain }) => username === receiver.split('@')[0] &&
                     domain === receiver.split('@')[1]
@@ -1232,7 +1240,7 @@ utf16 capable: ${state.utf16capable}`
         )
       }
 
-      return {
+      rtrnValue = {
         reply: [
           new BinaryConstructor()
             .subbuffer(
@@ -1253,7 +1261,7 @@ utf16 capable: ${state.utf16capable}`
       try {
         receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
       } catch (e) {
-        return {
+        rtrnValue = {
           reply: [
             new BinaryConstructor()
               .subbuffer(
@@ -1282,7 +1290,7 @@ utf16 capable: ${state.utf16capable}`
         messageStatus = MrimMessageErrors.OFFLINE_DISABLED
       }
 
-      return {
+      rtrnValue = {
         reply: [
           new BinaryConstructor()
             .subbuffer(
@@ -1299,6 +1307,8 @@ utf16 capable: ${state.utf16capable}`
       }
     }
   })
+
+  return rtrnValue
 }
 
 async function processDeleteOfflineMsg (
