@@ -156,6 +156,9 @@ function onClose (socket, connectionId, logger, state, variables) {
   return async () => {
     try {
       if (global.clients.length > 0) {
+        socket.end()
+        socket.destroy()
+        socket.unref()
         disconnectClient(connectionId, logger, state)
         logger.debug(
           `[${connectionId}] !!! connection closed for ${state.username}`
