@@ -102,7 +102,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, '+ 
+        '`user`.`status` as `user_status`, '+
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
@@ -139,10 +139,12 @@ async function getContactsFromGroups (userId) {
  *
  * @param {number} userId ID пользователя
  * @param {Object} searchParameters Параметры поиска
- *
+ * @param {boolean} searchMyself Искать ли самого себя
+ * @param {number} limit Сколько записей достать
+ * @param {number} offset С какого места начинать
  * @returns {Promise<Array>} Массив поиска
  */
-async function searchUsers (userId, searchParameters, searchMyself = false) {
+async function searchUsers (userId, searchParameters, searchMyself = false, limit = 50, offset = 0) {
   const connection = await pool.getConnection()
   let query =
     'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
@@ -228,7 +230,10 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
   }
 
   // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  query = query.substring(0, query.length - 4) + 'LIMIT 50'
+  query = query.substring(0, query.length - 5)
+
+  query += ' LIMIT ? OFFSET ?'
+  variables.push(Number(limit), Number(offset))
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
@@ -356,8 +361,8 @@ async function createOrCompleteContact (
 
     let authQuery = ''
 
-    if (existingContactResult[0].is_auth_success === 0 && 
-        existingContactResult[0].adder_user_id === contactUserId && 
+    if (existingContactResult[0].is_auth_success === 0 &&
+        existingContactResult[0].adder_user_id === contactUserId &&
         existingContactResult[0].contact_user_id === requesterUserId) {
       authQuery = ', `contact`.`is_auth_success` = 1'
     }
@@ -387,8 +392,8 @@ async function createOrCompleteContact (
 
       let authQuery = ''
 
-      if (existingContactResult[0].is_auth_success === 0 && 
-          existingContactResult[0].adder_user_id === requesterUserId && 
+      if (existingContactResult[0].is_auth_success === 0 &&
+          existingContactResult[0].adder_user_id === requesterUserId &&
           existingContactResult[0].contact_user_id === contactUserId) {
         authQuery = ', `contact`.`is_auth_success` = 1'
       }
@@ -570,7 +575,7 @@ async function getContact (
 
   const [{ id: contactUserId }] = contactUserResult[0]
 
-  
+
   // eslint-disable-next-line no-unused-vars
   let [existingContactResult, _existingContactFields] =
     await connection.query(
@@ -587,7 +592,7 @@ async function getContact (
       '`contact`.`contact_user_id` = ?',
       [contactUserId, requesterUserId]
     )
-  
+
   if (existingContactResult.length === 0) {
     // попробуем наоборот
     [existingContactResult, _existingContactFields] =
@@ -1055,7 +1060,7 @@ async function getTelegramIdByVirtualNumber (virtualNumber) {
     'WHERE `phone` = ? LIMIT 1',
     [virtualNumber]
   )
-  
+
   await connection.commit()
   pool.releaseConnection(connection)
   return results.length > 0 ? results[0].telegram_id : null
