@@ -87,12 +87,12 @@ const MrimContactFlags = {
   GROUP: 0x02,
   CHAT: 0x80,
   PHONE_CONTACT: 0x100000,
-  
+
   // Groups
   NEVER_VISIBLE: 0x04,
   ALWAYS_VISIBLE: 0x08,
   IGNORED: 0x10,
-  
+
   // Technical info
   DELETED: 0x01,
   UNICODE_NICKNAME: 0x200
@@ -132,10 +132,4 @@ const MrimConnectionStatus = {
   PROXY: 0x4
 }
 
-const MrimSmsStatus = {
-  OK: 0x1,
-  SERVICE_UNAVAILABLE: 0x2,
-  INVALID_PARAMS: 0x10000
-}
-
-module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConnectionStatus, MrimSmsStatus }
+module.exports = { MrimMessageCommands, MrimStatus, MrimContactFlags, MrimMessageFlags, MrimMessageErrors, MrimConnectionStatus }

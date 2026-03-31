@@ -17,7 +17,6 @@ const {
   MrimMessageFlags,
   MrimMessageErrors,
   MrimConnectionStatus,
-  MrimSmsStatus
 } = require('./globals')
 const {
   MrimOldLoginData,
@@ -65,7 +64,7 @@ const {
   MrimChangeMicroblogStatus,
   MrimMicroblogStatus
 } = require('../../messages/mrim/microblog')
-const { MrimCsSms, MrimCsSmsAck } = require('../../messages/mrim/sms')
+const { MrimCsSms, MrimCsSmsAck, MrimSmsStatus } = require('../../messages/mrim/sms')
 const { MrimGameData, MrimGameNewerData } = require('../../messages/mrim/games')
 const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
@@ -1398,11 +1397,7 @@ async function processSearch (
   if (isNewQuery || hasExpired) {
     state.searchPagination.offset = 0;
     state.searchPagination.query = currentSearchQuery;
-  } else {
-    state.searchPagination.offset += 50;
   }
-
-  state.searchPagination.lastTime = Date.now();
 
   const limit = 50
   const offset = state.searchPagination.offset
@@ -1410,9 +1405,14 @@ async function processSearch (
 
   const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login, limit, offset)
 
-  if (searchResults.length === 0 && offset > 0) {
-    state.searchPagination.offset -= 50;
+  state.searchPagination.lastTime = Date.now();
+
+  if (searchResults.length > 0) {
+    state.searchPagination.offset += limit;
+  } else {
+    state.searchPagination.offset = 0;
   }
+
   const responseFields = {
     Username: 'login',
     Nickname: 'nick',
@@ -2683,7 +2683,7 @@ async function processSms (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const sms = MrimCsSms.reader(packetData, state.utf16capable)
   let status = MrimSmsStatus.OK
@@ -2701,64 +2701,39 @@ async function processSms (
   if (!numberData) {
     logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`);
     status = MrimSmsStatus.INVALID_PARAMS;
-  }
-
-  if (numberData.inUse === '0') {
+  } else if (numberData.inUse === '0') {
     logger.error(`[${connectionId}] the virtual number +${virtualNumber} is not in service. please call back later.`); // that one naehiro fanfic reference lol
     status = MrimSmsStatus.INVALID_PARAMS;
   }
 
-  if (!config.telegram?.enabled) {
-    logger.error(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
-    status = MrimSmsStatus.SERVICE_UNAVAILABLE
-  } else {
-    const targetChatId = numberData.telegramId;
-  try {
-    const opt = {
-      hostname: 'api.telegram.org',
-      port: 443,
-      path: `/bot${config.telegram.token}/sendMessage?chat_id=${encodeURIComponent(targetChatId)}&text=${encodeURIComponent(messageWithMail)}`, // выглядит страшно
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
+  if (status === MrimSmsStatus.OK) {
+    if (!config.telegram?.enabled) {
+      logger.error(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
+      status = MrimSmsStatus.SERVICE_UNAVAILABLE
+    } else {
+      const targetChatId = numberData.telegramId;
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${config.telegram.token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: targetChatId, text: messageWithMail })
+        });
+
+        const responseData = await response.json();
+        if (!response.ok || !responseData.ok) {
+          logger.error(`[${connectionId}] telegram error for chat ID ${targetChatId}: ${responseData.description}`)
+          status = responseData.error_code === 400 ? MrimSmsStatus.INVALID_PARAMS : MrimSmsStatus.SERVICE_UNAVAILABLE
+        } else {
+          logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${virtualNumber}`)
+        }
+      } catch (e) {
+        logger.error(`[${connectionId}] telegram connection error: ${e.stack}`);
+        status = MrimSmsStatus.SERVICE_UNAVAILABLE;
       }
     }
-
-    await new Promise((resolve) => {
-      const req = https.request(opt, (res) => {
-        res.setEncoding('utf8')
-        let responseBody = ''
-
-        res.on('data', (chunk) => { responseBody += chunk })
-
-        res.on('end', () => {
-          let response = JSON.parse(responseBody)
-          if (!response.ok) {
-            logger.error(`[${connectionId}] telegram error for chat ID ${targetChatId}: ${response.description}`)
-            status = response.error_code === 400 ? MrimSmsStatus.INVALID_PARAMS : MrimSmsStatus.SERVICE_UNAVAILABLE
-          } else {
-            logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${virtualNumber}`)
-          }
-          resolve()
-        })
-      })
-
-      req.on('error', (e) => {
-        logger.error(`[${connectionId}] telegram connection error: ${e.stack}`)
-        status = MrimSmsStatus.SERVICE_UNAVAILABLE
-        resolve()
-      })
-
-      req.write(targetChatId.toString())
-      req.end()
-    })
-  } catch (e) {
-    logger.error(`[${connectionId}] whoopsy while processing data: ${e.stack}`)
-    status = MrimSmsStatus.SERVICE_UNAVAILABLE
-  }
   }
 
-  const smsAckUpdate = MrimCsSmsAck.writer({status})
+  const smsAckUpdate = MrimCsSmsAck.writer({ status })
   return {
     reply:
       new BinaryConstructor()

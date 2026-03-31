@@ -1,6 +1,6 @@
 /**
  * @file SMS-сообщения MRIM.
- * @author neru asano <neru.asano9667@gmail.com>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const {
@@ -19,8 +19,8 @@ const MrimCsSmsAck = new MessageConstructor()
   .finish()
 
 const MrimSmsStatus = {
-  OK: 1,
-  SERVICE_UNAVAILABLE: 2,
+  OK: 0x1,
+  SERVICE_UNAVAILABLE: 0x2,
   INVALID_PARAMS: 0x10000
 }
 
