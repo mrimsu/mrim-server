@@ -1056,7 +1056,7 @@ async function processMessage (
 
     let preparedMessage = config.adminProfile.defaultMessage
 
-    if (messageData.message.includes('debug')) {
+    if (messageData.message.toLowerCase().includes('debug')) {
       preparedMessage = `DEBUG INFO:\nraw useragent (new): ${state.userAgent}
 raw useragent (old): ${state.oldUserAgent}
 protocol version: ${state.protocolVersionMajor}.${state.protocolVersionMinor}
@@ -1203,11 +1203,13 @@ utf16 capable: ${state.utf16capable}`
     logger.debug(
       `[${connectionId}] sending multicast message from ${state.username} to ${receivers.join(', ')}`
     )
+  } else {
+    logger.debug(
+      `[${connectionId}] sending message from ${state.username} to ${receivers[0]}`
+    )
   }
 
-  let rtrnValue = { reply: [] }
-
-  await receivers.forEach(async (receiver) => {
+  let results = await Promise.all(receivers.map(async (receiver) => {
     const addresserClient = global.clients.find(
       ({ username, domain }) => username === receiver.split('@')[0] &&
                     domain === receiver.split('@')[1]
@@ -1240,8 +1242,8 @@ utf16 capable: ${state.utf16capable}`
         )
       }
 
-      rtrnValue = {
-        reply: [
+      return {
+        reply: 
           new BinaryConstructor()
             .subbuffer(
               MrimContainerHeader.writer({
@@ -1253,7 +1255,7 @@ utf16 capable: ${state.utf16capable}`
             )
             .integer(MrimMessageErrors.SUCCESS, 4)
             .finish()
-        ]
+        
       }
     } else {
       let messageStatus = MrimMessageErrors.SUCCESS
@@ -1261,8 +1263,8 @@ utf16 capable: ${state.utf16capable}`
       try {
         receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
       } catch (e) {
-        rtrnValue = {
-          reply: [
+        return {
+          reply: 
             new BinaryConstructor()
               .subbuffer(
                 MrimContainerHeader.writer({
@@ -1274,7 +1276,7 @@ utf16 capable: ${state.utf16capable}`
               )
               .integer(MrimMessageErrors.NO_USER, 4)
               .finish()
-          ]
+          
         }
       }
       const messages = await getOfflineMessages(receiverId)
@@ -1290,8 +1292,8 @@ utf16 capable: ${state.utf16capable}`
         messageStatus = MrimMessageErrors.OFFLINE_DISABLED
       }
 
-      rtrnValue = {
-        reply: [
+      return {
+        reply: 
           new BinaryConstructor()
             .subbuffer(
               MrimContainerHeader.writer({
@@ -1303,12 +1305,14 @@ utf16 capable: ${state.utf16capable}`
             )
             .integer(messageStatus, 4)
             .finish()
-        ]
+        
       }
     }
-  })
+  }))
 
-  return rtrnValue
+  return {
+    reply: results.map(result => result.reply)
+  }
 }
 
 async function processDeleteOfflineMsg (
@@ -1320,11 +1324,13 @@ async function processDeleteOfflineMsg (
 ) {
   if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
-  const msg = MrimOfflineMessageDelete.reader(packetData)
+  // fsr clients don't send all IDs properly and it got duplicated on logon
+  // what we do is just cleaning up all of the messages
+  // if client executes this cmd, we already know that it supports offline msgs
+  // and it will get it
+  await cleanupOfflineMessages(state.userId)
 
-  await deleteOfflineMessage(state.userId, msg.id)
-
-  logger.debug(`[${connectionId}] ${state.username}@${state.domain} deleted offline message with id ${msg.id}`)
+  logger.debug(`[${connectionId}] ${state.username}@${state.domain} cleaned up offline messages`)
 }
 
 async function processSearch (
