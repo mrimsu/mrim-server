@@ -2691,15 +2691,20 @@ async function processSms (
   const virtualNumber = sms.phone.replace(/\D/g, '')
   const messageWithMail = `${state.username}@${state.domain}: ` + sms.message
 
-  let targetChatId;
+  let numberData;
   try {
-    targetChatId = await getTelegramIdByVirtualNumber(virtualNumber);
+    numberData = await getTelegramIdByVirtualNumber(virtualNumber);
   } catch (e) {
     logger.error(`[${connectionId}] db error while resolving virtual number: ${e.stack}`);
   }
 
-  if (!targetChatId) {
-    logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`); // виртуальный номер ${виртуальный номер} пхахах
+  if (!numberData) {
+    logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`);
+    status = MrimSmsStatus.INVALID_PARAMS;
+  }
+
+  if (numberData.inUse === '0') {
+    logger.error(`[${connectionId}] the virtual number +${virtualNumber} is not in service. please call back later.`); // that one naehiro fanfic reference lol
     status = MrimSmsStatus.INVALID_PARAMS;
   }
 
@@ -2707,6 +2712,7 @@ async function processSms (
     logger.error(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
     status = MrimSmsStatus.SERVICE_UNAVAILABLE
   } else {
+    const targetChatId = numberData.telegramId;
   try {
     const opt = {
       hostname: 'api.telegram.org',

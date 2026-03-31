@@ -228,8 +228,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   if (Object.hasOwn(searchParameters, 'onlyOnline')) {
     query += '`user`.`status` = 1 AND ' // 1 = STATUS_ONLINE
   }
-
-  // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
+  
   query = query.substring(0, query.length - 5)
 
   query += ' LIMIT ? OFFSET ?'
@@ -1049,21 +1048,27 @@ async function getLastMicroblog (user) {
  * Получение Telegram ID по виртуальному номеру
  *
  * @param {string} virtualNumber Виртуальный номер
- * @returns {Promise<string|null>} Telegram ID или null, если номер не найден
+ * @returns {Promise<{telegramId: string, inUse: string}|null>} Объект с данными или null
  */
 async function getTelegramIdByVirtualNumber (virtualNumber) {
   const connection = await pool.getConnection()
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.execute(
-    'SELECT `telegram_id` FROM `virtual_numbers` ' +
+    'SELECT `telegram_id`, `in_use` FROM `virtual_numbers` ' +
     'WHERE `phone` = ? LIMIT 1',
     [virtualNumber]
   )
 
   await connection.commit()
   pool.releaseConnection(connection)
-  return results.length > 0 ? results[0].telegram_id : null
+
+  return results.length > 0
+    ? {
+      telegramId: results[0].telegram_id,
+      inUse: results[0].in_use
+    }
+    : null
 }
 
 module.exports = {
