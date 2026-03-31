@@ -159,7 +159,7 @@ function onClose (socket, connectionId, logger, state, variables) {
     try {
       if (global.clients.length > 0) {
         disconnectClient(connectionId, logger, state)
-        socket.destroySoon()
+        socket.destroy()
         logger.info(`[${connectionId}] ${state.username ?? 'unknown user'} disconnected`)
         logger.info(`[${connectionId}] !!! why: ${error?.message ?? 'disconnected'}`)
       }
@@ -174,15 +174,15 @@ async function disconnectClient (connectionId, logger, state) {
     ({ connectionId }) => connectionId === state.connectionId
   )
 
+  if (clientIndex < 0) return
+
+  global.clients.splice(clientIndex, 1)
+
   const sameUserSessionsCount = global.clients.filter(
     ({ username, domain }) => username === state.username && domain === state.domain
   ).length
 
-  const connectedUser = global.clients.find(
-    ({ username, domain }) => username === state.username && domain === state.domain
-  )
-
-  if (clientIndex >= 0 && sameUserSessionsCount <= 1 && connectedUser.connectionId == connectionId) {
+  if (sameUserSessionsCount === 0) {
     await processChangeStatus(
       {
         protocolVersionMajor: state.protocolVersionMajor,
@@ -201,8 +201,6 @@ async function disconnectClient (connectionId, logger, state) {
       state,
       null
     )
-
-    global.clients.splice(clientIndex, 1)
   }
 
   clearTimeout(timeoutTimer[connectionId])
