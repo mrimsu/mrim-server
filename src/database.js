@@ -102,7 +102,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, '+ 
+        '`user`.`status` as `user_status`, '+
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
@@ -139,15 +139,19 @@ async function getContactsFromGroups (userId) {
  *
  * @param {number} userId ID пользователя
  * @param {Object} searchParameters Параметры поиска
- *
+ * @param {boolean} searchMyself Искать ли самого себя
+ * @param {number} limit Сколько записей достать
+ * @param {number} offset С какого места начинать
  * @returns {Promise<Array>} Массив поиска
  */
-async function searchUsers (userId, searchParameters, searchMyself = false) {
+async function searchUsers (userId, searchParameters, searchMyself = false, limit = 50, offset = 0) {
   const connection = await pool.getConnection()
   let query =
     'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
-    '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
-    'FROM `user` WHERE '
+    '`user`.`birthday`, `user`.`zodiac`, `virtual_numbers`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
+    'FROM `user` ' +
+    'LEFT JOIN `virtual_numbers` ON `user`.`id` = `virtual_numbers`.`user_id` ' +
+    'WHERE '
   const variables = []
 
   if (!searchMyself) {
@@ -224,9 +228,11 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
   if (Object.hasOwn(searchParameters, 'onlyOnline')) {
     query += '`user`.`status` = 1 AND ' // 1 = STATUS_ONLINE
   }
+  
+  query = query.substring(0, query.length - 5)
 
-  // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  query = query.substring(0, query.length - 4) + 'LIMIT 50'
+  query += ' LIMIT ? OFFSET ?'
+  variables.push(Number(limit), Number(offset))
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
@@ -354,8 +360,8 @@ async function createOrCompleteContact (
 
     let authQuery = ''
 
-    if (existingContactResult[0].is_auth_success === 0 && 
-        existingContactResult[0].adder_user_id === contactUserId && 
+    if (existingContactResult[0].is_auth_success === 0 &&
+        existingContactResult[0].adder_user_id === contactUserId &&
         existingContactResult[0].contact_user_id === requesterUserId) {
       authQuery = ', `contact`.`is_auth_success` = 1'
     }
@@ -385,8 +391,8 @@ async function createOrCompleteContact (
 
       let authQuery = ''
 
-      if (existingContactResult[0].is_auth_success === 0 && 
-          existingContactResult[0].adder_user_id === requesterUserId && 
+      if (existingContactResult[0].is_auth_success === 0 &&
+          existingContactResult[0].adder_user_id === requesterUserId &&
           existingContactResult[0].contact_user_id === contactUserId) {
         authQuery = ', `contact`.`is_auth_success` = 1'
       }
@@ -568,7 +574,7 @@ async function getContact (
 
   const [{ id: contactUserId }] = contactUserResult[0]
 
-  
+
   // eslint-disable-next-line no-unused-vars
   let [existingContactResult, _existingContactFields] =
     await connection.query(
@@ -585,7 +591,7 @@ async function getContact (
       '`contact`.`contact_user_id` = ?',
       [contactUserId, requesterUserId]
     )
-  
+
   if (existingContactResult.length === 0) {
     // попробуем наоборот
     [existingContactResult, _existingContactFields] =
@@ -1038,6 +1044,33 @@ async function getLastMicroblog (user) {
   return results[0] ?? null
 }
 
+/**
+ * Получение Telegram ID по виртуальному номеру
+ *
+ * @param {string} virtualNumber Виртуальный номер
+ * @returns {Promise<{telegramId: string, inUse: string}|null>} Объект с данными или null
+ */
+async function getTelegramIdByVirtualNumber (virtualNumber) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'SELECT `telegram_id`, `in_use` FROM `virtual_numbers` ' +
+    'WHERE `phone` = ? LIMIT 1',
+    [virtualNumber]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+
+  return results.length > 0
+    ? {
+      telegramId: results[0].telegram_id,
+      inUse: results[0].in_use
+    }
+    : null
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -1064,5 +1097,6 @@ module.exports = {
   checkUser,
   getMicroblogSettings,
   insertNewMicroblog,
-  getLastMicroblog
+  getLastMicroblog,
+  getTelegramIdByVirtualNumber
 }

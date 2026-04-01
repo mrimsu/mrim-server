@@ -2,6 +2,7 @@
  * @file Реализация процессоров запросов MRIM
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const BinaryConstructor = require('../../constructors/binary')
@@ -16,7 +17,7 @@ const {
   MrimContactFlags,
   MrimMessageFlags,
   MrimMessageErrors,
-  MrimConnectionStatus
+  MrimConnectionStatus,
 } = require('./globals')
 const {
   MrimOldLoginData,
@@ -64,6 +65,7 @@ const {
   MrimChangeMicroblogStatus,
   MrimMicroblogStatus
 } = require('../../messages/mrim/microblog')
+const { MrimCsSms, MrimCsSmsAck, MrimSmsStatus } = require('../../messages/mrim/sms')
 const { MrimGameData, MrimGameNewerData } = require('../../messages/mrim/games')
 const { MrimFileTransfer, MrimFileTransferAnswer } = require('../../messages/mrim/files')
 const { MrimCall, MrimCallAnswer } = require('../../messages/mrim/calls')
@@ -89,7 +91,8 @@ const {
   isContactAdder,
   getMicroblogSettings,
   insertNewMicroblog,
-  getLastMicroblog
+  getLastMicroblog,
+  getTelegramIdByVirtualNumber
 } = require('../../database')
 const { getZodiacId } = require('../../tools/zodiac')
 const config = require('../../../config')
@@ -395,7 +398,6 @@ async function generateContactList (containerHeader, userId, state = null) {
               contact.user_login,
           authorized: Number(!contact.is_auth_success),
           status,
-          phoneNumber: ''
         }
 
         // добавляем новые поля в структуру контакта в зависимости от версии протокола
@@ -526,13 +528,13 @@ async function _makeUserInfoPacket(containerHeader, logger, connectionId, state,
   }
 
   let microblog = await getLastMicroblog(state.userId)
-            
+
   if (microblog !== null && microblog.date > (Math.floor(Date.now() / 1000) - (60 * 60 * 24 * 7))) {
     state.microblog = {
       id: microblog.id,
       text: microblog.message,
       date: microblog.date
-    } 
+    }
   }
 
   const userInfoPacket = MrimUserInfo.writer({
@@ -540,8 +542,8 @@ async function _makeUserInfoPacket(containerHeader, logger, connectionId, state,
     messagestotal: '0', // dummy
     messagesunread: '0', // dummy
     clientip: clientip + ':' + state.socket.remotePort,
-    mblogid: `${state.microblog?.id ?? 0}` , 
-    mblogtime: `${state.microblog?.date ?? 0}`, 
+    mblogid: `${state.microblog?.id ?? 0}` ,
+    mblogtime: `${state.microblog?.date ?? 0}`,
     mblogtext: state.microblog?.text ?? ''
   }, state.utf16capable)
 
@@ -565,7 +567,7 @@ async function _checkForFilledEmail(containerHeader, logger, connectionId, state
       addresser: `${config.adminProfile?.username}@${config.adminProfile?.domain}`,
       message: `ВАЖНО! Для Вашего аккаунта НЕОБХОДИМО указать в настройках своей анкеты реальную электронную почту, ` +
                `иначе ваш аккаунт может быть удалён. Сделать это вы можете на сайте проекта: http://mrim.su/login` +
-               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` + 
+               `\n\nВаша настоящая электронная почта не будет видна другим пользователям и будет служить ` +
                `лишь для восстановления доступа к аккаунту.`,
       messageRTF: ' '
     }, state.utf16capable)
@@ -860,7 +862,7 @@ async function processLogin (
   ])
 
   const searchResults = await searchUsers(0, { login: state.username })
-  
+
   const userInfo = await _makeUserInfoPacket(containerHeader, logger, connectionId, state, searchResults[0])
   _checkForFilledEmail(containerHeader, logger, connectionId, state, searchResults[0].real_email)
   _processOfflineMessages(state.userId, containerHeader, logger, connectionId, state)
@@ -1105,7 +1107,7 @@ utf16 capable: ${state.utf16capable}`
     logger.debug(
       `[${connectionId}] auth request via MRIM_CS_MESSAGE from ${state.username}@${state.domain} to ${messageData.addresser}`
     )
-    
+
     let authResult = await addContactMSG(
       state.userId,
       messageData.addresser.split('@')[0],
@@ -1172,7 +1174,7 @@ utf16 capable: ${state.utf16capable}`
             )
             .subbuffer(authorizeReply)
             .finish(),
-          
+
         ]
       }
     }
@@ -1434,7 +1436,35 @@ async function processSearch (
   logger.debug(
     `[${connectionId}] searchParameters -> ${JSON.stringify(searchParameters)}`
   )
-  const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login)
+
+  const currentSearchQuery = JSON.stringify(searchParameters, Object.keys(searchParameters).sort())
+
+  if (!state.searchPagination) {
+    state.searchPagination = { query: '', offset: 0, lastTime: 0 }
+  }
+
+  const paginationTimeout = 120 * 1000
+  const hasExpired = (Date.now() - state.searchPagination.lastTime) > paginationTimeout;
+  const isNewQuery = state.searchPagination.query !== currentSearchQuery;
+
+  if (isNewQuery || hasExpired) {
+    state.searchPagination.offset = 0;
+    state.searchPagination.query = currentSearchQuery;
+  }
+
+  const limit = 50
+  const offset = state.searchPagination.offset
+  logger.debug(`[${connectionId}] searchPagination: limit: ${limit} offset=${offset}`)
+
+  const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login, limit, offset)
+
+  state.searchPagination.lastTime = Date.now();
+
+  if (searchResults.length > 0) {
+    state.searchPagination.offset += limit;
+  } else {
+    state.searchPagination.offset = 0;
+  }
 
   const responseFields = {
     Username: 'login',
@@ -1475,7 +1505,7 @@ async function processSearch (
 
   for (const user of searchResults) {
     for (const key of Object.values(responseFields)) {
-      let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' ? 'UTF-16LE' : 'CP1251').convert(
+      let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' && key !== 'phone' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
 
@@ -2142,8 +2172,8 @@ async function processGame (
       data: packet.data
     }
 
-    
-    const dataToSend = addresserClient.protocolVersionMinor >= 15 
+
+    const dataToSend = addresserClient.protocolVersionMinor >= 15
                         ? MrimGameNewerData.writer(gameData)
                         : MrimGameData.writer(gameData)
 
@@ -2393,14 +2423,14 @@ async function processProxy (
     ({ username, domain }) => username === packet.contact.split('@')[0] &&
                               domain === packet.contact.split('@')[1]
   )
-  
+
   let proxyAck
 
   if (config.mrim.enableProxy ?? true) {
-    const sessionIdHigh = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
-    const sessionIdLow = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
-    const sessionIdHighSecondary = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
-    const sessionIdLowSecondary = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF)); 
+    const sessionIdHigh = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF));
+    const sessionIdLow = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF));
+    const sessionIdHighSecondary = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF));
+    const sessionIdLowSecondary = Math.abs(Math.floor(Math.random() * 0xFFFFFFFF));
 
     _addNewProxyConnection(sessionIdHigh, sessionIdLow, sessionIdHighSecondary, sessionIdLowSecondary)
 
@@ -2488,7 +2518,7 @@ async function processProxyHello (
       (proxy) => proxy.sessionIdHigh == packet.session_id_high && proxy.sessionIdLow == packet.session_id_low
               && proxy.sessHighSec == packet.session_id_high_second && proxy.sessLowSec == packet.session_id_low_second
     )
-    
+
     state.proxyId = global.proxies[proxyIndex]
     state.isProxyConnection = true
     state.isSecondClientConnected = false
@@ -2524,7 +2554,7 @@ async function processProxyHello (
 
     if (clientSecond.length == 1) {
       logger.debug(`[${connectionId}] [proxy] they are waiting for you gordon. in the test chambrrr`)
-      
+
       state.isSecondClientConnected = true
       clientSecond[0].isSecondClientConnected = true
 
@@ -2625,7 +2655,7 @@ async function processNewMicroblog (
     id: innerID,
     text: microblog.text,
     date: Math.floor(Date.now() / 1000)
-  } 
+  }
 
   logger.debug(`[${connectionId}] new microblog post from ${state.username}@${state.domain} -> ${microblog.text}`)
 
@@ -2682,7 +2712,7 @@ async function processNewMicroblog (
   }
 
   return {
-    reply: 
+    reply:
       new BinaryConstructor()
         .subbuffer(
           MrimContainerHeader.writer({
@@ -2694,6 +2724,80 @@ async function processNewMicroblog (
         .subbuffer(userMicroblogUpdate)
         .finish()
     }
+}
+
+async function processSms (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables
+) {
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+
+  const sms = MrimCsSms.reader(packetData, state.utf16capable)
+  let status = MrimSmsStatus.OK
+
+  const virtualNumber = sms.phone.replace(/\D/g, '')
+  const messageWithMail = `${state.username}@${state.domain}: ` + sms.message
+
+  let numberData;
+  try {
+    numberData = await getTelegramIdByVirtualNumber(virtualNumber);
+  } catch (e) {
+    logger.error(`[${connectionId}] db error while resolving virtual number: ${e.stack}`);
+  }
+
+  if (!numberData) {
+    logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`);
+    status = MrimSmsStatus.INVALID_PARAMS;
+  } else if (numberData.inUse === '0') {
+    logger.error(`[${connectionId}] the virtual number +${virtualNumber} is not in service. please call back later.`); // that one naehiro fanfic reference lol
+    status = MrimSmsStatus.INVALID_PARAMS;
+  }
+
+  if (status === MrimSmsStatus.OK) {
+    if (!config.telegram?.enabled) {
+      logger.error(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
+      status = MrimSmsStatus.SERVICE_UNAVAILABLE
+    } else {
+      const targetChatId = numberData.telegramId;
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${config.telegram.token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: targetChatId, text: messageWithMail })
+        });
+
+        const responseData = await response.json();
+        if (!response.ok || !responseData.ok) {
+          logger.error(`[${connectionId}] telegram error for chat ID ${targetChatId}: ${responseData.description}`)
+          status = responseData.error_code === 400 ? MrimSmsStatus.INVALID_PARAMS : MrimSmsStatus.SERVICE_UNAVAILABLE
+        } else {
+          logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${virtualNumber}`)
+        }
+      } catch (e) {
+        logger.error(`[${connectionId}] telegram connection error: ${e.stack}`);
+        status = MrimSmsStatus.SERVICE_UNAVAILABLE;
+      }
+    }
+  }
+
+  const smsAckUpdate = MrimCsSmsAck.writer({ status })
+  return {
+    reply:
+      new BinaryConstructor()
+        .subbuffer(
+          MrimContainerHeader.writer({
+            ...containerHeader,
+            packetCommand: MrimMessageCommands.SMS_ACK,
+            dataSize: smsAckUpdate.length
+          })
+        )
+        .subbuffer(smsAckUpdate)
+        .finish()
+  }
 }
 
 module.exports = {
@@ -2716,5 +2820,6 @@ module.exports = {
   processCallAnswer,
   processProxy,
   processProxyHello,
-  processNewMicroblog
+  processNewMicroblog,
+  processSms
 }

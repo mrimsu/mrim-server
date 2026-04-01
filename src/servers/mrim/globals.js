@@ -39,6 +39,9 @@ const MrimMessageCommands = {
   MESSAGE_STATUS: 0x1012,
   OFFLINE_MESSAGE_ACK: 0x101D,
   OFFLINE_MESSAGE_DELETE: 0x101E,
+  // SMS
+  SMS: 0x1039,
+  SMS_ACK: 0x1040,
   // Contacts
   ADD_CONTACT: 0x1019,
   ADD_CONTACT_ACK: 0x101a,
@@ -84,12 +87,12 @@ const MrimContactFlags = {
   GROUP: 0x02,
   CHAT: 0x80,
   PHONE_CONTACT: 0x100000,
-  
+
   // Groups
   NEVER_VISIBLE: 0x04,
   ALWAYS_VISIBLE: 0x08,
   IGNORED: 0x10,
-  
+
   // Technical info
   DELETED: 0x01,
   UNICODE_NICKNAME: 0x200

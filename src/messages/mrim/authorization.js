@@ -1,6 +1,7 @@
 /**
  * @file Сообщения авторизации MIRM.
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const {
@@ -81,6 +82,7 @@ const MrimUserInfo = new MessageConstructor()
   .field('mblogtime', FieldDataType.UNICODE_STRING)
   .field('mblogtext.field', FieldDataType.UBIART_LIKE_STRING, 'micblog.status.text')
   .field('mblogtext', FieldDataType.UNICODE_STRING)
+  .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
 module.exports = { MrimOldLoginData, MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }
