@@ -1390,7 +1390,7 @@ async function processSearch (
     state.searchPagination = { query: '', offset: 0, lastTime: 0 }
   }
 
-  const paginationTimeout = 30 * 1000 // у вас 30 секунд до начала нового раунда
+  const paginationTimeout = 120 * 1000
   const hasExpired = (Date.now() - state.searchPagination.lastTime) > paginationTimeout;
   const isNewQuery = state.searchPagination.query !== currentSearchQuery;
 
