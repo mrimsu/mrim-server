@@ -8,29 +8,17 @@
 const { MrimMessageCommands } = require('./globals')
 const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
-const {
-  processHello,
-  processLegacyLogin,
-  processLogin,
-  processLoginThree,
-  processContactListRequest,
-  processMessage,
-  processDeleteOfflineMsg,
-  processSearch,
-  processAddContact,
-  processModifyContact,
-  processAuthorizeContact,
-  processChangeStatus,
-  processGame,
-  processFileTransfer,
-  processFileTransferAnswer,
-  processCall,
-  processCallAnswer,
-  processProxy,
-  processProxyHello,
-  processNewMicroblog,
-  processSms
-} = require('./processors')
+
+// Processors
+const { processHello } = require('./processors/hello')
+const { processLegacyLogin, processLogin, processLoginThree } = require('./processors/login')
+const { processContactListRequest, processAddContact, processModifyContact, processAuthorizeContact } = require('./processors/contacts')
+const { processMessage, processDeleteOfflineMsg } = require('./processors/messages')
+const { processSearch } = require('./processors/anketa')
+const { processChangeStatus, processNewMicroblog } = require('./processors/status')
+const { processGame, processFileTransfer, processFileTransferAnswer, processCall, processCallAnswer } = require('./processors/p2p')
+const { processProxy, processProxyHello } = require('./processors/proxy')
+const { processSms } = require('./processors/sms')
 
 const config = require('../../../config')
 
