@@ -19,7 +19,6 @@ const {
   getMicroblogSettings,
   insertNewMicroblog
 } = require('../../../database')
-const https = require('https')
 const { _checkIfLoggedIn } = require('./core')
 
 async function processChangeStatus (
@@ -143,33 +142,16 @@ async function processNewMicroblog (
 
     if (microblogSettings.type === 'openvk') {
       try {
-        const opt = {
-          hostname: microblogSettings.instance,
-          port: 443,
-          path: '/method/wall.post?' +
-            'owner_id=' + microblogSettings.userId +
-            '&message=' + encodeURIComponent(microblog.text) +
-            '&access_token=' + microblogSettings.token,
-          method: 'GET'
-        }
-
-        https.get(opt, (res) => {
-          res.setEncoding('utf8')
-          let responseBody = ''
-
-          res.on('data', (chunk) => {
-            responseBody += chunk
-          })
-
-          res.on('end', () => {
-            let response = JSON.parse(responseBody)
-            if (response.error_code !== undefined) {
-              logger.error(`[${connectionId}] failed to post to OpenVK: ${response.error_code} ${response.error_msg}`)
+        await fetch(`https://${microblogSettings.instance}/method/wall.post?` +
+            `owner_id=${microblogSettings.userId}` +
+            `&message=${encodeURIComponent(microblog.text)}` +
+            `&access_token=${microblogSettings.token}`).then(response => response.json()).then(json => {
+            if (json.error_code !== undefined) {
+              logger.error(`[${connectionId}] failed to post to OpenVK: ${json.error_code} ${json.error_msg}`)
             } else {
-              url = `https://${microblogSettings.instance}/wall${microblogSettings.userId}_${response.response.post_id}`
+              url = `https://${microblogSettings.instance}/wall${microblogSettings.userId}_${json.response.post_id}`
               logger.debug(`[${connectionId}] posted to OpenVK: ${url}`)
             }
-          })
         })
       } catch (e) {
         logger.error(`[${connectionId}] failed to post to OpenVK: ${e.stack}`)
