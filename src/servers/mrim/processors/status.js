@@ -29,7 +29,7 @@ async function processChangeStatus (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let status
 
@@ -128,7 +128,7 @@ async function processNewMicroblog (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const microblog = MrimChangeMicroblogStatus.reader(packetData, state.utf16capable)
 
@@ -146,12 +146,12 @@ async function processNewMicroblog (
             `owner_id=${microblogSettings.userId}` +
             `&message=${encodeURIComponent(microblog.text)}` +
             `&access_token=${microblogSettings.token}`).then(response => response.json()).then(json => {
-            if (json.error_code !== undefined) {
-              logger.error(`[${connectionId}] failed to post to OpenVK: ${json.error_code} ${json.error_msg}`)
-            } else {
-              url = `https://${microblogSettings.instance}/wall${microblogSettings.userId}_${json.response.post_id}`
-              logger.debug(`[${connectionId}] posted to OpenVK: ${url}`)
-            }
+          if (json.error_code !== undefined) {
+            logger.error(`[${connectionId}] failed to post to OpenVK: ${json.error_code} ${json.error_msg}`)
+          } else {
+            url = `https://${microblogSettings.instance}/wall${microblogSettings.userId}_${json.response.post_id}`
+            logger.debug(`[${connectionId}] posted to OpenVK: ${url}`)
+          }
         })
       } catch (e) {
         logger.error(`[${connectionId}] failed to post to OpenVK: ${e.stack}`)
@@ -169,13 +169,13 @@ async function processNewMicroblog (
 
   logger.debug(`[${connectionId}] new microblog post from ${state.username}@${state.domain} -> ${microblog.text}`)
 
-    const userMicroblogUpdate = MrimMicroblogStatus.writer({
-      flags: microblog.flags,
-      contact: `${state.username}@${state.domain}`,
-      text: microblog.text,
-      id: innerID,
-      time: Math.floor(Date.now() / 1000)
-    }, true)
+  const userMicroblogUpdate = MrimMicroblogStatus.writer({
+    flags: microblog.flags,
+    contact: `${state.username}@${state.domain}`,
+    text: microblog.text,
+    id: innerID,
+    time: Math.floor(Date.now() / 1000)
+  }, true)
 
   const contacts = await getContactsFromGroups(state.userId)
 
@@ -233,7 +233,7 @@ async function processNewMicroblog (
         )
         .subbuffer(userMicroblogUpdate)
         .finish()
-    }
+  }
 }
 
 module.exports = { processChangeStatus, processNewMicroblog }

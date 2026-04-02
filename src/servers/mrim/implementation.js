@@ -22,8 +22,8 @@ const { processSms } = require('./processors/sms')
 
 const config = require('../../../config')
 
-const fs = require('fs');
-const tls = require('tls');
+const fs = require('fs')
+const tls = require('tls')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
@@ -202,10 +202,10 @@ async function initSSL (socket, connectionId, logger, state, variables) {
 
   const secureContext = tls.createSecureContext({
     key: fs.readFileSync(config?.mrim?.ssl?.keyPath),
-    cert: fs.readFileSync(config?.mrim?.ssl?.certPath),
-  });
+    cert: fs.readFileSync(config?.mrim?.ssl?.certPath)
+  })
 
-  const secureSocket = new tls.TLSSocket(socket, { isServer: true, secureContext });
+  const secureSocket = new tls.TLSSocket(socket, { isServer: true, secureContext })
 
   const newState = { userId: null, username: null, status: null, socket: secureSocket, ssl: true }
   secureSocket.on('data', onData(secureSocket, connectionId, logger, newState, variables))
@@ -260,26 +260,26 @@ async function processPacket (
         logger.debug(`[${connectionId}] client requested secure conn, but SSL is disabled in config. we'll keep him without a condom`)
         return {
           reply: new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.FAILURE,
-              dataSize: 0
-            })
-          )
-          .finish()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetCommand: MrimMessageCommands.FAILURE,
+                dataSize: 0
+              })
+            )
+            .finish()
         }
       } else {
         state.socket.write(
           new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.OK,
-              dataSize: 0
-            })
-          )
-          .finish()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetCommand: MrimMessageCommands.OK,
+                dataSize: 0
+              })
+            )
+            .finish()
         )
         initSSL(state.socket, connectionId, logger, state, variables)
       }
@@ -289,14 +289,14 @@ async function processPacket (
       // we'll say that there's some internal error sorry
       return {
         reply: new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.FAILURE,
-            dataSize: 0
-          })
-        )
-        .finish()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.FAILURE,
+              dataSize: 0
+            })
+          )
+          .finish()
       }
     case MrimMessageCommands.CONTACT_LIST:
       return processContactListRequest(

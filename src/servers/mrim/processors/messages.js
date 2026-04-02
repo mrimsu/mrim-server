@@ -13,7 +13,7 @@ const {
 const {
   MrimMessageCommands,
   MrimMessageFlags,
-  MrimMessageErrors,
+  MrimMessageErrors
 } = require('../globals')
 const { MrimContainerHeader } = require('../../../messages/mrim/container')
 const {
@@ -39,7 +39,7 @@ async function processMessage (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let messageData = MrimClientMessageData.reader(packetData, state.utf16capable)
 
@@ -128,7 +128,7 @@ utf16 capable: ${state.utf16capable}`
       `[${connectionId}] auth request via MRIM_CS_MESSAGE from ${state.username}@${state.domain} to ${messageData.addresser}`
     )
 
-    let authResult = await addContactMSG(
+    const authResult = await addContactMSG(
       state.userId,
       messageData.addresser.split('@')[0],
       messageData.addresser.split('@')[1]
@@ -187,13 +187,13 @@ utf16 capable: ${state.utf16capable}`
             .subbuffer(
               MrimContainerHeader.writer({
                 ...containerHeader,
-                packetOrder: containerHeader.packetOrder+1,
+                packetOrder: containerHeader.packetOrder + 1,
                 packetCommand: MrimMessageCommands.AUTHORIZE_ACK,
                 dataSize: authorizeReply.length
               })
             )
             .subbuffer(authorizeReply)
-            .finish(),
+            .finish()
 
         ]
       }
@@ -203,21 +203,21 @@ utf16 capable: ${state.utf16capable}`
   let receivers = [messageData.addresser]
 
   if (messageData.flags & MrimMessageFlags.MULTICAST) {
-    let multicastData = Buffer.from(messageData.addresser)
+    const multicastData = Buffer.from(messageData.addresser)
     receivers = []
-    let binaryReader = new BinaryReader(multicastData, this.endianness)
+    const binaryReader = new BinaryReader(multicastData, this.endianness)
 
     // limited to 50 users by proto
     for (i = 0; i < 50; i++) {
       if (binaryReader.offset >= multicastData.length) break
 
-      let contact = new Iconv('CP1251', 'UTF-8')
-              .convert(
-                Buffer.from(
-                  binaryReader.readUint8Array(binaryReader.readUint32())
-                )
-              )
-              .toString('utf-8')
+      const contact = new Iconv('CP1251', 'UTF-8')
+        .convert(
+          Buffer.from(
+            binaryReader.readUint8Array(binaryReader.readUint32())
+          )
+        )
+        .toString('utf-8')
 
       receivers.push(contact)
     }
@@ -231,7 +231,7 @@ utf16 capable: ${state.utf16capable}`
     )
   }
 
-  let results = await Promise.all(receivers.map(async (receiver) => {
+  const results = await Promise.all(receivers.map(async (receiver) => {
     const addresserClient = global.clients.find(
       ({ username, domain }) => username === receiver.split('@')[0] &&
                     domain === receiver.split('@')[1]
@@ -265,7 +265,7 @@ utf16 capable: ${state.utf16capable}`
       }
 
       return {
-        reply: 
+        reply:
           new BinaryConstructor()
             .subbuffer(
               MrimContainerHeader.writer({
@@ -277,7 +277,7 @@ utf16 capable: ${state.utf16capable}`
             )
             .integer(MrimMessageErrors.SUCCESS, 4)
             .finish()
-        
+
       }
     } else {
       let messageStatus = MrimMessageErrors.SUCCESS
@@ -286,7 +286,7 @@ utf16 capable: ${state.utf16capable}`
         receiverId = await getIdViaLogin(messageData.addresser.split('@')[0], messageData.addresser.split('@')[1])
       } catch (e) {
         return {
-          reply: 
+          reply:
             new BinaryConstructor()
               .subbuffer(
                 MrimContainerHeader.writer({
@@ -298,7 +298,7 @@ utf16 capable: ${state.utf16capable}`
               )
               .integer(MrimMessageErrors.NO_USER, 4)
               .finish()
-          
+
         }
       }
       const messages = await getOfflineMessages(receiverId)
@@ -315,7 +315,7 @@ utf16 capable: ${state.utf16capable}`
       }
 
       return {
-        reply: 
+        reply:
           new BinaryConstructor()
             .subbuffer(
               MrimContainerHeader.writer({
@@ -327,7 +327,7 @@ utf16 capable: ${state.utf16capable}`
             )
             .integer(messageStatus, 4)
             .finish()
-        
+
       }
     }
   }))
@@ -344,7 +344,7 @@ async function processDeleteOfflineMsg (
   logger,
   state
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   // fsr clients don't send all IDs properly and it got duplicated on logon
   // what we do is just cleaning up all of the messages

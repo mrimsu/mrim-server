@@ -12,7 +12,7 @@ const config = require('../../../../config')
 function processHello (containerHeader, connectionId, logger) {
   logger.debug(`[${connectionId}] hello, stranger!`)
 
-  let awaitsServerTime = containerHeader.protocolVersionMinor >= 20
+  const awaitsServerTime = containerHeader.protocolVersionMinor >= 20
 
   const containerHeaderBinary = MrimContainerHeader.writer({
     ...containerHeader,

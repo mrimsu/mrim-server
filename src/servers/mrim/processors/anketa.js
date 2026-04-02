@@ -45,7 +45,7 @@ async function processSearch (
   logger,
   state
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   if (!state.searchRateLimiter) {
     state.searchRateLimiter = {
@@ -147,12 +147,12 @@ async function processSearch (
   }
 
   const paginationTimeout = 120 * 1000
-  const hasExpired = (Date.now() - state.searchPagination.lastTime) > paginationTimeout;
-  const isNewQuery = state.searchPagination.query !== currentSearchQuery;
+  const hasExpired = (Date.now() - state.searchPagination.lastTime) > paginationTimeout
+  const isNewQuery = state.searchPagination.query !== currentSearchQuery
 
   if (isNewQuery || hasExpired) {
-    state.searchPagination.offset = 0;
-    state.searchPagination.query = currentSearchQuery;
+    state.searchPagination.offset = 0
+    state.searchPagination.query = currentSearchQuery
   }
 
   const limit = 50
@@ -161,12 +161,12 @@ async function processSearch (
 
   const searchResults = await searchUsers(state.userId, searchParameters, state.username === searchParameters.login, limit, offset)
 
-  state.searchPagination.lastTime = Date.now();
+  state.searchPagination.lastTime = Date.now()
 
   if (searchResults.length > 0) {
-    state.searchPagination.offset += limit;
+    state.searchPagination.offset += limit
   } else {
-    state.searchPagination.offset = 0;
+    state.searchPagination.offset = 0
   }
 
   const responseFields = {
@@ -217,7 +217,7 @@ async function processSearch (
       }
 
       if (key === 'birthday') {
-        let birthday = user.birthday
+        const birthday = user.birthday
           ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
           : ''
         value = new Iconv('UTF-8', 'CP1251').convert(birthday)

@@ -203,13 +203,12 @@ async function processLogin (
       // MRA 4.x
       const clientVer = RegExp(/MRA ([0-9\.]+) \(build ([0-9]+)\)/).exec(loginData.userAgent)
 
-      if(clientVer && clientVer.length > 1)
-      {
+      if (clientVer && clientVer.length > 1) {
         state.userAgent = `client="magent" version="${clientVer[1]}" build="${clientVer[2]}"`
       }
 
       // J2ME Agent
-      if(loginData.userAgent.startsWith("Версия 1.")) {
+      if (loginData.userAgent.startsWith('Версия 1.')) {
         const clientJ2ME = RegExp(/Версия 1.([0-9\.]+)/).exec(loginData.userAgent)
 
         if (clientJ2ME && clientJ2ME.length > 1) {

@@ -102,7 +102,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, '+
+        '`user`.`status` as `user_status`, ' +
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
@@ -228,7 +228,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   if (Object.hasOwn(searchParameters, 'onlyOnline')) {
     query += '`user`.`status` = 1 AND ' // 1 = STATUS_ONLINE
   }
-  
+
   query = query.substring(0, query.length - 5)
 
   query += ' LIMIT ? OFFSET ?'
@@ -568,12 +568,11 @@ async function getContact (
   const connection = await pool.getConnection()
 
   const contactUserResult = await connection.query(
-      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
-      [contactUserLogin, contactDomain]
-    )
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+    [contactUserLogin, contactDomain]
+  )
 
   const [{ id: contactUserId }] = contactUserResult[0]
-
 
   // eslint-disable-next-line no-unused-vars
   let [existingContactResult, _existingContactFields] =
@@ -612,7 +611,7 @@ async function getContact (
   }
 
   pool.releaseConnection(connection)
-  return existingContactResult.length > 0 ? existingContactResult[0] : null;
+  return existingContactResult.length > 0 ? existingContactResult[0] : null
 }
 
 /**
@@ -901,7 +900,6 @@ async function isContactAuthorized (user, contact, contactDomain) {
   return results.length > 0
 }
 
-
 /**
  * Проверяет, добавляющий ли это пользователь #2
  *
@@ -1065,9 +1063,9 @@ async function getTelegramIdByVirtualNumber (virtualNumber) {
 
   return results.length > 0
     ? {
-      telegramId: results[0].telegram_id,
-      inUse: results[0].in_use
-    }
+        telegramId: results[0].telegram_id,
+        inUse: results[0].in_use
+      }
     : null
 }
 

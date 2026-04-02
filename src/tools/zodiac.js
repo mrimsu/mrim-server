@@ -4,18 +4,18 @@
  */
 
 const monthChoice = {
-  3:  {21: [12,1]},
-  4:  {21: [1,2]},
-  5:  {21: [2,3]},
-  6:  {22: [3,4]},
-  7:  {23: [4,5]},
-  8:  {24: [5,6]},
-  9:  {24: [6,7]},
-  10: {24: [7,8]},
-  11: {23: [8,9]},
-  12: {22: [9,10]},
-  1:  {21: [10,11]},
-  2:  {20: [11,12]},
+  3: { 21: [12, 1] },
+  4: { 21: [1, 2] },
+  5: { 21: [2, 3] },
+  6: { 22: [3, 4] },
+  7: { 23: [4, 5] },
+  8: { 24: [5, 6] },
+  9: { 24: [6, 7] },
+  10: { 24: [7, 8] },
+  11: { 23: [8, 9] },
+  12: { 22: [9, 10] },
+  1: { 21: [10, 11] },
+  2: { 20: [11, 12] }
 }
 
 /*
@@ -34,18 +34,18 @@ const monthChoice = {
  */
 
 ZODIAC = {
-	'1':'Овен',
-	'2':'Телец',
-	'3':'Близнецы',
-	'4':'Рак',
-	'5':'Лев',
-	'6':'Дева',
-	'7':'Весы',
-	'8':'Скорпион',
-	'9':'Стрелец',
-	'10':'Козерог',
-	'11':'Водолей',
-	'12':'Рыбы'
+  1: 'Овен',
+  2: 'Телец',
+  3: 'Близнецы',
+  4: 'Рак',
+  5: 'Лев',
+  6: 'Дева',
+  7: 'Весы',
+  8: 'Скорпион',
+  9: 'Стрелец',
+  10: 'Козерог',
+  11: 'Водолей',
+  12: 'Рыбы'
 }
 /**
  * Возвращает айди знака зодиака
@@ -54,21 +54,21 @@ ZODIAC = {
  *
  * @returns {number}
  */
-function getZodiacId(date) {
-    if (!date || date.getMonth?.() === null || date.getDate?.() === null) {
-        return 0
-    }
+function getZodiacId (date) {
+  if (!date || date.getMonth?.() === null || date.getDate?.() === null) {
+    return 0
+  }
 
-    const m = date.getMonth() + 1
-    const d = date.getDate()
+  const m = date.getMonth() + 1
+  const d = date.getDate()
 
-    const choice = monthChoice[m];
-    const dayChange = +Object.keys(choice)[0];
-    const rtrn = d >= dayChange ? choice[dayChange][1] : choice[dayChange][0];
+  const choice = monthChoice[m]
+  const dayChange = +Object.keys(choice)[0]
+  const rtrn = d >= dayChange ? choice[dayChange][1] : choice[dayChange][0]
 
-    return rtrn
+  return rtrn
 }
 
 module.exports = {
-    getZodiacId
+  getZodiacId
 }

@@ -200,7 +200,7 @@ async function processContactListRequest (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   logger.debug(`[${connectionId}] ${state.username} requests contact list (they're on very very old client of ancient greek)`)
 
@@ -314,7 +314,7 @@ async function generateContactList (containerHeader, userId, state = null) {
               contact.user_nickname ??
               contact.user_login,
           authorized: Number(!contact.is_auth_success),
-          status,
+          status
         }
 
         // добавляем новые поля в структуру контакта в зависимости от версии протокола
@@ -378,7 +378,7 @@ async function processAddContact (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const request = MrimAddContactRequest.reader(packetData, state.utf16capable)
 
@@ -649,7 +649,7 @@ async function processAuthorizeContact (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   // TODO: перенести это в contacts
   const MrimAddContactData = new MessageConstructor()
@@ -744,7 +744,7 @@ async function processModifyContact (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let request = MrimModifyContactRequest.reader(packetData, state.utf16capable)
 
@@ -805,8 +805,8 @@ async function processModifyContact (
 
       try {
         contactFlagsAsUser = contact.requester_is_adder
-            ? contact.adder_flags
-            : contact.contact_flags
+          ? contact.adder_flags
+          : contact.contact_flags
       } catch (e) {
         contactFlagsAsUser = 0
       }

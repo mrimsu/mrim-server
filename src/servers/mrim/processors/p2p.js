@@ -19,7 +19,7 @@ async function processGame (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   let packet
   if (state.protocolVersionMinor < 15) {
@@ -45,10 +45,9 @@ async function processGame (
       data: packet.data
     }
 
-
     const dataToSend = addresserClient.protocolVersionMinor >= 15
-                        ? MrimGameNewerData.writer(gameData)
-                        : MrimGameData.writer(gameData)
+      ? MrimGameNewerData.writer(gameData)
+      : MrimGameData.writer(gameData)
 
     addresserClient.socket.write(
       new BinaryConstructor()
@@ -85,7 +84,7 @@ async function processFileTransfer (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimFileTransfer.reader(packetData)
 
@@ -138,7 +137,7 @@ async function processFileTransferAnswer (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimFileTransferAnswer.reader(packetData)
 
@@ -189,7 +188,7 @@ async function processCall (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimCall.reader(packetData)
 
@@ -238,7 +237,7 @@ async function processCallAnswer (
   state,
   variables
 ) {
-  if(await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
   const packet = MrimCallAnswer.reader(packetData)
 

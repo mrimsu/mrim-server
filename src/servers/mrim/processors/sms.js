@@ -27,19 +27,19 @@ async function processSms (
   const virtualNumber = sms.phone.replace(/\D/g, '')
   const messageWithMail = `${state.username}@${state.domain}: ` + sms.message
 
-  let numberData;
+  let numberData
   try {
-    numberData = await getTelegramIdByVirtualNumber(virtualNumber);
+    numberData = await getTelegramIdByVirtualNumber(virtualNumber)
   } catch (e) {
-    logger.error(`[${connectionId}] db error while resolving virtual number: ${e.stack}`);
+    logger.error(`[${connectionId}] db error while resolving virtual number: ${e.stack}`)
   }
 
   if (!numberData) {
-    logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`);
-    status = MrimSmsStatus.INVALID_PARAMS;
+    logger.error(`[${connectionId}] telegram ID for virtual number +${virtualNumber} not found`)
+    status = MrimSmsStatus.INVALID_PARAMS
   } else if (numberData.inUse === '0') {
-    logger.error(`[${connectionId}] the virtual number +${virtualNumber} is not in service. please call back later.`); // that one naehiro fanfic reference lol
-    status = MrimSmsStatus.INVALID_PARAMS;
+    logger.error(`[${connectionId}] the virtual number +${virtualNumber} is not in service. please call back later.`) // that one naehiro fanfic reference lol
+    status = MrimSmsStatus.INVALID_PARAMS
   }
 
   if (status === MrimSmsStatus.OK) {
@@ -47,15 +47,15 @@ async function processSms (
       logger.error(`[${connectionId}] ${state.username}@${state.domain} tried to send an SMS, but they are disabled. responding with SMS_SERVICE_UNAVAILABLE`)
       status = MrimSmsStatus.SERVICE_UNAVAILABLE
     } else {
-      const targetChatId = numberData.telegramId;
+      const targetChatId = numberData.telegramId
       try {
         const response = await fetch(`https://api.telegram.org/bot${config.telegram.token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: targetChatId, text: messageWithMail })
-        });
+        })
 
-        const responseData = await response.json();
+        const responseData = await response.json()
         if (!response.ok || !responseData.ok) {
           logger.error(`[${connectionId}] telegram error for chat ID ${targetChatId}: ${responseData.description}`)
           status = responseData.error_code === 400 ? MrimSmsStatus.INVALID_PARAMS : MrimSmsStatus.SERVICE_UNAVAILABLE
@@ -63,8 +63,8 @@ async function processSms (
           logger.debug(`[${connectionId}] ${state.username}@${state.domain} sent an SMS to +${virtualNumber}`)
         }
       } catch (e) {
-        logger.error(`[${connectionId}] telegram connection error: ${e.stack}`);
-        status = MrimSmsStatus.SERVICE_UNAVAILABLE;
+        logger.error(`[${connectionId}] telegram connection error: ${e.stack}`)
+        status = MrimSmsStatus.SERVICE_UNAVAILABLE
       }
     }
   }
