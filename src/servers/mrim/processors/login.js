@@ -194,8 +194,6 @@ async function processLogin (
 
       if (agentRegex && agentRegex.length > 1) {
         state.clientName = agentRegex[1]
-      } else {
-
       }
     } else {
       // welp, let's guess
@@ -267,7 +265,7 @@ async function processLogin (
       xstatusType: state.xstatus?.type ?? '',
       xstatusTitle: state.xstatus?.title ?? '',
       xstatusDescription: state.xstatus?.description ?? '',
-      xstatusState: state.xstatus?.state ?? 0x02FF // everything except videocalls
+      xstatusState: state.features ?? 0x02FF // everything except videocalls
     }, state.utf16capable)
   } else {
     statusData = MrimChangeStatusRequest.writer({
@@ -350,9 +348,10 @@ async function processLoginThree (
     state.xstatus = {
       type: 'STATUS_ONLINE',
       title: '',
-      description: '',
-      state: 0xFF03 // everything
+      description: ''
     }
+
+    state.features = 0x03FF
 
     // не проверяем, см. комментарий выше
     state.utf16capable = true
