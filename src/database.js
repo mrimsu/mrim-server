@@ -80,7 +80,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, ' +
+        '`user`.`public_status` as `public_status`, ' +
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
@@ -102,7 +102,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, ' +
+        '`user`.`public_status` as `public_status`, ' +
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
@@ -127,7 +127,7 @@ async function getContactsFromGroups (userId) {
   //   is_auth_success,
   //   user_nickname,
   //   user_login,
-  //   user_status,
+  //   public_status,
   //   requester_is_adder,
   //   requester_is_contact,
   // }]
@@ -147,8 +147,8 @@ async function getContactsFromGroups (userId) {
 async function searchUsers (userId, searchParameters, searchMyself = false, limit = 50, offset = 0) {
   const connection = await pool.getConnection()
   let query =
-    'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
-    '`user`.`birthday`, `user`.`zodiac`, `virtual_numbers`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
+    'SELECT `user`.`id`, `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
+    '`user`.`birthday`, `user`.`zodiac`, `virtual_numbers`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated`, `user`.`public_status` ' +
     'FROM `user` ' +
     'LEFT JOIN `virtual_numbers` ON `user`.`id` = `virtual_numbers`.`user_id` ' +
     'WHERE '
@@ -225,8 +225,15 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
     variables.push(Number(searchParameters.birthday))
   }
 
-  if (Object.hasOwn(searchParameters, 'onlyOnline')) {
-    query += '`user`.`status` = 1 AND ' // 1 = STATUS_ONLINE
+  if (Object.hasOwn(searchParameters, 'onlyOnline') && !Object.hasOwn(searchParameters, 'withWebcam')) {
+    query += `(\`user\`.\`id\` IN (${global.clients.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
+    variables.push(...global.clients.map(user => user.userId))
+  }
+
+  if (Object.hasOwn(searchParameters, 'withWebcam')) {
+    let filteredUsers = global.clients.filter((user) => user.features & 0x100)
+    query += `(\`user\`.\`id\` IN (${filteredUsers.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
+    variables.push(...filteredUsers.map(user => user.userId))
   }
 
   query = query.substring(0, query.length - 5)
@@ -236,6 +243,8 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
+
+  console.log(query)
 
   pool.releaseConnection(connection)
   return results
@@ -583,7 +592,7 @@ async function getContact (
       '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
       '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
       '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-      '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
+      '`user`.`public_status` as `public_status`, 0 as `requester_is_adder`, ' +
       '1 as `requester_is_contact` FROM `contact` ' +
       'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
       'WHERE `contact`.`adder_user_id` = ? AND ' +
@@ -601,7 +610,7 @@ async function getContact (
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, 1 as `requester_is_adder`, ' +
+        '`user`.`public_status` as `public_status`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
         'WHERE `contact`.`adder_user_id` = ? AND ' +
@@ -746,6 +755,8 @@ async function deleteContact (adderUserId, contactLogin, contactDomain) {
 
 /**
  * Редактировать статус пользователя
+ * 
+ * @deprecated Больше не используется в коде, и, вероятно всего, сломан
  *
  * @param {number} userId ID пользователя
  * @param {number} status Статус пользователя

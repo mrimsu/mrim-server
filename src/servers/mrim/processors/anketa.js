@@ -28,7 +28,8 @@ const MrimSearchRequestFields = {
   BIRTHDAY_MONTH: 13,
   BIRTHDAY_DAY: 14,
   COUNTRY_ID: 15,
-  ONLINE: 9
+  ONLINE: 9,
+  WEBCAM: 17
 }
 
 const AnketaInfoStatus = {
@@ -133,6 +134,9 @@ async function processSearch (
       case MrimSearchRequestFields.ONLINE:
         searchParameters.onlyOnline = true
         break
+      case MrimSearchRequestFields.WEBCAM:
+        searchParameters.withWebcam = true
+        break
     }
   }
 
@@ -212,19 +216,40 @@ async function processSearch (
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
 
-      if (key === 'mrim_status') {
-        value = new Iconv('UTF-8', 'CP1251').convert('3')
+      let connectedUser = global.clients.filter((u) => u.userId == user.id)[0]
+
+      switch (key) {
+        case 'mrim_status':
+          value = new Iconv('UTF-8', 'CP1251').convert('3')
+          break;
+        case 'birthday':
+          const birthday = user.birthday
+            ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
+            : ''
+          value = new Iconv('UTF-8', 'CP1251').convert(birthday)
+          break;
+        case 'zodiac':
+          value = new Iconv('UTF-8', 'CP1251').convert(`${getZodiacId(user.birthday)}`)
+          break;
       }
 
-      if (key === 'birthday') {
-        const birthday = user.birthday
-          ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
-          : ''
-        value = new Iconv('UTF-8', 'CP1251').convert(birthday)
-      }
-
-      if (key === 'zodiac') {
-        value = new Iconv('UTF-8', 'CP1251').convert(`${getZodiacId(user.birthday)}`)
+      if (connectedUser && user.public_status == 1) {
+        switch (key) {
+          case 'mrim_status':
+            value = new Iconv('UTF-8', 'CP1251').convert(`${connectedUser?.status}`)
+            break;
+          case 'status_uri':
+            value = new Iconv('UTF-8', 'CP1251').convert(`${connectedUser?.xstatus?.type}`)
+            break;
+          case 'status_title':
+            value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.title}`)
+            break;
+          case 'status_desc':
+            value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.description}`)
+            break;
+        }
+      } else if (key == 'mrim_status' && user.public_status == 1 && !connectedUser) {
+        value = new Iconv('UTF-8', 'CP1251').convert(`0`)
       }
 
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)
