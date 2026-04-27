@@ -231,7 +231,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   }
 
   if (Object.hasOwn(searchParameters, 'withWebcam')) {
-    let filteredUsers = global.clients.filter((user) => user.features & 0x100)
+    let filteredUsers = global.clients.filter((user) => user.features & 0x400)
     query += `(\`user\`.\`id\` IN (${filteredUsers.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
     variables.push(...filteredUsers.map(user => user.userId))
   }

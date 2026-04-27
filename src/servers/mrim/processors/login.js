@@ -341,7 +341,8 @@ async function processLoginThree (
     state.protocolVersionMajor = containerHeader.protocolVersionMajor
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
     state.connectionId = connectionId
-    state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
+    state.userAgent = loginData.modernUserAgent
+    state.oldUserAgent = loginData.userAgent
     state.protocolVersionMinor = containerHeader.protocolVersionMinor
 
     // статус нам не передают, поэтому ставим дефолт
@@ -351,7 +352,7 @@ async function processLoginThree (
       description: ''
     }
 
-    state.features = 0x03FF
+    state.features = loginData.features
 
     // не проверяем, см. комментарий выше
     state.utf16capable = true
