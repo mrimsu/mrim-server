@@ -122,7 +122,7 @@ async function processLegacyLogin (
     )
   ])
 
-  const searchResults = await searchUsers(0, { login: state.username })
+  const searchResults = await searchUsers(0, { login: state.username }, true)
 
   const userInfo = await _makeUserInfoPacket(containerHeader, logger, connectionId, state, searchResults[0])
   _checkForFilledEmail(containerHeader, logger, connectionId, state, searchResults[0].real_email)

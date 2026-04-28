@@ -157,7 +157,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   if (!searchMyself) {
     query += '`user`.`id` != ? AND '
     variables.push(userId)
-  } else {
+  } else if (config.mrim.realEmailRequired === true) {
     query += '`user`.`activated` = 1 AND '
   }
 
@@ -210,22 +210,34 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
     variables.push(searchParameters.maximumAge)
   }
 
-  if (Object.hasOwn(searchParameters, 'zodiac') && !Number.isNaN(Number(searchParameters.zodiac))) {
+  if (
+    Object.hasOwn(searchParameters, 'zodiac') && 
+    !Number.isNaN(Number(searchParameters.zodiac))
+  ) {
     query += '`user`.`zodiac` = ? AND '
     variables.push(Number(searchParameters.zodiac))
   }
 
-  if (Object.hasOwn(searchParameters, 'birthmonth') && !Number.isNaN(Number(searchParameters.birthmonth))) {
+  if (
+    Object.hasOwn(searchParameters, 'birthmonth') && 
+    !Number.isNaN(Number(searchParameters.birthmonth))
+  ) {
     query += 'MONTH(`user`.`birthday`) = ? AND '
     variables.push(Number(searchParameters.birthmonth))
   }
 
-  if (Object.hasOwn(searchParameters, 'birthday') && !Number.isNaN(Number(searchParameters.birthday))) {
+  if (
+    Object.hasOwn(searchParameters, 'birthday') && 
+    !Number.isNaN(Number(searchParameters.birthday))
+  ) {
     query += 'DAY(`user`.`birthday`) = ? AND '
     variables.push(Number(searchParameters.birthday))
   }
 
-  if (Object.hasOwn(searchParameters, 'onlyOnline') && !Object.hasOwn(searchParameters, 'withWebcam')) {
+  if (
+    Object.hasOwn(searchParameters, 'onlyOnline') && 
+    !Object.hasOwn(searchParameters, 'withWebcam')
+  ) {
     query += `(\`user\`.\`id\` IN (${global.clients.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
     variables.push(...global.clients.map(user => user.userId))
   }
@@ -243,8 +255,6 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
-
-  console.log(query)
 
   pool.releaseConnection(connection)
   return results
