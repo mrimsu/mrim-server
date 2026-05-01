@@ -1,5 +1,5 @@
 /**
- * @file Главный скрипт сервера образов
+ * @file Главный скрипт сервера сервисов
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
@@ -10,6 +10,7 @@ const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
 const { query } = require('winston')
 const { generateXMLResponse } = require('./weather')
+const { ServerConstructor } = require('../../constructors/server')
 
 const ALLOWED_METHODS = ['GET', 'HEAD']
 const STATUS_CODES = {
@@ -20,12 +21,17 @@ const STATUS_CODES = {
   500: 'Internal Server Error'
 }
 
-const server = createServer(connectionListener)
+function obrazServer (options) {
+  return new ServerConstructor({
+    logger: options.logger,
+    onConnection: connectionListener
+  }).finish()
+}
 
 /**
  * @param {Socket} socket Сокет подключения
  */
-function connectionListener (socket) {
+function connectionListener (socket, connectionId, logger, variables) {
   socket.on('data', parse)
 
   /**
@@ -84,9 +90,7 @@ function connectionListener (socket) {
     try {
       return socket.end(responseMessage)
     } catch (e) {
-      console.log(
-        `[obraz] internal error, stack: ${e.stack}`
-      )
+      logger.error(`[${connectionId}] [obraz] internal error, stack: ${e.stack}`)
     }
   }
 
@@ -115,19 +119,19 @@ function connectionListener (socket) {
         });
       }
 
-      console.log(
-          `[obraz] dbg ${pathname}`
-      )
+      logger.debug(`[${connectionId}] [obraz] user visited uri ${uripath}`)
 
       /* special inform handlers */
       if (uripath === '/popup.html' || uripath === 'popup.html') {
         return respond(version, 200, '<html><body>hello stranger</body></html>')
       }
 
+      /* weather */
       if (uripath === "inf/magent_main.xml") {
         if (queryValues['city'] !== undefined) {
           const xmlResponse = await generateXMLResponse(queryValues['city'])
           if (xmlResponse !== null) {
+            logger.debug(`[${connectionId}] [obraz] someone got weather for cityid ${queryValues['city']}`)
             return respond(version, 200, xmlResponse)
           } else {
             return respond(version, 500, 'Internal Server Error')
@@ -144,9 +148,7 @@ function connectionListener (socket) {
       // processing pfp by default
 
     } catch (e) {
-      console.log(
-        `[obraz] internal error, stack: ${e.stack}`
-      )
+      logger.error(`[${connectionId}] [obraz] internal error, stack: ${e.stack}`)
     }
   }
 
@@ -176,10 +178,6 @@ function connectionListener (socket) {
       })
     }
 
-    console.log(
-        `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
-    )
-
     if (avatarPath === undefined) {
       return respond(version, 404, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
@@ -196,12 +194,10 @@ function connectionListener (socket) {
         Expires: new Date(Date.now() + 604_800_000).toUTCString()
       })
     } catch (e) {
-      console.log(
-        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
-      )
+      logger.error(`[${connectionId}] [obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`)
       return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
   }
 }
 
-module.exports = server
+module.exports = obrazServer
