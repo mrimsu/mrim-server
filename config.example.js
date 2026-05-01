@@ -41,7 +41,8 @@ const obraz = {
   serverPort: 8081,
   serverHostname: '0.0.0.0',
   cdnPath: '', // путь на сервере до аватарок
-  openWeatherMapApiKey: 'diugjqoiuegjroiugjqoefgjqeoigfjqieo'
+  openWeatherMapApiKey: 'diugjqoiuegjroiugjqoefgjqeoigfjqieo',
+  mobilePromoRedirect: 'http://hpc.ru/'
 }
 
 // Настройки REST API

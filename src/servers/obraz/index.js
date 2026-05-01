@@ -119,11 +119,16 @@ function connectionListener (socket, connectionId, logger, variables) {
         });
       }
 
-      logger.debug(`[${connectionId}] [obraz] user visited uri ${uripath}`)
+      logger.debug(`[${connectionId}] [obraz] user visited uri ${pathname}`)
 
-      /* special inform handlers */
-      if (uripath === '/popup.html' || uripath === 'popup.html') {
-        return respond(version, 200, '<html><body>hello stranger</body></html>')
+      /* mobile app promo */
+      if (uripath.endsWith('/popup.html')) {
+        let promoHtml = `<meta http-equiv="refresh" content="0; URL=${config.obraz.mobilePromoRedirect}" />`
+        if (config.obraz.mobilePromoRedirect === undefined) {
+          // fallback
+          promoHtml = `<meta charset="utf-8">Похоже, админ не настроил редирект при триггере рекламы мобильного приложения. Сообщите ему об этой оплошности :)` 
+        }
+        return respond(version, 200, promoHtml)
       }
 
       /* weather */
@@ -139,13 +144,28 @@ function connectionListener (socket, connectionId, logger, variables) {
         }
       }
 
+      /* sip */
+      if (uripath === "cgi-bin/agentbalance") {
+        return respond(version, 200, `<?xml version="1.0" encoding="UTF-8" ?>
+          <BalanceResponse>
+          <ResponseHeader>
+          <VERSION>1</VERSION>
+          </ResponseHeader>
+          <Body>
+          <SipId>1337</SipId>
+          <Currency>Spamton</Currency>
+          <Balance>0</Balance>
+          </Body>
+          </BalanceResponse>
+          `, { 'Content-Type': 'text/xml'})
+      }
+
+      // processing pfp by default
       if (uripath.split('/').length !== 3) {
         return respond(version, 404, 'Not Found')
       } else {
         return await processObraz({method, uripath, version})
       }
-
-      // processing pfp by default
 
     } catch (e) {
       logger.error(`[${connectionId}] [obraz] internal error, stack: ${e.stack}`)
