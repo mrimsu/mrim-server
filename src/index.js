@@ -101,7 +101,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `avatars (obraz) server started -> address: ${address}, port: ${port}`
+          `avatars & services (obraz) server started -> address: ${address}, port: ${port}`
         )
       }
     )
