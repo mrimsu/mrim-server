@@ -13,6 +13,16 @@
     "name": "mikhail \"synzr\"",
     "url": "https://github.com/synzr"
   },
+  "contributors": [
+    {
+      "name": "Vladimir \"veselcraft\" Barinov",
+      "url": "https://github.com/veselcraft"
+    },
+    {
+      "name": "Neru Asano",
+      "url": "https://github.com/minako9667"
+    }
+  ],
   "devDependencies": {
     "nodemon": "^3.1.4",
     "standard": "^17.1.0"
