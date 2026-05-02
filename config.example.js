@@ -40,7 +40,9 @@ const obraz = {
   customHost: 'localhost:8081', // опционально
   serverPort: 8081,
   serverHostname: '0.0.0.0',
-  cdnPath: '' // путь на сервере до аватарок
+  cdnPath: '', // путь на сервере до аватарок
+  openWeatherMapApiKey: 'diugjqoiuegjroiugjqoefgjqeoigfjqieo',
+  mobilePromoRedirect: 'http://hpc.ru/'
 }
 
 // Настройки REST API
