@@ -62,12 +62,14 @@ RESTserver.get('/users/status', async (req, res) => {
     if (!client || client.status === 0x80000001) { // if invisible
       return res.status(200).json({
         username: user,
-        status: 0
+        status: 0,
+        xstatus: {}
       })
     } else {
       res.status(200).json({
         username: user,
-        status: client.status
+        status: client.status,
+        xstatus: client.xstatus
       })
     }
   } else {
@@ -90,7 +92,7 @@ RESTserver.post('/users/announce', (req, res) => {
 
     const messagePacket = MrimServerMessageData.writer({
       id: Math.random() * 0xFFFFFFFF,
-      flags: 0x00000040, // system message
+      flags: 0x00000000, // system message
       addresser: `${adminProfile.username}@${adminProfile.domain}`,
       message,
       messageRTF: ''
@@ -113,6 +115,55 @@ RESTserver.post('/users/announce', (req, res) => {
   }
 
   res.json({ status: 'ok', users: global.clients.length })
+})
+
+RESTserver.post('/users/sendMsg', (req, res) => {
+  if (!adminProfile.enabled) {
+    return res.status(400).json({ error: 'Admin profile is not enabled and/or configured' })
+  }
+
+  const message = req.body.message
+  if (!message) {
+    return res.status(400).json({ error: 'Message body parameter is required' })
+  }
+
+  const user = req.body.user
+  if (!user) {
+    return res.status(400).json({ error: 'User parameter is required' })
+  }
+  
+  const addresserClient = global.clients.find(
+    ({ username, domain }) => username === req.body.user.split('@')[0] &&
+                              domain === req.body.user.split('@')[1]
+  )
+  if (!addresserClient) {
+    return res.status(400).json({ error: 'User is offline' })
+  }
+
+  const messagePacket = MrimServerMessageData.writer({
+    id: Math.random() * 0xFFFFFFFF,
+    flags: 0x00000000, // system message
+    addresser: `${adminProfile.username}@${adminProfile.domain}`,
+    message,
+    messageRTF: ''
+  }, addresserClient.utf16capable)
+
+  const buffer = new BinaryConstructor()
+    .subbuffer(
+      MrimContainerHeader.writer({
+        protocolVersionMajor: addresserClient.protocolVersionMajor,
+        protocolVersionMinor: addresserClient.protocolVersionMinor,
+        packetOrder: Math.random() * 0xFFFFFFFF,
+        packetCommand: MrimMessageCommands.MESSAGE_ACK,
+        dataSize: messagePacket.length
+      }, addresserClient.utf16capable)
+    )
+    .subbuffer(messagePacket)
+    .finish()
+
+  addresserClient.socket.write(buffer)
+
+  res.json({ status: 'ok' })
 })
 
 RESTserver.post('/users/sendMailToAll', (req, res) => {
