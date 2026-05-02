@@ -24,6 +24,7 @@ const config = require('../../../config')
 
 const fs = require('fs')
 const tls = require('tls')
+const net = require('node:net')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
@@ -45,9 +46,25 @@ function onData (socket, connectionId, logger, state, variables) {
       try {
         header = MrimContainerHeader.reader(data)
       } catch {
-        logger.info(`[${connectionId}] sent incorrect data and got fucked (disconnected)`)
-        socket.destroySoon()
-        return
+        if (config.obraz.enabled === true && config.mrim.serverPort === 2041) {
+          // костыль для десктопных агентов
+          if (['GET ', 'HEAD'].includes(data.toString('utf8', 0, 4))) {
+            logger.debug(`[${connectionId}] sent incorrect data and got redirected to obraz`)
+            socket.removeAllListeners('data')
+            const obrazClient = net.createConnection(config.obraz?.serverPort)
+            obrazClient.write(data)
+            obrazClient.pipe(socket)
+            return
+          } else {
+            logger.info(`[${connectionId}] sent incorrect data and got fucked (disconnected)`)
+            socket.destroySoon()
+            return
+          }
+        } else {
+          logger.info(`[${connectionId}] sent incorrect data and got fucked (disconnected)`)
+          socket.destroySoon()
+          return
+        }
       }
 
       if (header.packetCommand !== MrimMessageCommands.PING && header.packetCommand !== MrimMessageCommands.MPOP_SESSION) {
