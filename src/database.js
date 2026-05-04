@@ -164,6 +164,8 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   if (Object.hasOwn(searchParameters, 'login')) {
     query += '`user`.`login` = ? AND '
     variables.push(`${searchParameters.login}`)
+  } else {
+	query += '`user`.`searchable` = 1 AND '
   }
 
   if (Object.hasOwn(searchParameters, 'domain')) {
