@@ -3,7 +3,7 @@ const { MrimMessageCommands } = require('./mrim/globals')
 const { MrimNewEmail } = require('../messages/mrim/email')
 const { MrimServerMessageData } = require('../messages/mrim/messaging')
 const { MrimContainerHeader } = require('../messages/mrim/container')
-const { checkUser, registerUser, createNewGroup } = require('../database')
+const { checkUser, registerUser, createNewGroup, modifyUser } = require('../database')
 
 const { adminProfile } = require('../../config')
 
@@ -230,7 +230,7 @@ RESTserver.put('/users/register', async (req, res) => {
     const regexResult = re.exec(birthday)
 
     if (parseInt(regexResult[2]) > 12) {
-      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid' })
+      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid. Correct format is YYYY-MM-DD' })
     }
   }
 
@@ -257,6 +257,35 @@ RESTserver.put('/users/register', async (req, res) => {
   await createNewGroup(userId, 'Коллеги')
 
   res.json({ status: 'ok' })
+})
+
+RESTserver.put('/users/modify', async (req, res) => {
+  if (!req.body.userId) {
+    return res.status(400).json({ error: 'Required fields: userId. Possible fields: login, passwd, domain, nick, f_name, l_name, location, birthday, sex, public_status, activated' })
+  }
+
+  if (req.body.sex) {
+    if (2 && 1 in Integer.parse(req.body.sex)) {
+      return res.status(400).json({ error: 'Field "sex" is incorrect: must be 0 or 1' })
+    }
+  }
+
+  if (req.body.birthday) {
+    const re = new RegExp(/([0-9]{4})\-([0-9]{2})\-([0-9]{2})/g, 'i')
+    const regexResult = re.exec(req.body.birthday)
+
+    if (parseInt(regexResult[2]) > 12) {
+      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid. Correct format is YYYY-MM-DD' })
+    }
+  }
+
+  try {
+    await modifyUser(req.body)
+  } catch (error) {
+    return res.status(500).json({error: 'Server error. User might not exist', trace: error.message})
+  }
+  
+  return res.json({ status: 'ok' })
 })
 
 module.exports = RESTserver

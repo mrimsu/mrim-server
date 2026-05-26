@@ -1090,6 +1090,89 @@ async function getTelegramIdByVirtualNumber (virtualNumber) {
     : null
 }
 
+/**
+ * Изменение пользователя
+ *
+ * @param {Object} userData Параметры
+ */
+async function modifyUser (userData) {
+  const connection = await pool.getConnection()
+  let query = 'UPDATE `user` SET '
+  const variables = []
+
+  let userId = userData.userId;
+
+  if (Object.hasOwn(userData, 'login')) {
+    query += '`user`.`login` = ?, '
+    variables.push(`${userData.login}`)
+  }
+
+  if (Object.hasOwn(userData, 'passwd')) {
+    query += '`user`.`passwd` = ?, '
+    variables.push(`${crypto.createHash('md5').update(userData.passwd).digest('hex').toLowerCase()}`)
+  }
+
+  if (Object.hasOwn(userData, 'domain')) {
+    query += '`user`.`domain` = ?, '
+    variables.push(`${userData.domain}`)
+  }
+
+  if (Object.hasOwn(userData, 'nick')) {
+    query += '`user`.`nick` = ?, '
+    variables.push(`${userData.nick}`)
+  }
+
+  if (Object.hasOwn(userData, 'f_name')) {
+    query += '`user`.`f_name` = ?, '
+    variables.push(`${userData.f_name}`)
+  }
+
+  if (Object.hasOwn(userData, 'l_name')) {
+    query += '`user`.`l_name` = ?, '
+    variables.push(`${userData.l_name}`)
+  }
+
+  if (Object.hasOwn(userData, 'location')) {
+    query += '`user`.`location` = ?, '
+    variables.push(`${userData.location}`)
+  }
+
+  if (Object.hasOwn(userData, 'birthday')) {
+    query += '`user`.`birthday` = ?, '
+    variables.push(`${userData.birthday}`)
+  }
+
+  if (Object.hasOwn(userData, 'sex')) {
+    query += '`user`.`sex` = ?, '
+    variables.push(Number(userData.sex))
+  }
+
+  if (Object.hasOwn(userData, 'avatar')) {
+    query += '`user`.`avatar` = ?, '
+    variables.push(`${userData.avatar}`)
+  }
+
+  if (Object.hasOwn(userData, 'public_status')) {
+    query += '`user`.`public_status` = ?, '
+    variables.push(Number(userData.public_status))
+  }
+
+  if (Object.hasOwn(userData, 'activated')) {
+    query += '`user`.`activated` = ?, '
+    variables.push(Number(userData.activated))
+  }
+
+  query = query.substring(0, query.length - 2)
+
+  query += ' WHERE `user`.`id` = ?'
+  variables.push(Number(userId))
+
+  // eslint-disable-next-line no-unused-vars
+  await connection.query(query, variables)
+
+  pool.releaseConnection(connection)
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -1117,5 +1200,6 @@ module.exports = {
   getMicroblogSettings,
   insertNewMicroblog,
   getLastMicroblog,
-  getTelegramIdByVirtualNumber
+  getTelegramIdByVirtualNumber,
+  modifyUser
 }
