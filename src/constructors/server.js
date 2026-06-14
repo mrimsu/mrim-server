@@ -72,6 +72,7 @@ class ServerConstructor {
 
         if (result.end === true) {
           socket.end(result.reply)
+          socket.destroy()
         } else {
           socket.write(result.reply)
         }
@@ -105,6 +106,7 @@ class ServerConstructor {
 
         if (error.end === true) {
           socket.end(error.reply)
+          socket.destroy()
         } else {
           socket.write(error.reply)
         }

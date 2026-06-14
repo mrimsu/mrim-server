@@ -2,38 +2,28 @@
  * @file Реализация обработчика подключения к серверу
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const { MrimMessageCommands } = require('./globals')
 const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
-const {
-  processHello,
-  processLegacyLogin,
-  processLogin,
-  processLoginThree,
-  processContactListRequest,
-  processMessage,
-  processDeleteOfflineMsg,
-  processSearch,
-  processAddContact,
-  processModifyContact,
-  processAuthorizeContact,
-  processChangeStatus,
-  processGame,
-  processFileTransfer,
-  processFileTransferAnswer,
-  processCall,
-  processCallAnswer,
-  processProxy,
-  processProxyHello,
-  processNewMicroblog
-} = require('./processors')
+
+// Processors
+const { processHello } = require('./processors/hello')
+const { processLegacyLogin, processLogin, processLoginThree } = require('./processors/login')
+const { processContactListRequest, processAddContact, processModifyContact, processAuthorizeContact } = require('./processors/contacts')
+const { processMessage, processDeleteOfflineMsg } = require('./processors/messages')
+const { processSearch } = require('./processors/anketa')
+const { processChangeStatus, processNewMicroblog } = require('./processors/status')
+const { processGame, processFileTransfer, processFileTransferAnswer, processCall, processCallAnswer } = require('./processors/p2p')
+const { processProxy, processProxyHello } = require('./processors/proxy')
+const { processSms } = require('./processors/sms')
 
 const config = require('../../../config')
 
-const fs = require('fs');
-const tls = require('tls');
+const fs = require('fs')
+const tls = require('tls')
 
 const MRIM_HEADER_CONTAINER_SIZE = 0x2c
 
@@ -55,13 +45,15 @@ function onData (socket, connectionId, logger, state, variables) {
       try {
         header = MrimContainerHeader.reader(data)
       } catch {
-        return socket.end()
+        logger.info(`[${connectionId}] sent incorrect data and got fucked (disconnected)`)
+        socket.destroySoon()
+        return
       }
 
       if (header.packetCommand !== MrimMessageCommands.PING && header.packetCommand !== MrimMessageCommands.MPOP_SESSION) {
         logger.debug(
           `[${connectionId}] user: ${state.username ?? '@!unknown!@'}, proto ver: ${header.protocolVersionMajor}.${header.protocolVersionMinor}, ` +
-          `command: ${header.packetCommand} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` +
+          `command: 0x${header.packetCommand.toString(16)} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` +
           `data.length: ${header.dataSize}, hex: ${data.toString('hex')}`
         )
       }
@@ -153,13 +145,13 @@ function onData (socket, connectionId, logger, state, variables) {
 }
 
 function onClose (socket, connectionId, logger, state, variables) {
-  return async () => {
+  return async (error) => {
     try {
       if (global.clients.length > 0) {
         disconnectClient(connectionId, logger, state)
-        logger.debug(
-          `[${connectionId}] !!! connection closed for ${state.username}`
-        )
+        socket.destroy()
+        logger.info(`[${connectionId}] ${state.username ?? 'unknown user'} disconnected`)
+        logger.info(`[${connectionId}] !!! why: ${error?.message ?? 'disconnected'}`)
       }
     } catch (e) {
       logger.debug(`[${connectionId}] seems like the client did harakiri: ${e.message} ${e.stack}`)
@@ -172,15 +164,15 @@ async function disconnectClient (connectionId, logger, state) {
     ({ connectionId }) => connectionId === state.connectionId
   )
 
+  if (clientIndex < 0) return
+
+  global.clients.splice(clientIndex, 1)
+
   const sameUserSessionsCount = global.clients.filter(
     ({ username, domain }) => username === state.username && domain === state.domain
   ).length
 
-  const connectedUser = global.clients.find(
-    ({ username, domain }) => username === state.username && domain === state.domain
-  )
-
-  if (clientIndex >= 0 && sameUserSessionsCount <= 1 && connectedUser.connectionId == connectionId) {
+  if (sameUserSessionsCount === 0) {
     await processChangeStatus(
       {
         protocolVersionMajor: state.protocolVersionMajor,
@@ -199,8 +191,6 @@ async function disconnectClient (connectionId, logger, state) {
       state,
       null
     )
-
-    global.clients.splice(clientIndex, 1)
   }
 
   clearTimeout(timeoutTimer[connectionId])
@@ -212,10 +202,10 @@ async function initSSL (socket, connectionId, logger, state, variables) {
 
   const secureContext = tls.createSecureContext({
     key: fs.readFileSync(config?.mrim?.ssl?.keyPath),
-    cert: fs.readFileSync(config?.mrim?.ssl?.certPath),
-  });
+    cert: fs.readFileSync(config?.mrim?.ssl?.certPath)
+  })
 
-  const secureSocket = new tls.TLSSocket(socket, { isServer: true, secureContext });
+  const secureSocket = new tls.TLSSocket(socket, { isServer: true, secureContext })
 
   const newState = { userId: null, username: null, status: null, socket: secureSocket, ssl: true }
   secureSocket.on('data', onData(secureSocket, connectionId, logger, newState, variables))
@@ -270,26 +260,26 @@ async function processPacket (
         logger.debug(`[${connectionId}] client requested secure conn, but SSL is disabled in config. we'll keep him without a condom`)
         return {
           reply: new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.FAILURE,
-              dataSize: 0
-            })
-          )
-          .finish()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetCommand: MrimMessageCommands.FAILURE,
+                dataSize: 0
+              })
+            )
+            .finish()
         }
       } else {
         state.socket.write(
           new BinaryConstructor()
-          .subbuffer(
-            MrimContainerHeader.writer({
-              ...containerHeader,
-              packetCommand: MrimMessageCommands.OK,
-              dataSize: 0
-            })
-          )
-          .finish()
+            .subbuffer(
+              MrimContainerHeader.writer({
+                ...containerHeader,
+                packetCommand: MrimMessageCommands.OK,
+                dataSize: 0
+              })
+            )
+            .finish()
         )
         initSSL(state.socket, connectionId, logger, state, variables)
       }
@@ -299,14 +289,14 @@ async function processPacket (
       // we'll say that there's some internal error sorry
       return {
         reply: new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: MrimMessageCommands.FAILURE,
-            dataSize: 0
-          })
-        )
-        .finish()
+          .subbuffer(
+            MrimContainerHeader.writer({
+              ...containerHeader,
+              packetCommand: MrimMessageCommands.FAILURE,
+              dataSize: 0
+            })
+          )
+          .finish()
       }
     case MrimMessageCommands.CONTACT_LIST:
       return processContactListRequest(
@@ -319,6 +309,24 @@ async function processPacket (
       )
     case MrimMessageCommands.MESSAGE:
       return processMessage(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.SMS:
+      return processSms(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.SMS_ACK:
+      return processSms(
         containerHeader,
         packetData,
         connectionId,
@@ -475,9 +483,7 @@ async function processPacket (
         const PING_TIMER = (config?.mrim?.pingTimer ?? 10) * 1000
         timeoutTimer[connectionId] = setTimeout((connectionId, state, logger) => {
           logger.debug(`[${connectionId}] user ${state.username} timed out (MRIM_CS_PING)`)
-          state.socket.end()
-          state.socket.destroy()
-          state.socket.unref()
+          state.socket.destroySoon()
           disconnectClient(connectionId, logger, state)
         }, PING_TIMER + 10000, connectionId, state, logger)
         timeoutTimer[connectionId].unref()

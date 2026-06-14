@@ -20,7 +20,7 @@ const MrimProxyRequest = new MessageConstructor()
   .field('session_id_low_second', FieldDataType.UINT32)
   .field('files_unicode', FieldDataType.UNICODE_STRING)
   .finish()
-  
+
 const MrimProxyAck = new MessageConstructor()
   .field('status', FieldDataType.UINT32)
   .field('contact', FieldDataType.UBIART_LIKE_STRING)

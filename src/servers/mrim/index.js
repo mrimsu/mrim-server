@@ -11,6 +11,9 @@ global.clients = []
 global.proxies = []
 global.proxiesTimeout = []
 
+// cache
+global.__weatherTmp = []
+
 function createMrimServer (options) {
   return new ServerConstructor({
     logger: options.logger,

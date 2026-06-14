@@ -80,7 +80,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, ' +
+        '`user`.`public_status` as `public_status`, ' +
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
@@ -102,7 +102,7 @@ async function getContactsFromGroups (userId) {
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, '+ 
+        '`user`.`public_status` as `public_status`, ' +
         '`microblog`.`message` as `microblog_text`, `microblog`.`id` as `microblog_id`, ' +
         '`microblog`.`date` as `microblog_date`, 0 as `requester_is_adder`, ' +
         '1 as `requester_is_contact` FROM `contact` ' +
@@ -127,7 +127,7 @@ async function getContactsFromGroups (userId) {
   //   is_auth_success,
   //   user_nickname,
   //   user_login,
-  //   user_status,
+  //   public_status,
   //   requester_is_adder,
   //   requester_is_contact,
   // }]
@@ -153,21 +153,25 @@ async function getConferences (userId) {
  *
  * @param {number} userId ID пользователя
  * @param {Object} searchParameters Параметры поиска
- *
+ * @param {boolean} searchMyself Искать ли самого себя
+ * @param {number} limit Сколько записей достать
+ * @param {number} offset С какого места начинать
  * @returns {Promise<Array>} Массив поиска
  */
-async function searchUsers (userId, searchParameters, searchMyself = false) {
+async function searchUsers (userId, searchParameters, searchMyself = false, limit = 50, offset = 0) {
   const connection = await pool.getConnection()
   let query =
-    'SELECT `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
-    '`user`.`birthday`, `user`.`zodiac`, `user`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated` ' +
-    'FROM `user` WHERE '
+    'SELECT `user`.`id`, `user`.`login`, `user`.`domain`, `user`.`nick`, `user`.`f_name`, `user`.`l_name`, `user`.`location`, ' +
+    '`user`.`birthday`, `user`.`zodiac`, `virtual_numbers`.`phone`, `user`.`sex`, `user`.`real_email`, `user`.`activated`, `user`.`public_status` ' +
+    'FROM `user` ' +
+    'LEFT JOIN `virtual_numbers` ON `user`.`id` = `virtual_numbers`.`user_id` ' +
+    'WHERE '
   const variables = []
 
   if (!searchMyself) {
     query += '`user`.`id` != ? AND '
     variables.push(userId)
-  } else {
+  } else if (config.mrim.realEmailRequired === true) {
     query += '`user`.`activated` = 1 AND '
   }
 
@@ -220,27 +224,48 @@ async function searchUsers (userId, searchParameters, searchMyself = false) {
     variables.push(searchParameters.maximumAge)
   }
 
-  if (Object.hasOwn(searchParameters, 'zodiac') && !Number.isNaN(Number(searchParameters.zodiac))) {
+  if (
+    Object.hasOwn(searchParameters, 'zodiac') && 
+    !Number.isNaN(Number(searchParameters.zodiac))
+  ) {
     query += '`user`.`zodiac` = ? AND '
     variables.push(Number(searchParameters.zodiac))
   }
 
-  if (Object.hasOwn(searchParameters, 'birthmonth') && !Number.isNaN(Number(searchParameters.birthmonth))) {
+  if (
+    Object.hasOwn(searchParameters, 'birthmonth') && 
+    !Number.isNaN(Number(searchParameters.birthmonth))
+  ) {
     query += 'MONTH(`user`.`birthday`) = ? AND '
     variables.push(Number(searchParameters.birthmonth))
   }
 
-  if (Object.hasOwn(searchParameters, 'birthday') && !Number.isNaN(Number(searchParameters.birthday))) {
+  if (
+    Object.hasOwn(searchParameters, 'birthday') && 
+    !Number.isNaN(Number(searchParameters.birthday))
+  ) {
     query += 'DAY(`user`.`birthday`) = ? AND '
     variables.push(Number(searchParameters.birthday))
   }
 
-  if (Object.hasOwn(searchParameters, 'onlyOnline')) {
-    query += '`user`.`status` = 1 AND ' // 1 = STATUS_ONLINE
+  if (
+    Object.hasOwn(searchParameters, 'onlyOnline') && 
+    !Object.hasOwn(searchParameters, 'withWebcam')
+  ) {
+    query += `(\`user\`.\`id\` IN (${global.clients.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
+    variables.push(...global.clients.map(user => user.userId))
   }
 
-  // TODO mikhail КОСТЫЛЬ КОСТЫЛЬ КОСТЫЛЬ
-  query = query.substring(0, query.length - 4) + 'LIMIT 50'
+  if (Object.hasOwn(searchParameters, 'withWebcam')) {
+    let filteredUsers = global.clients.filter((user) => user.features & 0x400)
+    query += `(\`user\`.\`id\` IN (${filteredUsers.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
+    variables.push(...filteredUsers.map(user => user.userId))
+  }
+
+  query = query.substring(0, query.length - 5)
+
+  query += ' LIMIT ? OFFSET ?'
+  variables.push(Number(limit), Number(offset))
 
   // eslint-disable-next-line no-unused-vars
   const [results, _fields] = await connection.query(query, variables)
@@ -368,8 +393,8 @@ async function createOrCompleteContact (
 
     let authQuery = ''
 
-    if (existingContactResult[0].is_auth_success === 0 && 
-        existingContactResult[0].adder_user_id === contactUserId && 
+    if (existingContactResult[0].is_auth_success === 0 &&
+        existingContactResult[0].adder_user_id === contactUserId &&
         existingContactResult[0].contact_user_id === requesterUserId) {
       authQuery = ', `contact`.`is_auth_success` = 1'
     }
@@ -399,8 +424,8 @@ async function createOrCompleteContact (
 
       let authQuery = ''
 
-      if (existingContactResult[0].is_auth_success === 0 && 
-          existingContactResult[0].adder_user_id === requesterUserId && 
+      if (existingContactResult[0].is_auth_success === 0 &&
+          existingContactResult[0].adder_user_id === requesterUserId &&
           existingContactResult[0].contact_user_id === contactUserId) {
         authQuery = ', `contact`.`is_auth_success` = 1'
       }
@@ -576,13 +601,12 @@ async function getContact (
   const connection = await pool.getConnection()
 
   const contactUserResult = await connection.query(
-      'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
-      [contactUserLogin, contactDomain]
-    )
+    'SELECT `user`.`id` FROM `user` WHERE `user`.`login` = ? AND `user`.`domain` = ?',
+    [contactUserLogin, contactDomain]
+  )
 
   const [{ id: contactUserId }] = contactUserResult[0]
 
-  
   // eslint-disable-next-line no-unused-vars
   let [existingContactResult, _existingContactFields] =
     await connection.query(
@@ -592,14 +616,14 @@ async function getContact (
       '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
       '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
       '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-      '`user`.`status` as `user_status`, 0 as `requester_is_adder`, ' +
+      '`user`.`public_status` as `public_status`, 0 as `requester_is_adder`, ' +
       '1 as `requester_is_contact` FROM `contact` ' +
       'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
       'WHERE `contact`.`adder_user_id` = ? AND ' +
       '`contact`.`contact_user_id` = ?',
       [contactUserId, requesterUserId]
     )
-  
+
   if (existingContactResult.length === 0) {
     // попробуем наоборот
     [existingContactResult, _existingContactFields] =
@@ -610,7 +634,7 @@ async function getContact (
         '`contact`.`contact_group_id`, `contact`.`adder_group_id`, ' +
         '`user`.`id` as `user_id`, `user`.`domain` as `user_domain`, ' +
         '`user`.`nick` as `user_nickname`, `user`.`login` as `user_login`, ' +
-        '`user`.`status` as `user_status`, 1 as `requester_is_adder`, ' +
+        '`user`.`public_status` as `public_status`, 1 as `requester_is_adder`, ' +
         '0 as `requester_is_contact` FROM `contact` ' +
         'INNER JOIN `user` ON `contact`.`contact_user_id` = `user`.`id` ' +
         'WHERE `contact`.`adder_user_id` = ? AND ' +
@@ -620,7 +644,7 @@ async function getContact (
   }
 
   pool.releaseConnection(connection)
-  return existingContactResult.length > 0 ? existingContactResult[0] : null;
+  return existingContactResult.length > 0 ? existingContactResult[0] : null
 }
 
 /**
@@ -858,6 +882,8 @@ async function getConferenceMembers (conferenceId) {
 
 /**
  * Редактировать статус пользователя
+ * 
+ * @deprecated Больше не используется в коде, и, вероятно всего, сломан
  *
  * @param {number} userId ID пользователя
  * @param {number} status Статус пользователя
@@ -1012,7 +1038,6 @@ async function isContactAuthorized (user, contact, contactDomain) {
   return results.length > 0
 }
 
-
 /**
  * Проверяет, добавляющий ли это пользователь #2
  *
@@ -1155,6 +1180,116 @@ async function getLastMicroblog (user) {
   return results[0] ?? null
 }
 
+/**
+ * Получение Telegram ID по виртуальному номеру
+ *
+ * @param {string} virtualNumber Виртуальный номер
+ * @returns {Promise<{telegramId: string, inUse: string}|null>} Объект с данными или null
+ */
+async function getTelegramIdByVirtualNumber (virtualNumber) {
+  const connection = await pool.getConnection()
+
+  // eslint-disable-next-line no-unused-vars
+  const [results, _fields] = await connection.execute(
+    'SELECT `telegram_id`, `in_use` FROM `virtual_numbers` ' +
+    'WHERE `phone` = ? LIMIT 1',
+    [virtualNumber]
+  )
+
+  await connection.commit()
+  pool.releaseConnection(connection)
+
+  return results.length > 0
+    ? {
+        telegramId: results[0].telegram_id,
+        inUse: results[0].in_use
+      }
+    : null
+}
+
+/**
+ * Изменение пользователя
+ *
+ * @param {Object} userData Параметры
+ */
+async function modifyUser (userData) {
+  const connection = await pool.getConnection()
+  let query = 'UPDATE `user` SET '
+  const variables = []
+
+  let userId = userData.userId;
+
+  if (Object.hasOwn(userData, 'login')) {
+    query += '`user`.`login` = ?, '
+    variables.push(`${userData.login}`)
+  }
+
+  if (Object.hasOwn(userData, 'passwd')) {
+    query += '`user`.`passwd` = ?, '
+    variables.push(`${crypto.createHash('md5').update(userData.passwd).digest('hex').toLowerCase()}`)
+  }
+
+  if (Object.hasOwn(userData, 'domain')) {
+    query += '`user`.`domain` = ?, '
+    variables.push(`${userData.domain}`)
+  }
+
+  if (Object.hasOwn(userData, 'nick')) {
+    query += '`user`.`nick` = ?, '
+    variables.push(`${userData.nick}`)
+  }
+
+  if (Object.hasOwn(userData, 'f_name')) {
+    query += '`user`.`f_name` = ?, '
+    variables.push(`${userData.f_name}`)
+  }
+
+  if (Object.hasOwn(userData, 'l_name')) {
+    query += '`user`.`l_name` = ?, '
+    variables.push(`${userData.l_name}`)
+  }
+
+  if (Object.hasOwn(userData, 'location')) {
+    query += '`user`.`location` = ?, '
+    variables.push(`${userData.location}`)
+  }
+
+  if (Object.hasOwn(userData, 'birthday')) {
+    query += '`user`.`birthday` = ?, '
+    variables.push(`${userData.birthday}`)
+  }
+
+  if (Object.hasOwn(userData, 'sex')) {
+    query += '`user`.`sex` = ?, '
+    variables.push(Number(userData.sex))
+  }
+
+  if (Object.hasOwn(userData, 'avatar')) {
+    query += '`user`.`avatar` = ?, '
+    variables.push(`${userData.avatar}`)
+  }
+
+  if (Object.hasOwn(userData, 'public_status')) {
+    query += '`user`.`public_status` = ?, '
+    variables.push(Number(userData.public_status))
+  }
+
+  if (Object.hasOwn(userData, 'activated')) {
+    query += '`user`.`activated` = ?, '
+    variables.push(Number(userData.activated))
+  }
+
+  query = query.substring(0, query.length - 2)
+
+  query += ' WHERE `user`.`id` = ?'
+  variables.push(Number(userId))
+
+  // eslint-disable-next-line no-unused-vars
+  await connection.query(query, variables)
+
+  pool.releaseConnection(connection)
+}
+
 module.exports = {
   getUserIdViaCredentials,
   getContact,
@@ -1186,5 +1321,7 @@ module.exports = {
   checkUser,
   getMicroblogSettings,
   insertNewMicroblog,
-  getLastMicroblog
+  getLastMicroblog,
+  getTelegramIdByVirtualNumber,
+  modifyUser
 }

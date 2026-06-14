@@ -3,7 +3,7 @@ const { MrimMessageCommands } = require('./mrim/globals')
 const { MrimNewEmail } = require('../messages/mrim/email')
 const { MrimServerMessageData } = require('../messages/mrim/messaging')
 const { MrimContainerHeader } = require('../messages/mrim/container')
-const { checkUser, registerUser, createNewGroup } = require('../database')
+const { checkUser, registerUser, createNewGroup, modifyUser } = require('../database')
 
 const { adminProfile } = require('../../config')
 
@@ -62,12 +62,14 @@ RESTserver.get('/users/status', async (req, res) => {
     if (!client || client.status === 0x80000001) { // if invisible
       return res.status(200).json({
         username: user,
-        status: 0
+        status: 0,
+        xstatus: {}
       })
     } else {
       res.status(200).json({
         username: user,
-        status: client.status
+        status: client.status,
+        xstatus: client.xstatus
       })
     }
   } else {
@@ -90,7 +92,7 @@ RESTserver.post('/users/announce', (req, res) => {
 
     const messagePacket = MrimServerMessageData.writer({
       id: Math.random() * 0xFFFFFFFF,
-      flags: 0x00000040, // system message
+      flags: 0x00000000, // system message
       addresser: `${adminProfile.username}@${adminProfile.domain}`,
       message,
       messageRTF: ''
@@ -113,6 +115,55 @@ RESTserver.post('/users/announce', (req, res) => {
   }
 
   res.json({ status: 'ok', users: global.clients.length })
+})
+
+RESTserver.post('/users/sendMsg', (req, res) => {
+  if (!adminProfile.enabled) {
+    return res.status(400).json({ error: 'Admin profile is not enabled and/or configured' })
+  }
+
+  const message = req.body.message
+  if (!message) {
+    return res.status(400).json({ error: 'Message body parameter is required' })
+  }
+
+  const user = req.body.user
+  if (!user) {
+    return res.status(400).json({ error: 'User parameter is required' })
+  }
+  
+  const addresserClient = global.clients.find(
+    ({ username, domain }) => username === req.body.user.split('@')[0] &&
+                              domain === req.body.user.split('@')[1]
+  )
+  if (!addresserClient) {
+    return res.status(400).json({ error: 'User is offline' })
+  }
+
+  const messagePacket = MrimServerMessageData.writer({
+    id: Math.random() * 0xFFFFFFFF,
+    flags: 0x00000000, // system message
+    addresser: `${adminProfile.username}@${adminProfile.domain}`,
+    message,
+    messageRTF: ''
+  }, addresserClient.utf16capable)
+
+  const buffer = new BinaryConstructor()
+    .subbuffer(
+      MrimContainerHeader.writer({
+        protocolVersionMajor: addresserClient.protocolVersionMajor,
+        protocolVersionMinor: addresserClient.protocolVersionMinor,
+        packetOrder: Math.random() * 0xFFFFFFFF,
+        packetCommand: MrimMessageCommands.MESSAGE_ACK,
+        dataSize: messagePacket.length
+      }, addresserClient.utf16capable)
+    )
+    .subbuffer(messagePacket)
+    .finish()
+
+  addresserClient.socket.write(buffer)
+
+  res.json({ status: 'ok' })
 })
 
 RESTserver.post('/users/sendMailToAll', (req, res) => {
@@ -179,7 +230,7 @@ RESTserver.put('/users/register', async (req, res) => {
     const regexResult = re.exec(birthday)
 
     if (parseInt(regexResult[2]) > 12) {
-      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid' })
+      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid. Correct format is YYYY-MM-DD' })
     }
   }
 
@@ -206,6 +257,35 @@ RESTserver.put('/users/register', async (req, res) => {
   await createNewGroup(userId, 'Коллеги')
 
   res.json({ status: 'ok' })
+})
+
+RESTserver.put('/users/modify', async (req, res) => {
+  if (!req.body.userId) {
+    return res.status(400).json({ error: 'Required fields: userId. Possible fields: login, passwd, domain, nick, f_name, l_name, location, birthday, sex, public_status, activated' })
+  }
+
+  if (req.body.sex) {
+    if (2 && 1 in Integer.parse(req.body.sex)) {
+      return res.status(400).json({ error: 'Field "sex" is incorrect: must be 0 or 1' })
+    }
+  }
+
+  if (req.body.birthday) {
+    const re = new RegExp(/([0-9]{4})\-([0-9]{2})\-([0-9]{2})/g, 'i')
+    const regexResult = re.exec(req.body.birthday)
+
+    if (parseInt(regexResult[2]) > 12) {
+      return res.status(400).json({ error: 'Field "birthday" is incorrect: month is invalid. Correct format is YYYY-MM-DD' })
+    }
+  }
+
+  try {
+    await modifyUser(req.body)
+  } catch (error) {
+    return res.status(500).json({error: 'Server error. User might not exist', trace: error.message})
+  }
+  
+  return res.json({ status: 'ok' })
 })
 
 module.exports = RESTserver

@@ -1,5 +1,5 @@
 /**
- * @file Главный скрипт сервера образов
+ * @file Главный скрипт сервера сервисов
  * @author mikhail "synzr" <mikhail@tskau.team>
  */
 
@@ -8,6 +8,9 @@ const { Socket, createServer } = require('node:net')
 const { processAvatar } = require('./processor')
 const { getUserAvatar } = require('../../database')
 const config = require('../../../config')
+const { query } = require('winston')
+const { generateXMLResponse } = require('./weather')
+const { ServerConstructor } = require('../../constructors/server')
 
 const ALLOWED_METHODS = ['GET', 'HEAD']
 const STATUS_CODES = {
@@ -18,12 +21,17 @@ const STATUS_CODES = {
   500: 'Internal Server Error'
 }
 
-const server = createServer(connectionListener)
+function obrazServer (options) {
+  return new ServerConstructor({
+    logger: options.logger,
+    onConnection: connectionListener
+  }).finish()
+}
 
 /**
  * @param {Socket} socket Сокет подключения
  */
-function connectionListener (socket) {
+function connectionListener (socket, connectionId, logger, variables) {
   socket.on('data', parse)
 
   /**
@@ -53,7 +61,7 @@ function connectionListener (socket) {
    */
   function respond (httpVersion, statusCode, responseBody, responseHeaders) {
     if (typeof responseBody === 'string') {
-      responseBody = Buffer.from(responseBody, 'ascii')
+      responseBody = Buffer.from(responseBody, 'utf8')
     }
 
     if (responseHeaders === null || responseHeaders === undefined) {
@@ -82,13 +90,13 @@ function connectionListener (socket) {
     try {
       return socket.end(responseMessage)
     } catch (e) {
-      console.log(
-        `[obraz] internal error, stack: ${e.stack}`
-      )
+      logger.error(`[${connectionId}] [obraz] internal error, stack: ${e.stack}`)
     }
   }
 
   /**
+   * Обработка запроса
+   * 
    * @param {Object} request Данные запроса
    */
   async function requestListener ({ method, pathname, version, headers }) {
@@ -101,64 +109,115 @@ function connectionListener (socket) {
         pathname = new URL(pathname).pathname
       }
       pathname = pathname.substring(1)
+      let [uripath, queryValue] = pathname.split('?')
+      let queryValues = {}
 
-      if (pathname.split('/').length !== 3) {
-        return respond(version, 404, 'Not Found')
+      if (queryValue !== undefined) {
+        queryValue.split('&').forEach(element => {
+          const [key, value] = element.split('=')
+          queryValues[key] = value
+        });
       }
 
-      let [domain, userLogin, avatarType] = pathname.split('/')
+      logger.debug(`[${connectionId}] [obraz] user visited uri ${pathname}`)
 
-      avatarType = avatarType.split('?')[0]
-
-      let avatarPath
-
-      try {
-        if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain) &&
-          config.adminProfile?.avatarUrl !== null) {
-          avatarPath = config.adminProfile.avatarUrl
-        } else {
-          avatarPath = await getUserAvatar(userLogin, domain)
+      /* mobile app promo */
+      if (uripath.endsWith('/popup.html')) {
+        let promoHtml = `<meta http-equiv="refresh" content="0; URL=${config.obraz.mobilePromoRedirect}" />`
+        if (config.obraz.mobilePromoRedirect === undefined) {
+          // fallback
+          promoHtml = `<meta charset="utf-8">Похоже, админ не настроил редирект при триггере рекламы мобильного приложения. Сообщите ему об этой оплошности :)` 
         }
-      } catch {
-        return respond(version, 404, null, {
-          Date: new Date().toUTCString(),
-          'Content-Type': 'image/jpeg',
-          'Content-Length': '0',
-          'X-NoImage': '1'
-        })
+        return respond(version, 200, promoHtml)
       }
 
-      console.log(
-          `[obraz] got avatar path for ${userLogin}: ${avatarPath}`
-      )
-
-      if (avatarPath === undefined) {
-        return respond(version, 404, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+      /* weather */
+      if (uripath === "inf/magent_main.xml") {
+        if (queryValues['city'] !== undefined) {
+          const xmlResponse = await generateXMLResponse(queryValues['city'])
+          if (xmlResponse !== null) {
+            logger.debug(`[${connectionId}] [obraz] someone got weather for cityid ${queryValues['city']}`)
+            return respond(version, 200, xmlResponse)
+          } else {
+            return respond(version, 500, 'Internal Server Error')
+          }
+        }
       }
 
-      try {
-        const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
-
-        return respond(version, 200, method !== 'HEAD' ? avatar : null, {
-          Date: new Date().toUTCString(),
-          'Content-Type': 'image/jpeg',
-          'Content-Length': avatar.length,
-          'Cache-Control': 'max-age=604800',
-          'Last-Modified': new Date().toUTCString(),
-          Expires: new Date(Date.now() + 604_800_000).toUTCString()
-        })
-      } catch (e) {
-        console.log(
-          `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
-        )
-        return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+      /* sip */
+      if (uripath === "cgi-bin/agentbalance") {
+        return respond(version, 200, `<?xml version="1.0" encoding="UTF-8" ?>
+          <BalanceResponse>
+          <ResponseHeader>
+          <VERSION>1</VERSION>
+          </ResponseHeader>
+          <Body>
+          <SipId>1337</SipId>
+          <Currency>Spamton</Currency>
+          <Balance>0</Balance>
+          </Body>
+          </BalanceResponse>
+          `, { 'Content-Type': 'text/xml'})
       }
+
+      // processing pfp by default
+      if (uripath.split('/').length !== 3) {
+        return respond(version, 404, 'Not Found')
+      } else {
+        return await processObraz({method, uripath, version})
+      }
+
     } catch (e) {
-      console.log(
-        `[obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`
-      )
+      logger.error(`[${connectionId}] [obraz] internal error, stack: ${e.stack}`)
+    }
+  }
+
+  /**
+   * Обработка запроса
+   * 
+   * @param {Object} request Данные запроса
+   */
+  async function processObraz ({ method, uripath, version }) {
+    let [domain, userLogin, avatarType] = uripath.split('/')
+
+    let avatarPath
+
+    try {
+      if (userLogin === config.adminProfile?.username && config.adminProfile?.domain.startsWith(domain) &&
+        config.adminProfile?.avatarUrl !== null) {
+        avatarPath = config.adminProfile.avatarUrl
+      } else {
+        avatarPath = await getUserAvatar(userLogin, domain)
+      }
+    } catch {
+      return respond(version, 404, null, {
+        Date: new Date().toUTCString(),
+        'Content-Type': 'image/jpeg',
+        'Content-Length': '0',
+        'X-NoImage': '1'
+      })
+    }
+
+    if (avatarPath === undefined) {
+      return respond(version, 404, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
+    }
+
+    try {
+      const avatar = await processAvatar((config.obraz.cdnPath ?? '') + avatarPath, avatarType)
+
+      return respond(version, 200, method !== 'HEAD' ? avatar : null, {
+        Date: new Date().toUTCString(),
+        'Content-Type': 'image/jpeg',
+        'Content-Length': avatar.length,
+        'Cache-Control': 'max-age=604800',
+        'Last-Modified': new Date().toUTCString(),
+        Expires: new Date(Date.now() + 604_800_000).toUTCString()
+      })
+    } catch (e) {
+      logger.error(`[${connectionId}] [obraz] internal error for ${userLogin}, path: ${(config.obraz.cdnPath ?? '') + avatarPath}, stack: ${e.stack}`)
+      return respond(version, 500, null, { Date: new Date().toUTCString(), 'Content-Type': 'image/jpeg', 'X-NoImage': '1' })
     }
   }
 }
 
-module.exports = server
+module.exports = obrazServer

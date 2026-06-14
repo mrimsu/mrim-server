@@ -93,7 +93,7 @@ function main () {
   }
 
   if (config.obraz.enabled) {
-    servers.obraz = obrazServer
+    servers.obraz = obrazServer({ logger })
 
     const listener = servers.obraz.listen(
       config.obraz?.serverPort ?? DEFAULT_OBRAZ_PORT,
@@ -101,7 +101,7 @@ function main () {
       () => {
         const { address, port } = listener.address()
         return logger.info(
-          `avatars (obraz) server started -> address: ${address}, port: ${port}`
+          `avatars & services (obraz) server started -> address: ${address}, port: ${port}`
         )
       }
     )
