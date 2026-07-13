@@ -59,6 +59,7 @@ async function processLegacyLogin (
     state.connectionId = connectionId
     state.features = 0x005F
     state.utf16capable = false // old ass client
+    state.mpopTokens = []
 
     // since this client doesn't say which version it is, we'll just guess
     if (containerHeader.protocolVersionMinor >= 4) {
@@ -177,6 +178,7 @@ async function processLogin (
     state.userAgent = loginData.modernUserAgent ?? loginData.userAgent
     state.oldUserAgent = loginData.userAgent
     state.features = loginData.features
+    state.mpopTokens = []
 
     if (containerHeader.protocolVersionMinor >= 15) {
       state.xstatus = {
@@ -343,7 +345,7 @@ async function processLoginThree (
     state.connectionId = connectionId
     state.userAgent = loginData.modernUserAgent
     state.oldUserAgent = loginData.userAgent
-    state.protocolVersionMinor = containerHeader.protocolVersionMinor
+    state.mpopTokens = []
 
     // статус нам не передают, поэтому ставим дефолт
     state.xstatus = {

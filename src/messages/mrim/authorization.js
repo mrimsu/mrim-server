@@ -85,4 +85,9 @@ const MrimUserInfo = new MessageConstructor()
   .field('phoneNumber', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-module.exports = { MrimOldLoginData, MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo }
+const MrimMPOPSession = new MessageConstructor()
+  .field('status', FieldDataType.UINT32)
+  .field('token', FieldDataType.UBIART_LIKE_STRING)
+  .finish()
+
+module.exports = { MrimOldLoginData, MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo, MrimMPOPSession }

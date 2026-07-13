@@ -6,7 +6,7 @@
 
 const BinaryConstructor = require('../../../constructors/binary')
 const { MrimMessageCommands, MrimMessageFlags } = require('../globals')
-const { MrimUserInfo } = require('../../../messages/mrim/authorization')
+const { MrimUserInfo, MrimMPOPSession } = require('../../../messages/mrim/authorization')
 const { MrimContainerHeader } = require('../../../messages/mrim/container')
 const { MrimServerMessageData, MrimOfflineMessageData } = require('../../../messages/mrim/messaging')
 const {
@@ -15,6 +15,7 @@ const {
 } = require('../../../database')
 const config = require('../../../../config')
 const { Iconv } = require('iconv')
+const crypto = require('node:crypto')
 
 function _logoutPreviousClientIfNeeded (userId, containerHeader) {
   // NOTE https://storage.yandexcloud.net/schizophrenia/schizophrenia.jpg
@@ -166,4 +167,35 @@ async function _addNewProxyConnection (sessionIdHigh, sessionIdLow, sessHighSec,
   global.proxies.push(proxy)
 }
 
-module.exports = { _logoutPreviousClientIfNeeded, _processOfflineMessages, _makeUserInfoPacket, _checkForFilledEmail, _checkIfLoggedIn, _addNewProxyConnection }
+async function processMPOPSession (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables) {
+  const token = crypto.randomBytes(20).toString('hex');
+  state.mpopTokens.push({"token": token, "expires": Date.now() + (60*60*1000)}) // live for 1 hour
+
+  logger.debug(`[${connectionId}] user ${state.username ?? '@!unknown!@'} got it's mpop_session token they wanted`)
+
+  dataToSend = MrimMPOPSession.writer({
+    status: 1,
+    token
+  })
+
+  return {
+    reply: new BinaryConstructor()
+      .subbuffer(
+        MrimContainerHeader.writer({
+          ...containerHeader,
+          packetCommand: MrimMessageCommands.MPOP_SESSION,
+          dataSize: dataToSend.length
+        })
+      )
+      .subbuffer(dataToSend)
+      .finish()
+  }
+}
+
+module.exports = { processMPOPSession, _logoutPreviousClientIfNeeded, _processOfflineMessages, _makeUserInfoPacket, _checkForFilledEmail, _checkIfLoggedIn, _addNewProxyConnection }

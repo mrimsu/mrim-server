@@ -10,6 +10,7 @@ const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 
 // Processors
+const { processMPOPSession } = require('./processors/core')
 const { processHello } = require('./processors/hello')
 const { processLegacyLogin, processLogin, processLoginThree } = require('./processors/login')
 const { processContactListRequest, processAddContact, processModifyContact, processAuthorizeContact } = require('./processors/contacts')
@@ -50,7 +51,7 @@ function onData (socket, connectionId, logger, state, variables) {
         return
       }
 
-      if (header.packetCommand !== MrimMessageCommands.PING && header.packetCommand !== MrimMessageCommands.MPOP_SESSION) {
+      if (header.packetCommand !== MrimMessageCommands.PING) {
         logger.debug(
           `[${connectionId}] user: ${state.username ?? '@!unknown!@'}, proto ver: ${header.protocolVersionMajor}.${header.protocolVersionMinor}, ` +
           `command: 0x${header.packetCommand.toString(16)} (${Object.keys(MrimMessageCommands).find(name => MrimMessageCommands[name] === header.packetCommand)}), ` +
@@ -459,21 +460,15 @@ async function processPacket (
         state,
         variables
       )
-    /* case MrimMessageCommands.MPOP_SESSION:
-      return {
-        reply: new BinaryConstructor()
-        .subbuffer(
-          MrimContainerHeader.writer({
-            ...containerHeader,
-            packetCommand: 0x1025,
-            dataSize: 4+4+5
-          })
-        )
-        .integer(1, 4)
-        .integer(5, 4)
-        .subbuffer(Buffer.from(`testt`, 'utf8'))
-        .finish()
-      } */
+    case MrimMessageCommands.MPOP_SESSION:
+      return processMPOPSession(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
     case MrimMessageCommands.PING: {
       if (timeoutTimer[connectionId] !== undefined) {
         timeoutTimer[connectionId].refresh()

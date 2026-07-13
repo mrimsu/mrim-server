@@ -288,4 +288,26 @@ RESTserver.put('/users/modify', async (req, res) => {
   return res.json({ status: 'ok' })
 })
 
+RESTserver.get('/users/mpoptoken', async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).json({ error: 'Required fields: token' })
+  }
+
+  const now = Date.now();
+    
+  const foundClient = global.clients.find(client => {
+      return client.mpopTokens.some(t => 
+        t.token === token && t.expires > now
+      );
+  });
+
+  if (foundClient === undefined) {
+    return res.status(404).json({ error: 'Token not found or expired' })
+  } else {
+    return res.json({ status: 'ok', user: `${foundClient.username}@${foundClient.domain}`, id: foundClient.userId })
+  }
+})
+
 module.exports = RESTserver
