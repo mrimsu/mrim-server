@@ -665,14 +665,14 @@ async function processAuthorizeContact (
   )
 
   // Если юзер принял авторизацию
-  if (isContactAdder(state.userId, contactUsername.split('@')[0], contactUsername.split('@')[1]) === true) {
-    await addContactMSG(
+  if (await isContactAdder(state.userId, contactUsername.split('@')[0], contactUsername.split('@')[1]) === true) {
+    const contactMsgResult = await addContactMSG(
       state.userId,
       contactUsername.split('@')[0],
       contactUsername.split('@')[1]
     )
 
-    if (addContactMSG === false) {
+    if (contactMsgResult === false) {
       return
     }
 

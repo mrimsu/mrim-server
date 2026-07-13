@@ -370,7 +370,8 @@ async function createOrCompleteContact (
     // eslint-disable-next-line no-unused-vars
     const [existingContactResult, _existingContactFields] =
       await connection.query(
-        'SELECT `contact`.`id` FROM `contact` WHERE ' +
+        'SELECT `contact`.`id`, `contact`.`is_auth_success`, ' +
+        '`contact`.`adder_user_id`, `contact`.`contact_user_id` FROM `contact` WHERE ' +
         '`contact`.`adder_user_id` = ? AND ' +
         '`contact`.`contact_user_id` = ?',
         [contactUserId, requesterUserId]
@@ -393,14 +394,15 @@ async function createOrCompleteContact (
       [contactNickname, contactFlags, groupId, existingContactId]
     )
 
-    result = { action: 'MODIFY_EXISTING', contactId: existingContactId }
+    result = { action: 'MODIFY_EXISTING', authSuccess: authQuery !== '', contactId: existingContactId }
   } catch (error) {
     // во бля попадос
     // не проблема, просто наоборот сделаем
     try {
       const [existingContactResult, _existingContactFields] =
       await connection.query(
-        'SELECT `contact`.`id` FROM `contact` WHERE ' +
+        'SELECT `contact`.`id`, `contact`.`is_auth_success`, ' +
+        '`contact`.`adder_user_id`, `contact`.`contact_user_id` FROM `contact` WHERE ' +
         '`contact`.`adder_user_id` = ? AND ' +
         '`contact`.`contact_user_id` = ?',
         [requesterUserId, contactUserId]
