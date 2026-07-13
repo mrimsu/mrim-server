@@ -131,7 +131,7 @@ RESTserver.post('/users/sendMsg', (req, res) => {
   if (!user) {
     return res.status(400).json({ error: 'User parameter is required' })
   }
-  
+
   const addresserClient = global.clients.find(
     ({ username, domain }) => username === req.body.user.split('@')[0] &&
                               domain === req.body.user.split('@')[1]
@@ -282,9 +282,9 @@ RESTserver.put('/users/modify', async (req, res) => {
   try {
     await modifyUser(req.body)
   } catch (error) {
-    return res.status(500).json({error: 'Server error. User might not exist', trace: error.message})
+    return res.status(500).json({ error: 'Server error. User might not exist', trace: error.message })
   }
-  
+
   return res.json({ status: 'ok' })
 })
 

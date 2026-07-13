@@ -216,40 +216,40 @@ async function processSearch (
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
 
-      let connectedUser = global.clients.filter((u) => u.userId == user.id)[0]
+      const connectedUser = global.clients.filter((u) => u.userId == user.id)[0]
 
       switch (key) {
         case 'mrim_status':
           value = new Iconv('UTF-8', 'CP1251').convert('3')
-          break;
+          break
         case 'birthday':
           const birthday = user.birthday
             ? `${user.birthday.getFullYear()}-${(user.birthday.getMonth() + 1).toString().padStart(2, '0')}-${user.birthday.getDate().toString().padStart(2, '0')}`
             : ''
           value = new Iconv('UTF-8', 'CP1251').convert(birthday)
-          break;
+          break
         case 'zodiac':
           value = new Iconv('UTF-8', 'CP1251').convert(`${getZodiacId(user.birthday)}`)
-          break;
+          break
       }
 
       if (connectedUser && user.public_status == 1) {
         switch (key) {
           case 'mrim_status':
             value = new Iconv('UTF-8', 'CP1251').convert(`${connectedUser?.status}`)
-            break;
+            break
           case 'status_uri':
             value = new Iconv('UTF-8', 'CP1251').convert(`${connectedUser?.xstatus?.type}`)
-            break;
+            break
           case 'status_title':
             value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.title}`)
-            break;
+            break
           case 'status_desc':
             value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.description}`)
-            break;
+            break
         }
       } else if (key == 'mrim_status' && user.public_status == 1 && !connectedUser) {
-        value = new Iconv('UTF-8', 'CP1251').convert(`0`)
+        value = new Iconv('UTF-8', 'CP1251').convert('0')
       }
 
       anketaInfo = anketaInfo.integer(value.length, 4).subbuffer(value)

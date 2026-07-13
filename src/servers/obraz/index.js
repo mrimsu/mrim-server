@@ -96,7 +96,7 @@ function connectionListener (socket, connectionId, logger, variables) {
 
   /**
    * Обработка запроса
-   * 
+   *
    * @param {Object} request Данные запроса
    */
   async function requestListener ({ method, pathname, version, headers }) {
@@ -109,14 +109,14 @@ function connectionListener (socket, connectionId, logger, variables) {
         pathname = new URL(pathname).pathname
       }
       pathname = pathname.substring(1)
-      let [uripath, queryValue] = pathname.split('?')
-      let queryValues = {}
+      const [uripath, queryValue] = pathname.split('?')
+      const queryValues = {}
 
       if (queryValue !== undefined) {
         queryValue.split('&').forEach(element => {
           const [key, value] = element.split('=')
           queryValues[key] = value
-        });
+        })
       }
 
       logger.debug(`[${connectionId}] [obraz] user visited uri ${pathname}`)
@@ -126,17 +126,17 @@ function connectionListener (socket, connectionId, logger, variables) {
         let promoHtml = `<meta http-equiv="refresh" content="0; URL=${config.obraz.mobilePromoRedirect}" />`
         if (config.obraz.mobilePromoRedirect === undefined) {
           // fallback
-          promoHtml = `<meta charset="utf-8">Похоже, админ не настроил редирект при триггере рекламы мобильного приложения. Сообщите ему об этой оплошности :)` 
+          promoHtml = '<meta charset="utf-8">Похоже, админ не настроил редирект при триггере рекламы мобильного приложения. Сообщите ему об этой оплошности :)'
         }
         return respond(version, 200, promoHtml)
       }
 
       /* weather */
-      if (uripath === "inf/magent_main.xml") {
-        if (queryValues['city'] !== undefined) {
-          const xmlResponse = await generateXMLResponse(queryValues['city'])
+      if (uripath === 'inf/magent_main.xml') {
+        if (queryValues.city !== undefined) {
+          const xmlResponse = await generateXMLResponse(queryValues.city)
           if (xmlResponse !== null) {
-            logger.debug(`[${connectionId}] [obraz] someone got weather for cityid ${queryValues['city']}`)
+            logger.debug(`[${connectionId}] [obraz] someone got weather for cityid ${queryValues.city}`)
             return respond(version, 200, xmlResponse)
           } else {
             return respond(version, 500, 'Internal Server Error')
@@ -145,7 +145,7 @@ function connectionListener (socket, connectionId, logger, variables) {
       }
 
       /* sip */
-      if (uripath === "cgi-bin/agentbalance") {
+      if (uripath === 'cgi-bin/agentbalance') {
         return respond(version, 200, `<?xml version="1.0" encoding="UTF-8" ?>
           <BalanceResponse>
           <ResponseHeader>
@@ -157,16 +157,15 @@ function connectionListener (socket, connectionId, logger, variables) {
           <Balance>0</Balance>
           </Body>
           </BalanceResponse>
-          `, { 'Content-Type': 'text/xml'})
+          `, { 'Content-Type': 'text/xml' })
       }
 
       // processing pfp by default
       if (uripath.split('/').length !== 3) {
         return respond(version, 404, 'Not Found')
       } else {
-        return await processObraz({method, uripath, version})
+        return await processObraz({ method, uripath, version })
       }
-
     } catch (e) {
       logger.error(`[${connectionId}] [obraz] internal error, stack: ${e.stack}`)
     }
@@ -174,11 +173,11 @@ function connectionListener (socket, connectionId, logger, variables) {
 
   /**
    * Обработка запроса
-   * 
+   *
    * @param {Object} request Данные запроса
    */
   async function processObraz ({ method, uripath, version }) {
-    let [domain, userLogin, avatarType] = uripath.split('/')
+    const [domain, userLogin, avatarType] = uripath.split('/')
 
     let avatarPath
 

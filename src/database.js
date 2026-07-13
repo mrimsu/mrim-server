@@ -211,7 +211,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   }
 
   if (
-    Object.hasOwn(searchParameters, 'zodiac') && 
+    Object.hasOwn(searchParameters, 'zodiac') &&
     !Number.isNaN(Number(searchParameters.zodiac))
   ) {
     query += '`user`.`zodiac` = ? AND '
@@ -219,7 +219,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   }
 
   if (
-    Object.hasOwn(searchParameters, 'birthmonth') && 
+    Object.hasOwn(searchParameters, 'birthmonth') &&
     !Number.isNaN(Number(searchParameters.birthmonth))
   ) {
     query += 'MONTH(`user`.`birthday`) = ? AND '
@@ -227,7 +227,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   }
 
   if (
-    Object.hasOwn(searchParameters, 'birthday') && 
+    Object.hasOwn(searchParameters, 'birthday') &&
     !Number.isNaN(Number(searchParameters.birthday))
   ) {
     query += 'DAY(`user`.`birthday`) = ? AND '
@@ -235,7 +235,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   }
 
   if (
-    Object.hasOwn(searchParameters, 'onlyOnline') && 
+    Object.hasOwn(searchParameters, 'onlyOnline') &&
     !Object.hasOwn(searchParameters, 'withWebcam')
   ) {
     query += `(\`user\`.\`id\` IN (${global.clients.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
@@ -243,7 +243,7 @@ async function searchUsers (userId, searchParameters, searchMyself = false, limi
   }
 
   if (Object.hasOwn(searchParameters, 'withWebcam')) {
-    let filteredUsers = global.clients.filter((user) => user.features & 0x400)
+    const filteredUsers = global.clients.filter((user) => user.features & 0x400)
     query += `(\`user\`.\`id\` IN (${filteredUsers.map(user => '?').join(',')}) AND \`user\`.\`public_status\` = 1) AND `
     variables.push(...filteredUsers.map(user => user.userId))
   }
@@ -765,7 +765,7 @@ async function deleteContact (adderUserId, contactLogin, contactDomain) {
 
 /**
  * Редактировать статус пользователя
- * 
+ *
  * @deprecated Больше не используется в коде, и, вероятно всего, сломан
  *
  * @param {number} userId ID пользователя
@@ -1100,7 +1100,7 @@ async function modifyUser (userData) {
   let query = 'UPDATE `user` SET '
   const variables = []
 
-  let userId = userData.userId;
+  const userId = userData.userId
 
   if (Object.hasOwn(userData, 'login')) {
     query += '`user`.`login` = ?, '
