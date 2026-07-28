@@ -27,7 +27,7 @@ const {
   searchUsers
 } = require('../../../database')
 const { _checkForFilledEmail, _logoutPreviousClientIfNeeded, _makeUserInfoPacket, _processOfflineMessages } = require('./core')
-const { generateContactList } = require('./contacts')
+const { generateContactList, generateLegacyContactList, getOnlineStatusesLegacy } = require('./contacts')
 const { processChangeStatus } = require('./status')
 const { Iconv } = require('iconv')
 
