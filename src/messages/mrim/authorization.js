@@ -90,4 +90,8 @@ const MrimMPOPSession = new MessageConstructor()
   .field('token', FieldDataType.UBIART_LIKE_STRING)
   .finish()
 
-module.exports = { MrimOldLoginData, MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo, MrimMPOPSession }
+const MrimBuildReport = new MessageConstructor()
+  .field('build', FieldDataType.UINT32)
+  .finish()
+
+module.exports = { MrimOldLoginData, MrimLoginData, MrimNewerLoginData, MrimMoreNewerLoginData, MrimLoginThreeData, MrimRejectLoginData, MrimUserInfo, MrimMPOPSession, MrimBuildReport }

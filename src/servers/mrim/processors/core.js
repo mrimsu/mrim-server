@@ -6,13 +6,15 @@
 
 const BinaryConstructor = require('../../../constructors/binary')
 const { MrimMessageCommands, MrimMessageFlags } = require('../globals')
-const { MrimUserInfo, MrimMPOPSession } = require('../../../messages/mrim/authorization')
+const { MrimUserInfo, MrimMPOPSession, MrimBuildReport } = require('../../../messages/mrim/authorization')
 const { MrimContainerHeader } = require('../../../messages/mrim/container')
 const { MrimServerMessageData, MrimOfflineMessageData } = require('../../../messages/mrim/messaging')
+const { MrimChangeStatusRequest } = require('../../../messages/mrim/status')
 const {
   getOfflineMessages,
   getLastMicroblog
 } = require('../../../database')
+
 const config = require('../../../../config')
 const { Iconv } = require('iconv')
 const crypto = require('node:crypto')
@@ -198,4 +200,47 @@ async function processMPOPSession (
   }
 }
 
-module.exports = { processMPOPSession, _logoutPreviousClientIfNeeded, _processOfflineMessages, _makeUserInfoPacket, _checkForFilledEmail, _checkIfLoggedIn, _addNewProxyConnection }
+async function processBuildReport (
+  containerHeader,
+  packetData,
+  connectionId,
+  logger,
+  state,
+  variables) {
+  if (state.protocolVersionMinor <= 7) {
+    let messageData = MrimBuildReport.reader(packetData, false)
+
+    let build = messageData.build
+    if (build >= 1000) {
+      build = build - 1000
+    }
+
+    if (build >= 387) {
+      state.userAgent = `client="magent" version="2.51" build="${build}"`
+    } else if (build >= 423) {
+      state.userAgent = `client="magent" version="2.55" build="${build}"`
+    } else if (build >= 614) {
+      state.userAgent = `client="magent" version="3.0" build="${build}"`
+    } else if (build >= 786) {
+      state.userAgent = `client="magent" version="4.0" build="${build}"`
+    } else if (build >= 975) {
+      state.userAgent = `client="magent" version="4.1" build="${build}"`
+    }
+
+    // refresh useragent for contacts
+    /*const statusData = MrimChangeStatusRequest.writer({
+      status: state.status
+    })
+
+    processChangeStatus(
+      containerHeader,
+      statusData,
+      connectionId,
+      logger,
+      state,
+      variables
+    )*/
+  }
+}
+
+module.exports = { processMPOPSession, processBuildReport, _logoutPreviousClientIfNeeded, _processOfflineMessages, _makeUserInfoPacket, _checkForFilledEmail, _checkIfLoggedIn, _addNewProxyConnection }

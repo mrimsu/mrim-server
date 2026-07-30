@@ -10,7 +10,7 @@ const BinaryConstructor = require('../../constructors/binary')
 const { MrimContainerHeader } = require('../../messages/mrim/container')
 
 // Processors
-const { processMPOPSession } = require('./processors/core')
+const { processMPOPSession, processBuildReport } = require('./processors/core')
 const { processHello } = require('./processors/hello')
 const { processLegacyLogin, processLogin, processLoginThree } = require('./processors/login')
 const { processContactListRequest, processAddContact, processModifyContact, processAuthorizeContact } = require('./processors/contacts')
@@ -462,6 +462,15 @@ async function processPacket (
       )
     case MrimMessageCommands.MPOP_SESSION:
       return processMPOPSession(
+        containerHeader,
+        packetData,
+        connectionId,
+        logger,
+        state,
+        variables
+      )
+    case MrimMessageCommands.CLIENT_VER_REPORT:
+      return processBuildReport(
         containerHeader,
         packetData,
         connectionId,

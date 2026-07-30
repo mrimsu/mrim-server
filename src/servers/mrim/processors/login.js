@@ -66,6 +66,8 @@ async function processLegacyLogin (
       state.userAgent = 'client="magent" version="4.0"'
     } else if (containerHeader.protocolVersionMinor >= 2) {
       state.userAgent = 'client="magent" version="2.55"'
+    } else if (containerHeader.protocolVersionMinor >= 1) {
+      state.userAgent = 'client="magent" version="2.51"'
     } else if (containerHeader.protocolVersionMinor >= 0) {
       state.userAgent = 'client="magent" version="2.0"'
     }

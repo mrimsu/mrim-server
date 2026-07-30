@@ -71,7 +71,9 @@ const MrimMessageCommands = {
   PROXY_HELLO: 0x1046,
   PROXY_HELLO_ACK: 0x1047,
   // Logout
-  LOGOUT: 0x1013
+  LOGOUT: 0x1013,
+  // Very old cmd
+  CLIENT_VER_REPORT: 0x1023,
 }
 
 const MrimStatus = {
