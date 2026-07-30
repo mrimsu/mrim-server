@@ -47,6 +47,9 @@ async function processSearch (
   state
 ) {
   if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
+  
+  // для азербайджанской разработки снова фиксы
+  const useUtf16 = state.utf16capable || state.clientName === 'QIP Infium';
 
   if (!state.searchRateLimiter) {
     state.searchRateLimiter = {
@@ -108,13 +111,13 @@ async function processSearch (
         searchParameters.domain = value
         break
       case MrimSearchRequestFields.NICKNAME:
-        searchParameters.nickname = new Iconv(state.utf16capable ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
+        searchParameters.nickname = new Iconv(useUtf16 ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
         break
       case MrimSearchRequestFields.FIRSTNAME:
-        searchParameters.firstName = new Iconv(state.utf16capable ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
+        searchParameters.firstName = new Iconv(useUtf16 ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
         break
       case MrimSearchRequestFields.LASTNAME:
-        searchParameters.lastName = new Iconv(state.utf16capable ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
+        searchParameters.lastName = new Iconv(useUtf16 ? 'UTF-16LE' : 'CP1251', 'UTF-8').convert(value.toString()).toString()
         break
       case MrimSearchRequestFields.DATE_MIN:
         searchParameters.minimumAge = parseInt(value, 10)
@@ -200,7 +203,7 @@ async function processSearch (
     fieldCount: Object.keys(responseFields).length,
     maxRows: searchResults.length,
     serverTime: Math.floor(Date.now() / 1000)
-  }, state.utf16capable)
+  }, useUtf16)
 
   let anketaInfo = new BinaryConstructor().subbuffer(anketaHeader)
 
@@ -212,7 +215,7 @@ async function processSearch (
 
   for (const user of searchResults) {
     for (const key of Object.values(responseFields)) {
-      let value = new Iconv('UTF-8', state.utf16capable && key !== 'birthday' && key !== 'domain' && key !== 'login' && key !== 'phone' ? 'UTF-16LE' : 'CP1251').convert(
+      let value = new Iconv('UTF-8', useUtf16 && key !== 'birthday' && key !== 'domain' && key !== 'login' && key !== 'phone' ? 'UTF-16LE' : 'CP1251').convert(
         Object.hasOwn(user, key) && user[key] !== null ? `${user[key]}` : ''
       )
 
@@ -242,10 +245,10 @@ async function processSearch (
             value = new Iconv('UTF-8', 'CP1251').convert(`${connectedUser?.xstatus?.type}`)
             break
           case 'status_title':
-            value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.title}`)
+            value = new Iconv('UTF-8', useUtf16 ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.title}`)
             break
           case 'status_desc':
-            value = new Iconv('UTF-8', state.utf16capable ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.description}`)
+            value = new Iconv('UTF-8', useUtf16 ? 'UTF-16LE' : 'CP1251').convert(`${connectedUser?.xstatus?.description}`)
             break
         }
       } else if (key == 'mrim_status' && user.public_status == 1 && !connectedUser) {

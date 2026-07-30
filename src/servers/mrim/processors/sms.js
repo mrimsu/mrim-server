@@ -21,7 +21,8 @@ async function processSms (
 ) {
   if (await _checkIfLoggedIn(containerHeader, logger, connectionId, state) === 0) return
 
-  const sms = MrimCsSms.reader(packetData, state.utf16capable)
+  const useUtf16 = state.utf16capable || state.clientName === 'QIP Infium'; // azerbaijan moment lul
+  const sms = MrimCsSms.reader(packetData, useUtf16)
   let status = MrimSmsStatus.OK
 
   const virtualNumber = sms.phone.replace(/\D/g, '')
