@@ -79,10 +79,10 @@ async function processMessage (
     let preparedMessage = config.adminProfile.defaultMessage
 
     if (messageData.message.toLowerCase().includes('debug')) {
-      preparedMessage = `DEBUG INFO:\nraw useragent (new): ${state.userAgent}
-raw useragent (old): ${state.oldUserAgent}
-protocol version: ${state.protocolVersionMajor}.${state.protocolVersionMinor}
-ssl: ${state.ssl}
+      preparedMessage = `DEBUG INFO:\r\nraw useragent (new): ${state.userAgent}\r
+raw useragent (old): ${state.oldUserAgent}\r
+protocol version: ${state.protocolVersionMajor}.${state.protocolVersionMinor}\r
+ssl: ${state.ssl}\r
 utf16 capable: ${state.utf16capable}`
     }
 
