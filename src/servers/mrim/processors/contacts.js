@@ -143,6 +143,20 @@ async function generateLegacyContactList (containerHeader, userId, state = null)
 async function getOnlineStatusesLegacy (containerHeader, userId, state) {
   const contacts = await getContactsFromGroups(userId)
 
+  if (config.adminProfile?.enabled) {
+    contacts.push({
+      requester_is_adder: 1,
+      requester_is_contact: 1,
+      is_auth_success: 1,
+      adder_group_id: 0,
+      user_id: 0,
+      user_login: config.adminProfile.username,
+      user_domain: config.adminProfile.domain,
+      user_nickname: config.adminProfile.nickname,
+      contact_flags: 0
+    })
+  }
+
   const statuses = await contacts.flat().filter((contact) => {
     const requesterIsAdder = contact.requester_is_adder === 1 && contact.is_auth_success === 1
     return requesterIsAdder || contact.requester_is_contact === 1
