@@ -2,6 +2,7 @@
  * @file Обработка сообщений
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const BinaryConstructor = require('../../../constructors/binary')
@@ -238,16 +239,26 @@ utf16 capable: ${state.utf16capable}`
     )
 
     if (addresserClient !== undefined) {
+      let newFlags = messageData.flags;
+      if (addresserClient.utf16capable) {
+        newFlags |= MrimMessageFlags.v1p16; 
+      } else {
+        newFlags &= ~MrimMessageFlags.v1p16;
+      }
+
       const dataToSend = MrimServerMessageData.writer({
         id: Math.random() * 0xFFFFFFFF,
-        flags: messageData.flags + (addresserClient.utf16capable == true ? MrimMessageFlags.v1p16 : 0),
+        flags: newFlags,
         addresser: `${state.username}@${state.domain}`,
         message: messageData.message ?? ' ',
         messageRTF: messageData.messageRTF ?? ' '
       }, addresserClient.utf16capable)
 
-      // send message UNTIL the proto version is less then 8 and "pers is typing" flag is set
-      if (!(addresserClient.protocolVersionMinor <= 8 && messageData.flags & MrimMessageFlags.NOTIFY)) {
+      const notifyFlag = messageData.flags & MrimMessageFlags.NOTIFY;
+      const clientName = addresserClient.clientName || '';
+      const isNewQip = clientName.includes('QIP Infium') && /90\d{2}/.test(clientName); // азербайджан ушёл
+      const isOldQip = clientName === 'QIP Infium'; // азербайджан на месте
+      if (!notifyFlag || ( !isOldQip && (isNewQip || addresserClient.protocolVersionMinor > 8) )) { // и на этом строится всё
         addresserClient.socket.write(
           new BinaryConstructor()
             .subbuffer(

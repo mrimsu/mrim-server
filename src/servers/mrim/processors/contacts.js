@@ -235,7 +235,7 @@ async function generateContactList (containerHeader, userId, state = null) {
   const MRIM_GROUP_MASK = 'us'
 
   let UTF16CAPABLE = false
-  if (containerHeader.protocolVersionMinor >= 16 && state?.clientName !== 'QIP Infium') {
+  if (containerHeader.protocolVersionMinor >= 16 || state?.clientName === 'QIP Infium' || state?.utf16capable) {
     UTF16CAPABLE = true
   }
 

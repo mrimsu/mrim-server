@@ -2,6 +2,7 @@
  * @file Статусы и микроблоги пользователей
  * @author Vladimir Barinov <veselcraft@icloud.com>
  * @author mikhail "synzr" <mikhail@tskau.team>
+ * @author Neru Asano <neru.asano9667@gmail.com>
  */
 
 const BinaryConstructor = require('../../../constructors/binary')
@@ -87,6 +88,8 @@ async function processChangeStatus (
     let userStatusUpdate
 
     if (client.protocolVersionMinor >= 15) {
+      const useUtf16 = client.utf16capable || client.clientName === 'QIP Infium';
+
       userStatusUpdate = MrimUserXStatusUpdate.writer({
         status: status.status,
         xstatusType: status.xstatusType ?? '',
@@ -95,7 +98,7 @@ async function processChangeStatus (
         features: state.features ?? 0x02FF,
         userAgent: state.userAgent ?? '',
         contact: `${state.username}@${state.domain}`
-      }, client.utf16capable)
+      }, useUtf16)
     } else {
       userStatusUpdate = MrimUserStatusUpdate.writer({
         status: status.status !== MrimStatus.XSTATUS ? status.status : MrimStatus.ONLINE,
